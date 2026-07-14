@@ -335,6 +335,12 @@ export default function MonthlyUpdates() {
           .activity-row { flex-direction: column !important; align-items: flex-start !important; gap: 10px !important; }
           .chip-btn { padding: 7px 12px !important; font-size: 12px !important; }
         }
+        
+        @media (max-width: 640px) {
+          .bottom-cta-inner { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; text-align: center !important; }
+          .bottom-cta-btn { width: 100% !important; }
+          .modal-box { width: 96% !important; margin: 10px !important; }
+        }
       `}</style>
 
       {/* ── Sidebar Backdrop ── */}
@@ -658,7 +664,7 @@ export default function MonthlyUpdates() {
             boxShadow:"0 -4px 20px rgba(0,0,0,0.06)",
             zIndex:8,
           }}>
-            <div style={{
+            <div className="bottom-cta-inner" style={{
               display:"flex", alignItems:"center", justifyContent:"space-between",
               width:"100%", maxWidth:760,
             }}>
@@ -678,6 +684,7 @@ export default function MonthlyUpdates() {
               )}
 
               <button
+                className="bottom-cta-btn"
                 onClick={handleFinalize}
                 disabled={finalizing || activity.length === 0}
                 style={{
