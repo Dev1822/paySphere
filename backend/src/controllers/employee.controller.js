@@ -34,12 +34,35 @@ exports.addEmployee = async (req, res) => {
 // GET ALL EMPLOYEES (for the logged-in user's company)
 exports.getEmployees = async (req, res) => {
   try {
-    const employees = await Employee.find({ createdBy: req.userId })
-      .sort({ createdAt: -1 });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
 
-    res.status(200).json({ employees });
+    const skip = (page - 1) * limit;
+
+    const totalEmployees = await Employee.countDocuments({
+      createdBy: req.userId,
+    });
+
+    const employees = await Employee.find({
+      createdBy: req.userId,
+    })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const totalPages = Math.ceil(totalEmployees / limit);
+
+    res.status(200).json({
+      employees,
+      currentPage: page,
+      totalPages,
+      totalEmployees,
+    });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
   }
 };
 
