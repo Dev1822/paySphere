@@ -68,84 +68,86 @@ const DashboardOverview = ({ search, setSearch, filtered, getInitials, onAddUpda
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {loading ? (
-          <div className="col-span-full py-16 text-center text-gray-400 text-sm">Loading employees...</div>
-        ) : filtered.length === 0 && !search ? (
-          <div className="col-span-full py-16 text-center">
-            <p className="text-gray-400 text-lg font-semibold mb-2">No employees yet</p>
-            <p className="text-gray-400 text-sm mb-4">Add your first employee to get started with payroll.</p>
-            <button
-              onClick={onAddEmployee}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition"
-            >
-              + Add Employee
-            </button>
-          </div>
-        ) : filtered.length === 0 && search ? (
-          <div className="col-span-full py-16 text-center text-gray-400 text-sm">No employees match "{search}"</div>
-        ) : (
-          filtered.map((emp) => {
-            const p = payrollMap[emp._id];
-            return (
-              <div key={emp._id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition flex flex-col gap-4">
-                {/* Header */}
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold"
-                      style={{ backgroundColor: AVATAR_COLORS[emp.fullName.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length] }}
-                    >
-                      {getInitials(emp.fullName)}
+      <div className="w-full overflow-x-auto pb-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 min-w-[280px]">
+          {loading ? (
+            <div className="col-span-full py-16 text-center text-gray-400 text-sm">Loading employees...</div>
+          ) : filtered.length === 0 && !search ? (
+            <div className="col-span-full py-16 text-center">
+              <p className="text-gray-400 text-lg font-semibold mb-2">No employees yet</p>
+              <p className="text-gray-400 text-sm mb-4">Add your first employee to get started with payroll.</p>
+              <button
+                onClick={onAddEmployee}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition"
+              >
+                + Add Employee
+              </button>
+            </div>
+          ) : filtered.length === 0 && search ? (
+            <div className="col-span-full py-16 text-center text-gray-400 text-sm">No employees match "{search}"</div>
+          ) : (
+            filtered.map((emp) => {
+              const p = payrollMap[emp._id];
+              return (
+                <div key={emp._id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition flex flex-col gap-4">
+                  {/* Header */}
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold"
+                        style={{ backgroundColor: AVATAR_COLORS[emp.fullName.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length] }}
+                      >
+                        {getInitials(emp.fullName)}
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-sm">{emp.fullName}</p>
+                        <p className="text-xs text-gray-400">{emp.role || "Employee"}</p>
+                      </div>
                     </div>
 
-                    <div>
-                      <p className="font-bold text-sm">{emp.fullName}</p>
-                      <p className="text-xs text-gray-400">{emp.role || "Employee"}</p>
-                    </div>
+                    <span className={`text-xs font-bold px-2 py-1 rounded-md border ${p ? "bg-green-50 text-green-600 border-green-200" : "bg-orange-50 text-orange-600 border-orange-200"}`}>
+                      {p ? "Finalized" : "Pending"}
+                    </span>
                   </div>
 
-                  <span className={`text-xs font-bold px-2 py-1 rounded-md border ${p ? "bg-green-50 text-green-600 border-green-200" : "bg-orange-50 text-orange-600 border-orange-200"}`}>
-                    {p ? "Finalized" : "Pending"}
-                  </span>
-                </div>
-
-                {/* Salary */}
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <div className="flex justify-between items-baseline">
-                    <p className="text-xs text-gray-400 uppercase">
-                      {p ? "Net Salary" : "Base Salary"}
+                  {/* Salary */}
+                  <div className="bg-gray-50 p-3 rounded-lg">
+                    <div className="flex justify-between items-baseline">
+                      <p className="text-xs text-gray-400 uppercase">
+                        {p ? "Net Salary" : "Base Salary"}
+                      </p>
+                      {p && (p.leaveDays > 0 || p.overtimeHours > 0) && (
+                        <span className="text-[10px] text-gray-400 font-medium">Incl. adjustments</span>
+                      )}
+                    </div>
+                    <p className="text-lg font-bold">
+                      {fmt(p ? p.netSalary : emp.monthlySalary)}
                     </p>
-                    {p && (p.leaveDays > 0 || p.overtimeHours > 0) && (
-                      <span className="text-[10px] text-gray-400 font-medium">Incl. adjustments</span>
-                    )}
                   </div>
-                  <p className="text-lg font-bold">
-                    {fmt(p ? p.netSalary : emp.monthlySalary)}
-                  </p>
+
+                  {/* Button */}
+                  <button 
+                    onClick={onAddUpdate}
+                    className="border border-gray-200 rounded-lg py-2 text-blue-600 font-semibold hover:bg-indigo-50 transition-colors"
+                  >
+                    {p ? "Edit Updates" : "+ Add Update"}
+                  </button>
                 </div>
+              );
+            })
+          )}
 
-                {/* Button */}
-                <button 
-                  onClick={onAddUpdate}
-                  className="border border-gray-200 rounded-lg py-2 text-blue-600 font-semibold hover:bg-indigo-50 transition-colors"
-                >
-                  {p ? "Edit Updates" : "+ Add Update"}
-                </button>
-              </div>
-            );
-          })
-        )}
-
-        {/* Add Card - only show when we have employees or not loading */}
-        {!loading && (filtered.length > 0 || search) && (
-          <div
-            onClick={onAddEmployee}
-            className="border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center min-h-45 hover:border-blue-500 hover:bg-indigo-50 cursor-pointer transition"
-          >
-            <p className="text-gray-400 font-semibold">+ Add Employee</p>
-          </div>
-        )}
+          {/* Add Card - only show when we have employees or not loading */}
+          {!loading && (filtered.length > 0 || search) && (
+            <div
+              onClick={onAddEmployee}
+              className="border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center min-h-45 hover:border-blue-500 hover:bg-indigo-50 cursor-pointer transition"
+            >
+              <p className="text-gray-400 font-semibold">+ Add Employee</p>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
@@ -205,109 +207,111 @@ const EmployeeManagement = ({ employees, loading, onAddEmployee, onAddUpdate, pa
       </div>
 
       {/* Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {loading ? (
-          <div className="col-span-full py-16 text-center text-gray-400 text-sm">Loading employees...</div>
-        ) : employees.length === 0 ? (
-          <div className="col-span-full py-16 text-center">
-            <p className="text-gray-400 text-lg font-semibold mb-2">No employees yet</p>
-            <p className="text-gray-400 text-sm mb-4">Add employees to see their salary breakdown here.</p>
-            <button
+      <div className="w-full overflow-x-auto pb-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 min-w-[280px]">
+          {loading ? (
+            <div className="col-span-full py-16 text-center text-gray-400 text-sm">Loading employees...</div>
+          ) : employees.length === 0 ? (
+            <div className="col-span-full py-16 text-center">
+              <p className="text-gray-400 text-lg font-semibold mb-2">No employees yet</p>
+              <p className="text-gray-400 text-sm mb-4">Add employees to see their salary breakdown here.</p>
+              <button
+                onClick={onAddEmployee}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition"
+              >
+                + Add Employee
+              </button>
+            </div>
+          ) : (
+            employees.map(emp => {
+              const p = payrollMap[emp._id];
+
+              return (
+                <div key={emp._id} className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition">
+                  {/* Header */}
+                  <div className="flex justify-between items-center mb-5">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-11 h-11 rounded-full text-white flex items-center justify-center font-bold"
+                        style={{ backgroundColor: AVATAR_COLORS[emp.fullName.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length] }}
+                      >
+                        {initials(emp.fullName)}
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-gray-900">{emp.fullName}</p>
+                        <p className="text-xs text-gray-400">{emp.role || "Employee"}</p>
+                      </div>
+                    </div>
+
+                    <span className={`text-xs font-bold px-2 py-1 rounded-md border ${p ? "bg-green-50 text-green-600 border-green-200" : "bg-orange-50 text-orange-600 border-orange-200"}`}>
+                      {p ? "Finalized" : "Pending"}
+                    </span>
+                  </div>
+
+                  {/* Breakdown */}
+                  <div className="space-y-2 text-sm mb-5">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Base Salary</span>
+                      <span className="font-semibold">{fmt(emp.monthlySalary)}</span>
+                    </div>
+
+                    {p && p.leaveDays > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-red-600">− {p.leaveDays} day{p.leaveDays > 1 ? "s" : ""} leave</span>
+                        <span className="text-red-600 font-semibold">- {fmt(p.leaveDeduction)}</span>
+                      </div>
+                    )}
+
+                    {p && p.overtimeHours > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-blue-600">+ {p.overtimeHours} hr{p.overtimeHours > 1 ? "s" : ""} overtime</span>
+                        <span className="text-blue-600 font-semibold">+ {fmt(p.overtimePay)}</span>
+                      </div>
+                    )}
+
+                    {p && p.bonus > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-green-600">+ Bonus</span>
+                        <span className="text-green-600 font-semibold">+ {fmt(p.bonus)}</span>
+                      </div>
+                    )}
+
+                    {p && p.deductions > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-red-600">− Deductions</span>
+                        <span className="text-red-600 font-semibold">- {fmt(p.deductions)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="h-px bg-gray-200 mb-4" />
+
+                  {/* Net */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs uppercase text-gray-400 font-bold">
+                      {p ? "Net Salary" : "Monthly Salary"}
+                    </span>
+                    <span className="text-2xl font-semibold text-blue-600">
+                      {fmt(p ? p.netSalary : emp.monthlySalary)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+
+          {/* Add More */}
+          {!loading && employees.length > 0 && (
+            <div
               onClick={onAddEmployee}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition"
+              className="border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center min-h-50 hover:border-blue-500 hover:bg-indigo-50 cursor-pointer"
             >
-              + Add Employee
-            </button>
-          </div>
-        ) : (
-          employees.map(emp => {
-            const p = payrollMap[emp._id];
-
-            return (
-              <div key={emp._id} className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition">
-                {/* Header */}
-                <div className="flex justify-between items-center mb-5">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-11 h-11 rounded-full text-white flex items-center justify-center font-bold"
-                      style={{ backgroundColor: AVATAR_COLORS[emp.fullName.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length] }}
-                    >
-                      {initials(emp.fullName)}
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm text-gray-900">{emp.fullName}</p>
-                      <p className="text-xs text-gray-400">{emp.role || "Employee"}</p>
-                    </div>
-                  </div>
-
-                  <span className={`text-xs font-bold px-2 py-1 rounded-md border ${p ? "bg-green-50 text-green-600 border-green-200" : "bg-orange-50 text-orange-600 border-orange-200"}`}>
-                    {p ? "Finalized" : "Pending"}
-                  </span>
-                </div>
-
-                {/* Breakdown */}
-                <div className="space-y-2 text-sm mb-5">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Base Salary</span>
-                    <span className="font-semibold">{fmt(emp.monthlySalary)}</span>
-                  </div>
-
-                  {p && p.leaveDays > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-red-600">− {p.leaveDays} day{p.leaveDays > 1 ? "s" : ""} leave</span>
-                      <span className="text-red-600 font-semibold">- {fmt(p.leaveDeduction)}</span>
-                    </div>
-                  )}
-
-                  {p && p.overtimeHours > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-blue-600">+ {p.overtimeHours} hr{p.overtimeHours > 1 ? "s" : ""} overtime</span>
-                      <span className="text-blue-600 font-semibold">+ {fmt(p.overtimePay)}</span>
-                    </div>
-                  )}
-
-                  {p && p.bonus > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-green-600">+ Bonus</span>
-                      <span className="text-green-600 font-semibold">+ {fmt(p.bonus)}</span>
-                    </div>
-                  )}
-
-                  {p && p.deductions > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-red-600">− Deductions</span>
-                      <span className="text-red-600 font-semibold">- {fmt(p.deductions)}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="h-px bg-gray-200 mb-4" />
-
-                {/* Net */}
-                <div className="flex justify-between items-center">
-                  <span className="text-xs uppercase text-gray-400 font-bold">
-                    {p ? "Net Salary" : "Monthly Salary"}
-                  </span>
-                  <span className="text-2xl font-semibold text-blue-600">
-                    {fmt(p ? p.netSalary : emp.monthlySalary)}
-                  </span>
-                </div>
-              </div>
-            );
-          })
-        )}
-
-        {/* Add More */}
-        {!loading && employees.length > 0 && (
-          <div
-            onClick={onAddEmployee}
-            className="border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center min-h-50 hover:border-blue-500 hover:bg-indigo-50 cursor-pointer"
-          >
-            <p className="text-gray-400 font-semibold">
-              + Add more employees
-            </p>
-          </div>
-        )}
+              <p className="text-gray-400 font-semibold">
+                + Add more employees
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
