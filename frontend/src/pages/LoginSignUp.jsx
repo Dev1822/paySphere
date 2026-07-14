@@ -26,12 +26,25 @@ export default function PaySphereLogin() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Forgot Password State
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+
   useEffect(() => {
     const mode = searchParams.get("mode");
     if (mode === "signup" || mode === "login") {
       setActiveTab(mode);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    setError("");
+    setSuccessMessage("");
+    setIsForgotPassword(false);
+  }, [activeTab]);
+
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -60,6 +73,24 @@ export default function PaySphereLogin() {
       setLoading(false);
     }
   };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccessMessage("");
+    setLoading(true);
+
+    try {
+      const response = await api.post("/api/auth/forgot-password", { email: forgotEmail });
+      setSuccessMessage(response.data.message || "Password reset link sent to your email.");
+      setForgotEmail("");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to send reset link. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const handleGoogleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
@@ -170,40 +201,101 @@ export default function PaySphereLogin() {
             {/* LOGIN */}
             {activeTab === "login" ? (
               <>
-                <h2 className="text-2xl font-serif mb-1">Welcome back</h2>
-                <p className="text-gray-500 text-sm mb-6">
-                  Enter your credentials
-                </p>
+                {isForgotPassword ? (
+                  <>
+                    <h2 className="text-2xl font-serif mb-1">Reset Password</h2>
+                    <p className="text-gray-500 text-sm mb-6">
+                      Enter your registered email to receive a password reset link.
+                    </p>
 
-                <form onSubmit={handleAuth}>
-                  <input
-                    type="email"
-                    placeholder="name@company.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="w-full mb-4 px-4 py-3 rounded-lg bg-gray-100 focus:bg-white focus:border focus:border-blue-500 outline-none"
-                  />
+                    <form onSubmit={handleForgotPassword}>
+                      <input
+                        type="email"
+                        placeholder="name@company.com"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        required
+                        className="w-full mb-4 px-4 py-3 rounded-lg bg-gray-100 focus:bg-white focus:border focus:border-blue-500 outline-none"
+                      />
 
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="w-full mb-4 px-4 py-3 rounded-lg bg-gray-100 focus:bg-white focus:border focus:border-blue-500 outline-none"
-                  />
+                      {error && <p className="text-red-500 text-xs mb-4">{error}</p>}
+                      {successMessage && <p className="text-green-600 text-xs mb-4">{successMessage}</p>}
 
-                  {error && <p className="text-red-500 text-xs mb-4">{error}</p>}
+                      <button 
+                        type="submit" 
+                        disabled={loading}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition mb-5 text-center disabled:opacity-50"
+                      >
+                        {loading ? "Sending..." : "Send Reset Link"}
+                      </button>
+                    </form>
 
-                  <button 
-                    type="submit" 
-                    disabled={loading}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition mb-5 text-center disabled:opacity-50"
-                  >
-                    {loading ? "Logging in..." : "Login"}
-                  </button>
-                </form>
+                    <div className="text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsForgotPassword(false);
+                          setError("");
+                          setSuccessMessage("");
+                        }}
+                        className="text-sm text-blue-600 hover:underline font-semibold"
+                      >
+                        Back to Login
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="text-2xl font-serif mb-1">Welcome back</h2>
+                    <p className="text-gray-500 text-sm mb-6">
+                      Enter your credentials
+                    </p>
+
+                    <form onSubmit={handleAuth}>
+                      <input
+                        type="email"
+                        placeholder="name@company.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        className="w-full mb-4 px-4 py-3 rounded-lg bg-gray-100 focus:bg-white focus:border focus:border-blue-500 outline-none"
+                      />
+
+                      <input
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        className="w-full mb-4 px-4 py-3 rounded-lg bg-gray-100 focus:bg-white focus:border focus:border-blue-500 outline-none"
+                      />
+
+                      <div className="flex justify-end mb-4 -mt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsForgotPassword(true);
+                            setError("");
+                            setSuccessMessage("");
+                          }}
+                          className="text-xs text-blue-600 hover:underline font-semibold"
+                        >
+                          Forgot Password?
+                        </button>
+                      </div>
+
+                      {error && <p className="text-red-500 text-xs mb-4">{error}</p>}
+
+                      <button 
+                        type="submit" 
+                        disabled={loading}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition mb-5 text-center disabled:opacity-50"
+                      >
+                        {loading ? "Logging in..." : "Login"}
+                      </button>
+                    </form>
+                  </>
+                )}
 
                 <div className="flex items-center gap-3 mb-5">
                   <div className="flex-1 h-px bg-gray-200" />
