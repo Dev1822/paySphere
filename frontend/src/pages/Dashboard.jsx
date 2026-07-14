@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
+import { useNavigate } from "react-router-dom";
+import EmptyState from "../components/common/EmptyState";
+import { EmployeeBreakdownSkeleton, EmployeeCardSkeleton, StatCardSkeleton } from "../components/common/Skeleton";
 import api from "../services/api";
 
 
-// --- Dashboard Component ---
 // --- Dashboard Component ---
 const DashboardOverview = ({ search, setSearch, filtered, getInitials, onAddUpdate, onAddEmployee, totalPayout, employeeCount, loading, payrolls }) => {
   // Build a map from employeeId to payroll data
@@ -38,21 +39,32 @@ const DashboardOverview = ({ search, setSearch, filtered, getInitials, onAddUpda
 
       {/* Stats */}
       <div className="flex flex-col sm:flex-row gap-4 mb-10">
-        <div className="flex-1 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-xs uppercase text-gray-400 font-bold mb-2">
-            Total Monthly Payout
-          </p>
-          <h2 className="text-2xl sm:text-3xl font-bold">₹{totalPayout.toLocaleString("en-IN")}</h2>
-          <p className="text-gray-400 text-sm mt-2">{employeeCount} employees on payroll</p>
-        </div>
+        {loading ? (
+          <>
+            <StatCardSkeleton />
+            <div className="w-full sm:w-64">
+              <StatCardSkeleton />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex-1 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+              <p className="text-xs uppercase text-gray-400 font-bold mb-2">
+                Total Monthly Payout
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-bold">₹{totalPayout.toLocaleString("en-IN")}</h2>
+              <p className="text-gray-400 text-sm mt-2">{employeeCount} employees on payroll</p>
+            </div>
 
-        <div className="w-full sm:w-64 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-xs uppercase text-gray-400 font-bold mb-2">
-            Employees
-          </p>
-          <h2 className="text-3xl sm:text-4xl font-bold">{employeeCount}</h2>
-          <p className="text-gray-400 text-sm">Active this month</p>
-        </div>
+            <div className="w-full sm:w-64 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+              <p className="text-xs uppercase text-gray-400 font-bold mb-2">
+                Employees
+              </p>
+              <h2 className="text-3xl sm:text-4xl font-bold">{employeeCount}</h2>
+              <p className="text-gray-400 text-sm">Active this month</p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Search */}
@@ -71,20 +83,27 @@ const DashboardOverview = ({ search, setSearch, filtered, getInitials, onAddUpda
       <div className="w-full overflow-x-auto pb-2">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 min-w-[280px]">
           {loading ? (
-            <div className="col-span-full py-16 text-center text-gray-400 text-sm">Loading employees...</div>
+            Array.from({ length: 6 }).map((_, i) => (
+              <EmployeeCardSkeleton key={i} />
+            ))
           ) : filtered.length === 0 && !search ? (
-            <div className="col-span-full py-16 text-center">
-              <p className="text-gray-400 text-lg font-semibold mb-2">No employees yet</p>
-              <p className="text-gray-400 text-sm mb-4">Add your first employee to get started with payroll.</p>
-              <button
-                onClick={onAddEmployee}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition"
-              >
-                + Add Employee
-              </button>
-            </div>
+            <EmptyState
+              title="No employees yet"
+              description="Add your first employee to get started with payroll."
+              action={
+                <button
+                  onClick={onAddEmployee}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition"
+                >
+                  + Add Employee
+                </button>
+              }
+            />
           ) : filtered.length === 0 && search ? (
-            <div className="col-span-full py-16 text-center text-gray-400 text-sm">No employees match "{search}"</div>
+            <EmptyState
+              title="No employees found"
+              description={`No employees match "${search}". Try a different name or role.`}
+            />
           ) : (
             filtered.map((emp) => {
               const p = payrollMap[emp._id];
@@ -157,7 +176,7 @@ const DashboardOverview = ({ search, setSearch, filtered, getInitials, onAddUpda
 const AVATAR_COLORS = ["#6366F1", "#EC4899", "#F59E0B", "#10B981", "#3B82F6", "#8B5CF6", "#EF4444", "#14B8A6"];
 
 // --- Employees Component ---
-const EmployeeManagement = ({ employees, loading, onAddEmployee, onAddUpdate, payrolls }) => {
+const EmployeeManagement = ({ employees, loading, onAddEmployee, onAddUpdate, payrolls, currentPage, totalPages, setCurrentPage }) => {
   const fmt = (n) => "₹" + Math.abs(n).toLocaleString("en-IN");
 
   // Build a map from employeeId to payroll data
@@ -210,18 +229,22 @@ const EmployeeManagement = ({ employees, loading, onAddEmployee, onAddUpdate, pa
       <div className="w-full overflow-x-auto pb-2">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 min-w-[280px]">
           {loading ? (
-            <div className="col-span-full py-16 text-center text-gray-400 text-sm">Loading employees...</div>
+            Array.from({ length: 6 }).map((_, i) => (
+              <EmployeeBreakdownSkeleton key={i} />
+            ))
           ) : employees.length === 0 ? (
-            <div className="col-span-full py-16 text-center">
-              <p className="text-gray-400 text-lg font-semibold mb-2">No employees yet</p>
-              <p className="text-gray-400 text-sm mb-4">Add employees to see their salary breakdown here.</p>
-              <button
-                onClick={onAddEmployee}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition"
-              >
-                + Add Employee
-              </button>
-            </div>
+            <EmptyState
+              title="No employees yet"
+              description="Add employees to see their salary breakdown here."
+              action={
+                <button
+                  onClick={onAddEmployee}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition"
+                >
+                  + Add Employee
+                </button>
+              }
+            />
           ) : (
             employees.map(emp => {
               const p = payrollMap[emp._id];
@@ -313,6 +336,31 @@ const EmployeeManagement = ({ employees, loading, onAddEmployee, onAddUpdate, pa
           )}
         </div>
       </div>
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 mt-8">
+          <button
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(currentPage - 1)}
+            className="px-4 py-2 border rounded-lg text-sm font-semibold disabled:opacity-50"
+          >
+            Previous
+          </button>
+
+          <span className="text-sm text-gray-600">
+            Page {currentPage} of {totalPages}
+          </span>
+
+          <button
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage(currentPage + 1)}
+            className="px-4 py-2 border rounded-lg text-sm font-semibold disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </main>
   );
 };
@@ -324,6 +372,8 @@ export default function PaySphereDashboard() {
   const [search, setSearch] = useState("");
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [payrolls, setPayrolls] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState({ defaultOvertimeRate: 0, defaultDailyRate: 0 });
@@ -336,11 +386,12 @@ export default function PaySphereDashboard() {
     const fetchData = async () => {
       try {
         const [empRes, payRes] = await Promise.all([
-          api.get(`/api/employees`),
+          api.get(`/api/employees?page=${currentPage}&limit=10`),
           api.get(`/api/payroll/summary`),
         ]);
 
         setEmployees(empRes.data.employees);
+        setTotalPages(empRes.data.totalPages);
         setPayrolls(payRes.data.payrolls || []);
       } catch (err) {
         console.error("Failed to fetch data:", err);
@@ -350,7 +401,7 @@ export default function PaySphereDashboard() {
     };
     if (token) fetchData();
     else setLoading(false);
-  }, [token]);
+  }, [token, currentPage]);
 
   // Fetch settings
   useEffect(() => {
@@ -516,7 +567,7 @@ export default function PaySphereDashboard() {
             payrolls={payrolls}
           />
         ) : (
-          <EmployeeManagement employees={employees} loading={loading} onAddEmployee={() => navigate("/add-employee")} onAddUpdate={() => navigate("/monthly-updates")} payrolls={payrolls} />
+          <EmployeeManagement employees={employees} loading={loading} onAddEmployee={() => navigate("/add-employee")} onAddUpdate={() => navigate("/monthly-updates")} payrolls={payrolls} currentPage={currentPage} totalPages={totalPages} setCurrentPage={setCurrentPage}/>
         )}
 
         {/* Settings Modal */}
