@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard"
 import MonthlyUpdates from "./pages/MonthlyUpdates"
 import AddEmployee from "./pages/AddEmployee"
 import ResetPassword from "./pages/ResetPassword"
+import NotFound from "./pages/NotFound"
 
 function App() {
   const themeMode = useSelector((state) => state.ui.themeMode);
@@ -48,6 +49,7 @@ function App() {
           <Route path="/monthly-updates" element={<MonthlyUpdates />} />
           <Route path="/add-employee" element={<AddEmployee />} />
           <Route path="/reset-password/:token" element={<ResetPassword />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>
