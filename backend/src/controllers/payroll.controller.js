@@ -4,8 +4,8 @@ const User = require("../models/user.model");
 
 // Helper: parse tag labels back into structured numbers
 function parseTagValue(label) {
-  const num = label.replace(/[^0-9.]/g, "");
-  return num ? parseFloat(num) : 0;
+  const match = label.match(/[0-9.]+/);
+  return match ? parseFloat(match[0]) : 0;
 }
 
 // FINALIZE PAYROLL — process activity entries and save payroll records
