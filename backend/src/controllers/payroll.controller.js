@@ -5,8 +5,11 @@ const { calculateNetSalary } = require("../utils/salaryCalculator");
 
 // Helper: parse tag labels back into structured numbers
 function parseTagValue(label) {
+  if (typeof label !== "string") return 0;
   const num = label.replace(/[^0-9.]/g, "");
-  return num ? parseFloat(num) : 0;
+  if (!num) return 0;
+  const parsed = parseFloat(num);
+  return (isNaN(parsed) || !Number.isFinite(parsed) || parsed < 0) ? 0 : parsed;
 }
 
 // FINALIZE PAYROLL — process activity entries and save payroll records
@@ -79,6 +82,12 @@ exports.finalizePayroll = async (req, res) => {
         }
       }
 
+      // Validate accumulators are finite numbers
+      leaveDays = (isNaN(leaveDays) || !Number.isFinite(leaveDays) || leaveDays < 0) ? 0 : leaveDays;
+      overtimeHours = (isNaN(overtimeHours) || !Number.isFinite(overtimeHours) || overtimeHours < 0) ? 0 : overtimeHours;
+      bonus = (isNaN(bonus) || !Number.isFinite(bonus) || bonus < 0) ? 0 : bonus;
+      deductions = (isNaN(deductions) || !Number.isFinite(deductions) || deductions < 0) ? 0 : deductions;
+
       // Calculate salary adjustments
       const {
         baseSalary,
@@ -86,6 +95,11 @@ exports.finalizePayroll = async (req, res) => {
         overtimePay,
         netSalary
       } = calculateNetSalary(employee, user, { leaveDays, overtimeHours, bonus, deductions });
+
+      if (isNaN(netSalary) || !Number.isFinite(netSalary)) {
+        errors.push(`Invalid net salary calculation for employee "${employee.fullName}"`);
+        continue;
+      }
 
       // Upsert payroll record (update if exists for same employee/month)
       const payrollData = {
