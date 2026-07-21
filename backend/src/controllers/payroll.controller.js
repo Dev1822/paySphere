@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Employee = require("../models/employee.model");
 const PayrollUpdate = require("../models/payroll.model");
 const User = require("../models/user.model");
@@ -12,8 +13,9 @@ function parseTagValue(label) {
   return (isNaN(parsed) || !Number.isFinite(parsed) || parsed < 0) ? 0 : parsed;
 }
 
-// FINALIZE PAYROLL — process activity entries and save payroll records
+// FINALIZE PAYROLL — process activity entries and save payroll records atomically
 exports.finalizePayroll = async (req, res) => {
+  let session = null;
   try {
     const { activities, month, year } = req.body;
 
@@ -42,16 +44,16 @@ exports.finalizePayroll = async (req, res) => {
     // Fetch user settings for default rates
     const user = await User.findById(req.userId);
 
-    const results = [];
+    const preparedItems = [];
     const errors = [];
 
+    // Phase 1: Upfront in-memory calculation and validation (no partial writes)
     for (const act of activities) {
       if (!act || typeof act !== "object") {
         errors.push("Invalid activity entry format");
         continue;
       }
 
-      // Match activity precisely by employeeId (if provided) or by exact name
       const employee = employees.find(emp =>
         (act.employeeId && String(emp._id) === String(act.employeeId)) ||
         (typeof act.name === "string" && emp.fullName.toLowerCase() === act.name.trim().toLowerCase())
@@ -62,7 +64,6 @@ exports.finalizePayroll = async (req, res) => {
         continue;
       }
 
-      // Parse tags into structured adjustments
       let leaveDays = 0, overtimeHours = 0, bonus = 0, deductions = 0;
 
       const tagsList = Array.isArray(act.tags) ? act.tags : [];
@@ -82,13 +83,11 @@ exports.finalizePayroll = async (req, res) => {
         }
       }
 
-      // Validate accumulators are finite numbers
       leaveDays = (isNaN(leaveDays) || !Number.isFinite(leaveDays) || leaveDays < 0) ? 0 : leaveDays;
       overtimeHours = (isNaN(overtimeHours) || !Number.isFinite(overtimeHours) || overtimeHours < 0) ? 0 : overtimeHours;
       bonus = (isNaN(bonus) || !Number.isFinite(bonus) || bonus < 0) ? 0 : bonus;
       deductions = (isNaN(deductions) || !Number.isFinite(deductions) || deductions < 0) ? 0 : deductions;
 
-      // Calculate salary adjustments
       const {
         baseSalary,
         leaveDeduction,
@@ -101,43 +100,81 @@ exports.finalizePayroll = async (req, res) => {
         continue;
       }
 
-      // Upsert payroll record (update if exists for same employee/month)
-      const payrollData = {
-        employeeId: employee._id,
-        employeeName: employee.fullName,
-        month: currentMonth,
-        year: currentYear,
+      preparedItems.push({
+        employee,
         baseSalary,
-        overtimeRate: employee.overtimeRate || 0,
         leaveDays,
         overtimeHours,
         bonus,
         deductions,
         leaveDeduction,
         overtimePay,
-        netSalary,
+        netSalary
+      });
+    }
+
+    if (preparedItems.length === 0) {
+      return res.status(400).json({
+        message: "No valid employee activities to process",
+        errors: errors.length > 0 ? errors : undefined,
+      });
+    }
+
+    // Try starting a session for transaction atomicity
+    try {
+      session = await mongoose.startSession();
+      session.startTransaction();
+    } catch (sessionErr) {
+      session = null;
+    }
+
+    // Phase 2: Write all calculated records atomically within transaction
+    const results = [];
+    const writeOptions = { upsert: true, new: true, setDefaultsOnInsert: true };
+    if (session) writeOptions.session = session;
+
+    for (const item of preparedItems) {
+      const payrollData = {
+        employeeId: item.employee._id,
+        employeeName: item.employee.fullName,
+        month: currentMonth,
+        year: currentYear,
+        baseSalary: item.baseSalary,
+        overtimeRate: item.employee.overtimeRate || 0,
+        leaveDays: item.leaveDays,
+        overtimeHours: item.overtimeHours,
+        bonus: item.bonus,
+        deductions: item.deductions,
+        leaveDeduction: item.leaveDeduction,
+        overtimePay: item.overtimePay,
+        netSalary: item.netSalary,
         createdBy: req.userId,
         status: "finalized",
       };
 
       const payroll = await PayrollUpdate.findOneAndUpdate(
-        { employeeId: employee._id, month: currentMonth, year: currentYear, createdBy: req.userId },
+        { employeeId: item.employee._id, month: currentMonth, year: currentYear, createdBy: req.userId },
         payrollData,
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        writeOptions
       );
 
       results.push({
-        employeeName: employee.fullName,
-        baseSalary,
-        leaveDays,
-        leaveDeduction,
-        overtimeHours,
-        overtimePay,
-        bonus,
-        deductions,
-        netSalary,
+        employeeName: item.employee.fullName,
+        baseSalary: item.baseSalary,
+        leaveDays: item.leaveDays,
+        leaveDeduction: item.leaveDeduction,
+        overtimeHours: item.overtimeHours,
+        overtimePay: item.overtimePay,
+        bonus: item.bonus,
+        deductions: item.deductions,
+        netSalary: item.netSalary,
         payrollId: payroll._id,
       });
+    }
+
+    if (session) {
+      await session.commitTransaction();
+      session.endSession();
     }
 
     res.status(200).json({
@@ -146,8 +183,16 @@ exports.finalizePayroll = async (req, res) => {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
+    if (session) {
+      try {
+        await session.abortTransaction();
+        session.endSession();
+      } catch (e) {
+        // ignore session cleanup error
+      }
+    }
     console.error("Finalize payroll error:", error);
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(500).json({ message: "Server error during payroll finalization", error: error.message });
   }
 };
 

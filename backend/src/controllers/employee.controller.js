@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Employee = require("../models/employee.model");
 const User = require("../models/user.model");
 const { parse } = require("csv-parse");
@@ -197,7 +198,31 @@ exports.importEmployees = async (req, res) => {
           });
 
           if (employees.length > 0) {
-            await Employee.insertMany(employees);
+            let session = null;
+            try {
+              session = await mongoose.startSession();
+              session.startTransaction();
+            } catch (sErr) {
+              session = null;
+            }
+
+            try {
+              await Employee.insertMany(employees, session ? { session } : {});
+              if (session) {
+                await session.commitTransaction();
+                session.endSession();
+              }
+            } catch (insertErr) {
+              if (session) {
+                try {
+                  await session.abortTransaction();
+                  session.endSession();
+                } catch (e) {
+                  // ignore session error
+                }
+              }
+              throw insertErr;
+            }
           }
 
           return res.status(200).json({
