@@ -82,11 +82,26 @@ exports.updateSettings = async (req, res) => {
   try {
     const { defaultOvertimeRate, defaultDailyRate } = req.body;
 
+    if (
+      (defaultOvertimeRate !== undefined && (typeof defaultOvertimeRate !== "number" || isNaN(defaultOvertimeRate) || defaultOvertimeRate < 0)) ||
+      (defaultDailyRate !== undefined && (typeof defaultDailyRate !== "number" || isNaN(defaultDailyRate) || defaultDailyRate < 0))
+    ) {
+      return res.status(400).json({ message: "Default rates must be non-negative numbers" });
+    }
+
+    const updateFields = {};
+    if (defaultOvertimeRate !== undefined) updateFields.defaultOvertimeRate = defaultOvertimeRate;
+    if (defaultDailyRate !== undefined) updateFields.defaultDailyRate = defaultDailyRate;
+
     const user = await User.findByIdAndUpdate(
       req.userId,
-      { defaultOvertimeRate, defaultDailyRate },
-      { new: true }
+      updateFields,
+      { new: true, runValidators: true }
     );
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
     res.status(200).json({
       message: "Settings updated successfully",
