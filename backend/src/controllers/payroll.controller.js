@@ -18,8 +18,16 @@ exports.finalizePayroll = async (req, res) => {
       return res.status(400).json({ message: "No activities to process" });
     }
 
-    const currentMonth = month || new Date().getMonth() + 1;
-    const currentYear = year || new Date().getFullYear();
+    let currentMonth = month ? Number(month) : new Date().getMonth() + 1;
+    let currentYear = year ? Number(year) : new Date().getFullYear();
+
+    if (isNaN(currentMonth) || !Number.isInteger(currentMonth) || currentMonth < 1 || currentMonth > 12) {
+      return res.status(400).json({ message: "Invalid month. Must be an integer between 1 and 12" });
+    }
+
+    if (isNaN(currentYear) || !Number.isInteger(currentYear) || currentYear < 2000 || currentYear > 2100) {
+      return res.status(400).json({ message: "Invalid year. Must be a valid year integer" });
+    }
 
     // Fetch all employees for this user
     const employees = await Employee.find({ createdBy: req.userId });
@@ -35,21 +43,28 @@ exports.finalizePayroll = async (req, res) => {
     const errors = [];
 
     for (const act of activities) {
+      if (!act || typeof act !== "object") {
+        errors.push("Invalid activity entry format");
+        continue;
+      }
+
       // Match activity precisely by employeeId (if provided) or by exact name
       const employee = employees.find(emp =>
-        (act.employeeId && emp._id.toString() === String(act.employeeId)) ||
-        (act.name && emp.fullName.toLowerCase() === act.name.toLowerCase())
+        (act.employeeId && String(emp._id) === String(act.employeeId)) ||
+        (typeof act.name === "string" && emp.fullName.toLowerCase() === act.name.trim().toLowerCase())
       );
 
       if (!employee) {
-        errors.push(`Could not match "${act.name}" to any employee`);
+        errors.push(`Could not match "${act.name || 'unnamed'}" to any employee`);
         continue;
       }
 
       // Parse tags into structured adjustments
       let leaveDays = 0, overtimeHours = 0, bonus = 0, deductions = 0;
 
-      for (const tag of act.tags) {
+      const tagsList = Array.isArray(act.tags) ? act.tags : [];
+      for (const tag of tagsList) {
+        if (!tag || typeof tag.label !== "string") continue;
         const lower = tag.label.toLowerCase();
         const value = parseTagValue(tag.label);
 
@@ -125,8 +140,16 @@ exports.finalizePayroll = async (req, res) => {
 // GET PAYROLL SUMMARY for a month
 exports.getPayrollSummary = async (req, res) => {
   try {
-    const month = parseInt(req.query.month) || new Date().getMonth() + 1;
-    const year = parseInt(req.query.year) || new Date().getFullYear();
+    let month = req.query.month ? Number(req.query.month) : new Date().getMonth() + 1;
+    let year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
+
+    if (isNaN(month) || !Number.isInteger(month) || month < 1 || month > 12) {
+      return res.status(400).json({ message: "Invalid month parameter" });
+    }
+
+    if (isNaN(year) || !Number.isInteger(year) || year < 2000 || year > 2100) {
+      return res.status(400).json({ message: "Invalid year parameter" });
+    }
 
     const payrolls = await PayrollUpdate.find({
       createdBy: req.userId,

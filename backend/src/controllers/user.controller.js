@@ -5,6 +5,7 @@ const { OAuth2Client } = require("google-auth-library");
 const crypto = require("crypto");
 const User = require("../models/user.model");
 const { sendEmail } = require("../utils/email");
+const { isNonEmptyString, isValidEmail } = require("../utils/validators");
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -13,15 +14,28 @@ exports.signup = async (req, res) => {
   try {
     const { fullName, email, companyName, password } = req.body;
 
-    const existingUser = await User.findOne({ email });
+    if (!isNonEmptyString(fullName) || !isNonEmptyString(email) || !isNonEmptyString(companyName) || !isNonEmptyString(password)) {
+      return res.status(400).json({ message: "Full name, email, company name, and password are required non-empty strings" });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: "Invalid email address format" });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters long" });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const existingUser = await User.findOne({ email: cleanEmail });
     if (existingUser) return res.status(400).json({ message: "User already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const newUser = new User({
-      fullName,
-      email,
-      companyName,
+      fullName: fullName.trim(),
+      email: cleanEmail,
+      companyName: companyName.trim(),
       password: hashedPassword,
     });
 
@@ -44,7 +58,16 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    if (!isNonEmptyString(email) || !isNonEmptyString(password)) {
+      return res.status(400).json({ message: "Email and password are required strings" });
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: "Invalid email address format" });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: cleanEmail });
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -181,11 +204,12 @@ exports.googleAuth = async (req, res) => {
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ message: "Email is required" });
+    if (!isNonEmptyString(email) || !isValidEmail(email)) {
+      return res.status(400).json({ message: "A valid email address is required" });
     }
 
-    const user = await User.findOne({ email });
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: cleanEmail });
     if (!user) {
       return res.status(404).json({ message: "User with this email does not exist" });
     }
@@ -234,8 +258,8 @@ exports.resetPassword = async (req, res) => {
     const { token } = req.params;
     const { password } = req.body;
 
-    if (!password) {
-      return res.status(400).json({ message: "New password is required" });
+    if (!isNonEmptyString(password) || password.length < 6) {
+      return res.status(400).json({ message: "New password must be a string with at least 6 characters" });
     }
 
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
