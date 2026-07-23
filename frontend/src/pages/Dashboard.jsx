@@ -651,12 +651,17 @@ export default function PaySphereDashboard() {
   };
 
   const handleEditSubmit = async (id, updatedData) => {
-    await api.put(`/api/employees/${id}`, updatedData);
-    
-    setEmployees((prev) =>
-      prev.map((emp) => (emp._id === id ? { ...emp, ...updatedData } : emp))
-    );
-    setEmployeeToEdit(null);
+    try {
+      await api.put(`/api/employees/${id}`, updatedData);
+      
+      setEmployees((prev) =>
+        prev.map((emp) => (emp._id === id ? { ...emp, ...updatedData } : emp))
+      );
+      setEmployeeToEdit(null);
+    } catch (err) {
+      console.error('Failed to update employee:', err);
+      alert(err.response?.data?.message || 'Failed to update employee.');
+    }
   };
   
   const getInitials = (name) =>
