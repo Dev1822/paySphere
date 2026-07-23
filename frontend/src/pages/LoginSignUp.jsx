@@ -245,6 +245,7 @@ export default function PaySphereLogin() {
                       <input
                         type="email"
                         placeholder="name@company.com"
+                        aria-label="Email address for password reset"
                         value={forgotEmail}
                         onChange={(e) => setForgotEmail(e.target.value)}
                         required
@@ -296,6 +297,7 @@ export default function PaySphereLogin() {
                       <input
                         type="email"
                         placeholder="name@company.com"
+                        aria-label="Email address"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
@@ -305,6 +307,7 @@ export default function PaySphereLogin() {
                       <input
                         type="password"
                         placeholder="••••••••"
+                        aria-label="Password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
@@ -370,6 +373,7 @@ export default function PaySphereLogin() {
                   <input
                     type="text"
                     placeholder="Full Name"
+                    aria-label="Full name"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     required
@@ -379,6 +383,7 @@ export default function PaySphereLogin() {
                   <input
                     type="email"
                     placeholder="Email"
+                    aria-label="Email address"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -388,6 +393,7 @@ export default function PaySphereLogin() {
                   <input
                     type="text"
                     placeholder="Company Name"
+                    aria-label="Company name"
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     required
@@ -397,6 +403,7 @@ export default function PaySphereLogin() {
                   <input
                     type="password"
                     placeholder="Password"
+                    aria-label="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
