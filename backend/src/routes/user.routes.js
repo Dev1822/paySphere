@@ -9,6 +9,8 @@ router.post("/login", authRateLimiter, login);
 router.post("/google", authRateLimiter, googleAuth);
 router.post("/forgot-password", authRateLimiter, forgotPassword);
 router.post("/reset-password/:token", authRateLimiter, resetPassword);
+router.post("/refresh", authRateLimiter, require("../controllers/user.controller").refresh);
+router.post("/logout", authRateLimiter, require("../controllers/user.controller").logout);
 
 // Settings
 router.get("/settings", auth, getSettings);

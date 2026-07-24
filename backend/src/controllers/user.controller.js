@@ -15,6 +15,29 @@ const { createAuditLog } = require("../services/audit.service");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
 
+const generateTokens = (user, res) => {
+  const accessToken = jwt.sign(
+    { id: user._id, tokenVersion: user.tokenVersion || 0 },
+    process.env.JWT_SECRET,
+    { expiresIn: "15m" }
+  );
+
+  const refreshToken = jwt.sign(
+    { id: user._id, tokenVersion: user.tokenVersion || 0 },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  });
+
+  return accessToken;
+};
+
 // SIGN UP
 exports.signup = async (req, res, next) => {
   try {
@@ -47,11 +70,7 @@ exports.signup = async (req, res, next) => {
 
     await newUser.save();
 
-    const token = jwt.sign(
-      { id: newUser._id, tokenVersion: newUser.tokenVersion || 0 },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = generateTokens(newUser, res);
 
     res.status(201).json({ token, companyName: newUser.companyName });
   } catch (error) {
@@ -80,11 +99,7 @@ exports.login = async (req, res, next) => {
     if (!isMatch)
       return res.status(400).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign(
-      { id: user._id, tokenVersion: user.tokenVersion || 0 },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = generateTokens(user, res);
 
     res.status(200).json({ token, companyName: user.companyName });
   } catch (error) {
@@ -278,11 +293,7 @@ exports.googleAuth = async (req, res, next) => {
       await user.save();
     }
 
-    const token = jwt.sign(
-      { id: user._id, tokenVersion: user.tokenVersion || 0 },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = generateTokens(user, res);
 
     res.status(200).json({
       token,
@@ -474,4 +485,43 @@ exports.deleteAccount = async (req, res, next) => {
     }
     next(error);
   }
+};
+
+// REFRESH TOKEN
+exports.refresh = async (req, res, next) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+    if (!refreshToken) return res.status(401).json({ message: "No refresh token provided" });
+
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ message: "Invalid or expired refresh token" });
+    }
+
+    const user = await User.findById(decoded.id).select("_id isActive tokenVersion");
+    if (!user || user.isActive === false) {
+      return res.status(401).json({ message: "User not found or deactivated" });
+    }
+
+    if (decoded.tokenVersion !== undefined && user.tokenVersion !== undefined && decoded.tokenVersion !== user.tokenVersion) {
+      return res.status(401).json({ message: "Token is no longer valid" });
+    }
+
+    const token = generateTokens(user, res);
+    res.status(200).json({ token });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// LOGOUT
+exports.logout = (req, res) => {
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict"
+  });
+  res.status(200).json({ message: "Logged out successfully" });
 };

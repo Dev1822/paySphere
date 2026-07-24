@@ -6,6 +6,7 @@ const {
   importEmployees,
   updateEmployee,
   deleteEmployee,
+  toggleEmployeeStatus,
 } = require("../controllers/employee.controller");
 
 const auth = require("../middlewares/auth.middleware");
@@ -21,5 +22,6 @@ router.get("/", auth, getEmployees);
 router.get("/recent", auth, getRecentEmployees);
 router.delete("/:id", auth, writeRateLimiter, deleteEmployee);
 router.put("/:id", auth, writeRateLimiter, updateEmployee);
+router.patch("/:id/status", auth, writeRateLimiter, toggleEmployeeStatus);
 
 module.exports = router;
