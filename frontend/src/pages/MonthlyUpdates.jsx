@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useSelector, useDispatch } from "react-redux";
-import { logout } from "../features/auth/authSlice";
+import { logout, logoutUser } from "../features/auth/authSlice";
 import ThemeToggle from "../components/ThemeToggle";
 import api from "../services/api";
 import AttendanceCalendarModal from "../components/AttendanceCalendarModal";
@@ -118,9 +118,11 @@ function parseInput(text, employeeList) {
   
   // 1. Try exact full-name match
   let name = null;
+  let employeeId = null;
   for (const emp of employeeList) {
     if (lower.startsWith(emp.fullName.toLowerCase())) {
       name = emp.fullName;
+      employeeId = emp._id;
       break;
     }
   }
@@ -132,6 +134,7 @@ function parseInput(text, employeeList) {
       // Check if input starts with the first name followed by a space or action word
       if (lower.startsWith(firstName + " ")) {
         name = emp.fullName;
+        employeeId = emp._id;
         break;
       }
     }
@@ -141,6 +144,8 @@ function parseInput(text, employeeList) {
   if (!name) {
     const nameMatch = text.match(/^([A-Za-z]+(?:\s[A-Za-z]+)?)/);
     name = nameMatch ? nameMatch[1] : "Unknown";
+    const matchedEmp = employeeList.find(emp => emp.fullName.toLowerCase() === name.toLowerCase());
+    employeeId = matchedEmp ? matchedEmp._id : null;
   }
 
   const tags = [];
@@ -153,7 +158,7 @@ function parseInput(text, employeeList) {
   const dedMatch = lower.match(/₹?([\d,]+)\s*deduction/);
   if (dedMatch) tags.push({ label: `– ₹${dedMatch[1]} deduction`, bg: "#FEF2F2", color: "#DC2626" });
   if (tags.length === 0) tags.push({ label: text.slice(0,30), bg: "#F3F4F6", color: "#374151" });
-  return { name, tags, note: null, pending: true };
+  return { employeeId, name, tags, note: null, pending: true };
 }
 
 const COLORS = ["#818CF8","#34D399","#FB7185","#FBBF24","#60A5FA","#A78BFA"];
@@ -239,7 +244,9 @@ export default function MonthlyUpdates() {
   // Handle Attendance Calendar Apply (#137)
   const handleApplyCalendar = ({ employeeName, tags }) => {
     const color = COLORS[nextId % COLORS.length];
-    setActivity(prev => [{ name: employeeName, tags, pending: true, id: nextId, color }, ...prev]);
+    const matchedEmp = employees.find(emp => emp.fullName.toLowerCase() === employeeName.toLowerCase());
+    const empId = matchedEmp ? matchedEmp._id : null;
+    setActivity(prev => [{ employeeId: empId, name: employeeName, tags, pending: true, id: nextId, color }, ...prev]);
     setNextId(n => n + 1);
   };
 
@@ -258,7 +265,7 @@ export default function MonthlyUpdates() {
       const res = await api.post(
         `/api/payroll/finalize`,
         {
-          activities: activity.map(a => ({ name: a.name, tags: a.tags })),
+          activities: activity.map(a => ({ employeeId: a.employeeId, name: a.name, tags: a.tags })),
           month: now.getMonth() + 1,
           year: now.getFullYear(),
         }
@@ -332,6 +339,26 @@ export default function MonthlyUpdates() {
 
     setCopiedSummary(true);
     setTimeout(() => setCopiedSummary(false), 2000);
+  };
+
+  const handleExportCsv = async () => {
+    try {
+      const now = new Date();
+      const response = await api.get(`/api/payroll/export-csv?month=${now.getMonth() + 1}&year=${now.getFullYear()}`, {
+        responseType: 'blob',
+      });
+      const blob = response.data;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `payroll-${now.getMonth() + 1}-${now.getFullYear()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('No data to export');
+    }
   };
 
   return (
@@ -510,7 +537,7 @@ export default function MonthlyUpdates() {
             </div>
             <button
               onClick={() => {
-                dispatch(logout());
+                dispatch(logoutUser());
                 localStorage.removeItem("companyName");
                 navigate("/auth");
               }}
@@ -914,7 +941,7 @@ export default function MonthlyUpdates() {
                     {copiedSummary ? "Copied to Clipboard! ✅" : "📋 Copy Summary"}
                   </button>
                   <button
-                    onClick={() => { const now = new Date(); fetch(`/api/payroll/export-csv?month=${now.getMonth()+1}&year=${now.getFullYear()}`, { headers: { Authorization: `Bearer ${token}` } }).then(r=>r.ok?r.blob():null).then(b=>{if(!b){alert('No data to export');return;}const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`payroll-${now.getMonth()+1}-${now.getFullYear()}.csv`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(a.href);}).catch(()=>alert('Export failed.')); }}
+                    onClick={handleExportCsv}
                     style={{
                       padding:"11px 20px", borderRadius:10,
                       border: isDark ? "1.5px solid #334155" : "1.5px solid #E5E7EB", background: isDark ? "#1e293b" : "white",

@@ -69,4 +69,6 @@ const payrollUpdateSchema = new mongoose.Schema({
 // Ensure one payroll record per employee per month
 payrollUpdateSchema.index({ employeeId: 1, month: 1, year: 1, createdBy: 1 }, { unique: true });
 
+payrollUpdateSchema.index({ createdBy: 1, year: -1, month: -1 });
+
 module.exports = mongoose.model("PayrollUpdate", payrollUpdateSchema);

@@ -147,15 +147,30 @@ export default function Settings() {
     }
   };
 
+  const MAX_AVATAR_SIZE = 2 * 1024 * 1024; // 2 MB
+  const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
   const handleAvatarChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUserProfile(prev => ({ ...prev, avatar: reader.result }));
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      alert("Please select an image file (JPEG, PNG, WebP, or GIF).");
+      e.target.value = "";
+      return;
     }
+
+    if (file.size > MAX_AVATAR_SIZE) {
+      alert("File size must be less than 2 MB.");
+      e.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setUserProfile(prev => ({ ...prev, avatar: reader.result }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const handlePasswordUpdate = async () => {

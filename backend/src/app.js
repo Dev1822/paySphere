@@ -10,6 +10,7 @@ const reportsRoutes = require("./routes/reports.routes");
 const logger = require("./utils/logger");
 
 const app = express();
+app.use(cookieParser());
 
 const errorHandler = require("./middlewares/error.middleware");
 

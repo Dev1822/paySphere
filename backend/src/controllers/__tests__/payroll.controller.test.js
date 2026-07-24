@@ -42,14 +42,18 @@ describe("Payroll Controller - finalizePayroll parseTagValue & Transactions Unit
       fullName: "Alice Smith",
       monthlySalary: 50000,
       overtimeRate: 200,
+      isActive: true,
     };
     Employee.find.mockResolvedValue([mockEmployee]);
     User.findById.mockResolvedValue({ defaultDailyRate: 0, defaultOvertimeRate: 0 });
 
-    PayrollUpdate.findOneAndUpdate.mockImplementation((query, data) => ({
-      _id: "payroll1",
-      ...data,
-    }));
+    PayrollUpdate.bulkWrite.mockResolvedValue({});
+    PayrollUpdate.find.mockResolvedValue([
+      {
+        _id: "payroll1",
+        employeeId: "emp1",
+      }
+    ]);
 
     req.body = {
       activities: [
