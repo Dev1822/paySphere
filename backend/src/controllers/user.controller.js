@@ -41,6 +41,9 @@ const generateTokens = (user, res) => {
 // SIGN UP
 exports.signup = async (req, res, next) => {
   try {
+    if (!req.body || typeof req.body !== "object") {
+      return res.status(400).json({ message: "Request body is required" });
+    }
     const { fullName, email, companyName, password } = req.body;
 
     if (!isNonEmptyString(fullName) || !isNonEmptyString(email) || !isNonEmptyString(companyName) || !isNonEmptyString(password)) {
@@ -62,9 +65,9 @@ exports.signup = async (req, res, next) => {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const newUser = new User({
-      fullName: fullName.trim(),
+      fullName: sanitizeText(fullName),
       email: cleanEmail,
-      companyName: companyName.trim(),
+      companyName: sanitizeText(companyName),
       password: hashedPassword,
     });
 
@@ -136,6 +139,9 @@ exports.getSettings = async (req, res, next) => {
 // UPDATE USER SETTINGS
 exports.updateSettings = async (req, res, next) => {
   try {
+    if (!req.body || typeof req.body !== "object") {
+      return res.status(400).json({ message: "Request body is required" });
+    }
     const { settings, fullName, email, companyName, defaultOvertimeRate, defaultDailyRate, avatar } = req.body;
 
     const user = await User.findById(req.userId);
@@ -148,9 +154,16 @@ exports.updateSettings = async (req, res, next) => {
       return res.status(400).json({ message: "Default rates must be non-negative numbers" });
     }
 
-    if (fullName) user.fullName = fullName;
+    if (defaultOvertimeRate !== undefined && defaultOvertimeRate > OVERTIME_RATE_MAX) {
+      return res.status(400).json({ message: `Default overtime rate cannot exceed ${OVERTIME_RATE_MAX}` });
+    }
+    if (defaultDailyRate !== undefined && defaultDailyRate > DAILY_RATE_MAX) {
+      return res.status(400).json({ message: `Default daily rate cannot exceed ${DAILY_RATE_MAX}` });
+    }
+
+    if (fullName) user.fullName = sanitizeText(fullName);
     if (email) user.email = email;
-    if (companyName) user.companyName = companyName;
+    if (companyName) user.companyName = sanitizeText(companyName);
     if (defaultOvertimeRate !== undefined) user.defaultOvertimeRate = defaultOvertimeRate;
     if (defaultDailyRate !== undefined) user.defaultDailyRate = defaultDailyRate;
     if (avatar !== undefined) user.avatar = avatar;
@@ -202,6 +215,9 @@ exports.updateSettings = async (req, res, next) => {
 // UPDATE PASSWORD
 exports.updatePassword = async (req, res, next) => {
   try {
+    if (!req.body || typeof req.body !== "object") {
+      return res.status(400).json({ message: "Request body is required" });
+    }
     const { currentPassword, newPassword } = req.body;
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -244,6 +260,9 @@ exports.updatePassword = async (req, res, next) => {
 // GOOGLE AUTH
 exports.googleAuth = async (req, res, next) => {
   try {
+    if (!req.body || typeof req.body !== "object") {
+      return res.status(400).json({ message: "Request body is required" });
+    }
     const { credential, accessToken, companyName } = req.body;
     let googleData;
 
@@ -279,9 +298,9 @@ exports.googleAuth = async (req, res, next) => {
       }
 
       user = new User({
-        fullName: name,
+        fullName: sanitizeText(name),
         email,
-        companyName,
+        companyName: sanitizeText(companyName),
         googleId: googleId || googleData.sub,
         avatar: picture || googleData.picture,
       });
@@ -313,6 +332,9 @@ const resetCooldowns = new Map();
 // FORGOT PASSWORD
 exports.forgotPassword = async (req, res, next) => {
   try {
+    if (!req.body || typeof req.body !== "object") {
+      return res.status(400).json({ message: "Request body is required" });
+    }
     const { email } = req.body;
     if (!isNonEmptyString(email) || !isValidEmail(email)) {
       return res.status(400).json({ message: "A valid email address is required" });
@@ -383,6 +405,9 @@ exports.forgotPassword = async (req, res, next) => {
 exports.resetPassword = async (req, res, next) => {
   try {
     const { token } = req.params;
+    if (!req.body || typeof req.body !== "object") {
+      return res.status(400).json({ message: "Request body is required" });
+    }
     const { password } = req.body;
 
     if (!isNonEmptyString(password) || !passwordRegex.test(password)) {

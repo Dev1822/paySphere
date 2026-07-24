@@ -29,10 +29,14 @@ const userSchema = new mongoose.Schema({
   defaultOvertimeRate: {
     type: Number,
     default: 0,
+    min: [0, "Default overtime rate cannot be negative"],
+    max: [1000000, "Default overtime rate cannot exceed 1000000"],
   },
   defaultDailyRate: {
     type: Number,
     default: 0,
+    min: [0, "Default daily rate cannot be negative"],
+    max: [10000000, "Default daily rate cannot exceed 10000000"],
   },
   settings: {
     preferences: {

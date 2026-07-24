@@ -1,13 +1,17 @@
+const mongoose = require("mongoose");
 const Employee = require("../models/employee.model");
 const User = require("../models/user.model");
 const { parse } = require("csv-parse");
-const { isNonEmptyString, escapeRegex } = require("../utils/validators");
+const { isNonEmptyString, escapeRegex, sanitizeText, MONTHLY_SALARY_MAX, OVERTIME_RATE_MAX, FULLNAME_MAX_LENGTH, ROLE_MAX_LENGTH } = require("../utils/validators");
 const PayrollUpdate = require("../models/payroll.model");
 const logger = require("../utils/logger");
 const { createAuditLog } = require("../services/audit.service");
 // ADD EMPLOYEE
 exports.addEmployee = async (req, res, next) => {
   try {
+    if (!req.body || typeof req.body !== "object") {
+      return res.status(400).json({ message: "Request body is required" });
+    }
     const { fullName, role, monthlySalary, overtimeRate } = req.body;
 
     if (!isNonEmptyString(fullName) || !isNonEmptyString(role)) {
@@ -18,12 +22,18 @@ exports.addEmployee = async (req, res, next) => {
     if (monthlySalary === undefined || monthlySalary === null || isNaN(numSalary) || !Number.isFinite(numSalary) || numSalary <= 0) {
       return res.status(400).json({ message: "Monthly salary must be a positive number" });
     }
+    if (numSalary > MONTHLY_SALARY_MAX) {
+      return res.status(400).json({ message: `Monthly salary cannot exceed ${MONTHLY_SALARY_MAX}` });
+    }
 
     let numOvertime = 0;
     if (overtimeRate !== undefined && overtimeRate !== null) {
       numOvertime = Number(overtimeRate);
       if (isNaN(numOvertime) || !Number.isFinite(numOvertime) || numOvertime < 0) {
         return res.status(400).json({ message: "Overtime rate must be a non-negative number" });
+      }
+      if (numOvertime > OVERTIME_RATE_MAX) {
+        return res.status(400).json({ message: `Overtime rate cannot exceed ${OVERTIME_RATE_MAX}` });
       }
     }
 
@@ -32,11 +42,11 @@ exports.addEmployee = async (req, res, next) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const employee = new Employee({
-      fullName: fullName.trim(),
-      role: role.trim(),
+      fullName: sanitizeText(fullName),
+      role: sanitizeText(role),
       monthlySalary: numSalary,
       overtimeRate: numOvertime,
-      companyName: user.companyName,
+      companyName: sanitizeText(user.companyName),
       createdBy: req.userId,
     });
 
@@ -70,7 +80,7 @@ exports.getEmployees = async (req, res, next) => {
 
     let search = req.query.search;
     if (typeof search !== "string") search = "";
-    search = search.trim();
+    search = sanitizeText(search);
 
     const skip = (page - 1) * limit;
 
@@ -171,7 +181,7 @@ exports.importEmployees = async (req, res, next) => {
             : [];
 
           const existingKeys = new Set(
-            existingEmployees.map(e => `${e.fullName.toLowerCase()}|${e.role.toLowerCase()}`)
+            existingEmployees.map(e => `${sanitizeText(e.fullName).toLowerCase()}|${sanitizeText(e.role).toLowerCase()}`)
           );
 
           const employees = [];
@@ -179,67 +189,72 @@ exports.importEmployees = async (req, res, next) => {
           let skipped = 0;
 
           records.forEach((record, index) => {
-            const fullName = record.fullName?.trim();
-            const role = record.role?.trim();
+            const rawName = record.fullName?.trim();
+            const rawRole = record.role?.trim();
             const monthlySalary = Number(record.monthlySalary);
             const overtimeRate = Number(record.overtimeRate || 0);
 
-            if (!fullName) {
+            if (!rawName) {
               skipped++;
-              errors.push({
-                row: index + 2,
-                reason: "Full name is required",
-              });
+              errors.push({ row: index + 2, reason: "Full name is required" });
+              return;
+            }
+            if (rawName.length > FULLNAME_MAX_LENGTH) {
+              skipped++;
+              errors.push({ row: index + 2, reason: `Full name exceeds maximum of ${FULLNAME_MAX_LENGTH} characters` });
               return;
             }
 
-            if (!role) {
+            if (!rawRole) {
               skipped++;
-              errors.push({
-                row: index + 2,
-                reason: "Role is required",
-              });
+              errors.push({ row: index + 2, reason: "Role is required" });
+              return;
+            }
+            if (rawRole.length > ROLE_MAX_LENGTH) {
+              skipped++;
+              errors.push({ row: index + 2, reason: `Role exceeds maximum of ${ROLE_MAX_LENGTH} characters` });
               return;
             }
 
-            if (isNaN(monthlySalary) || monthlySalary <= 0) {
+            if (!Number.isFinite(monthlySalary) || monthlySalary <= 0) {
               skipped++;
-              errors.push({
-                row: index + 2,
-                reason: "Invalid monthly salary",
-              });
+              errors.push({ row: index + 2, reason: "Invalid monthly salary" });
+              return;
+            }
+            if (monthlySalary > MONTHLY_SALARY_MAX) {
+              skipped++;
+              errors.push({ row: index + 2, reason: `Monthly salary exceeds maximum of ${MONTHLY_SALARY_MAX}` });
               return;
             }
 
-            if (isNaN(overtimeRate) || overtimeRate < 0) {
+            if (!Number.isFinite(overtimeRate) || overtimeRate < 0) {
               skipped++;
-              errors.push({
-                row: index + 2,
-                reason: "Invalid overtime rate",
-              });
+              errors.push({ row: index + 2, reason: "Invalid overtime rate" });
+              return;
+            }
+            if (overtimeRate > OVERTIME_RATE_MAX) {
+              skipped++;
+              errors.push({ row: index + 2, reason: `Overtime rate exceeds maximum of ${OVERTIME_RATE_MAX}` });
               return;
             }
 
-            // Check for duplicate by fullName + role (case-insensitive)
-            const key = `${fullName.toLowerCase()}|${role.toLowerCase()}`;
+            const sanitizedName = sanitizeText(rawName);
+            const sanitizedRole = sanitizeText(rawRole);
+            const key = `${sanitizedName.toLowerCase()}|${sanitizedRole.toLowerCase()}`;
             if (existingKeys.has(key)) {
               skipped++;
-              errors.push({
-                row: index + 2,
-                reason: "Duplicate employee (same name and role already exists)",
-              });
+              errors.push({ row: index + 2, reason: "Duplicate employee (same name and role already exists)" });
               return;
             }
 
-            // Also prevent duplicates within the same CSV batch
             existingKeys.add(key);
 
             employees.push({
-              fullName,
-              role,
+              fullName: sanitizedName,
+              role: sanitizedRole,
               monthlySalary,
               overtimeRate,
-              companyName: user.companyName,
+              companyName: sanitizeText(user.companyName),
               createdBy: req.userId,
             });
           });
@@ -283,6 +298,9 @@ exports.importEmployees = async (req, res, next) => {
 // UPDATE EMPLOYEE
 exports.updateEmployee = async (req, res, next) => {
   try {
+    if (!req.body || typeof req.body !== "object") {
+      return res.status(400).json({ message: "Request body is required" });
+    }
     const { id } = req.params;
     const { fullName, role, monthlySalary, overtimeRate, isActive } = req.body;
 
@@ -301,14 +319,20 @@ exports.updateEmployee = async (req, res, next) => {
     if (monthlySalary !== undefined && (isNaN(monthlySalary) || !Number.isFinite(Number(monthlySalary)) || monthlySalary <= 0)) {
       return res.status(400).json({ message: "Monthly salary must be a positive number" });
     }
+    if (monthlySalary !== undefined && Number(monthlySalary) > MONTHLY_SALARY_MAX) {
+      return res.status(400).json({ message: `Monthly salary cannot exceed ${MONTHLY_SALARY_MAX}` });
+    }
 
     if (overtimeRate !== undefined && (isNaN(overtimeRate) || !Number.isFinite(Number(overtimeRate)) || overtimeRate < 0)) {
       return res.status(400).json({ message: "Overtime rate must be a non-negative number" });
     }
+    if (overtimeRate !== undefined && Number(overtimeRate) > OVERTIME_RATE_MAX) {
+      return res.status(400).json({ message: `Overtime rate cannot exceed ${OVERTIME_RATE_MAX}` });
+    }
 
     // Apply updates only for provided fields
-    if (fullName !== undefined) employee.fullName = fullName;
-    if (role !== undefined) employee.role = role;
+    if (fullName !== undefined) employee.fullName = sanitizeText(fullName);
+    if (role !== undefined) employee.role = sanitizeText(role);
     if (monthlySalary !== undefined) employee.monthlySalary = monthlySalary;
     if (overtimeRate !== undefined) employee.overtimeRate = overtimeRate;
     if (isActive !== undefined) employee.isActive = isActive;

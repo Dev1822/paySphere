@@ -20,6 +20,9 @@ function parseTagValue(label) {
 exports.finalizePayroll = async (req, res, next) => {
   let session = null;
   try {
+    if (!req.body || typeof req.body !== "object") {
+      return res.status(400).json({ message: "Request body is required" });
+    }
     const { activities, month, year } = req.body;
 
     if (!activities || !Array.isArray(activities) || activities.length === 0) {
@@ -376,7 +379,7 @@ exports.sendPayslipEmailHandler = async (req, res, next) => {
 // BULK SEND PAYSLIP EMAILS (#140)
 exports.sendAllPayslipsEmailHandler = async (req, res, next) => {
   try {
-    let month = req.body.month ? Number(req.body.month) : (req.query.month ? Number(req.query.month) : new Date().getMonth() + 1);
+    let month = req.body && req.body.month ? Number(req.body.month) : (req.query.month ? Number(req.query.month) : new Date().getMonth() + 1);
     let year = req.body.year ? Number(req.body.year) : (req.query.year ? Number(req.query.year) : new Date().getFullYear());
 
     if (isNaN(month) || month < 1 || month > 12) {

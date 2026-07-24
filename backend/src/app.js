@@ -43,6 +43,10 @@ app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use(cors(corsOptions));
 
 const { generalRateLimiter } = require("./middlewares/rateLimiter.middleware");
+const requireBody = require("./middlewares/requireBody.middleware");
+
+// Require request body for state-changing methods
+app.use("/api", requireBody);
 
 // Routes
 app.get("/", (req, res) => res.send("PaySphere API is running..."));
