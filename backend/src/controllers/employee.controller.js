@@ -66,6 +66,7 @@ exports.getEmployees = async (req, res, next) => {
     if (isNaN(page) || page < 1) page = 1;
     let limit = parseInt(req.query.limit, 10);
     if (isNaN(limit) || limit < 1 || limit > 100) limit = 10;
+    const includeInactive = req.query.includeInactive === "true";
 
     let search = req.query.search;
     if (typeof search !== "string") search = "";
@@ -76,6 +77,10 @@ exports.getEmployees = async (req, res, next) => {
     const query = {
       createdBy: req.userId,
     };
+
+    if (!includeInactive) {
+      query.isActive = true;
+    }
 
     if (search) {
       const safeSearch = escapeRegex(search);
@@ -152,7 +157,19 @@ exports.importEmployees = async (req, res, next) => {
           }
 
           // Fetch existing employees to detect duplicates by fullName + role
-          const existingEmployees = await Employee.find({ createdBy: req.userId });
+          // Extract unique names from the CSV to minimize database query size
+          const csvNames = Array.from(new Set(records.map(r => r.fullName?.trim()).filter(Boolean)));
+          
+          // Use case-insensitive regex for the $in query to guarantee matching without specific collation
+          const nameRegexes = csvNames.map(name => new RegExp('^' + name.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + '$', 'i'));
+
+          const existingEmployees = nameRegexes.length > 0
+            ? await Employee.find({ 
+                createdBy: req.userId,
+                fullName: { $in: nameRegexes }
+              }).select('fullName role')
+            : [];
+
           const existingKeys = new Set(
             existingEmployees.map(e => `${sanitizeText(e.fullName).toLowerCase()}|${sanitizeText(e.role).toLowerCase()}`)
           );
@@ -269,7 +286,7 @@ exports.importEmployees = async (req, res, next) => {
 exports.updateEmployee = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { fullName, role, monthlySalary, overtimeRate } = req.body;
+    const { fullName, role, monthlySalary, overtimeRate, isActive } = req.body;
 
     const employee = await Employee.findById(id);
 
@@ -296,6 +313,7 @@ exports.updateEmployee = async (req, res, next) => {
     if (role !== undefined) employee.role = sanitizeText(role);
     if (monthlySalary !== undefined) employee.monthlySalary = monthlySalary;
     if (overtimeRate !== undefined) employee.overtimeRate = overtimeRate;
+    if (isActive !== undefined) employee.isActive = isActive;
 
     await employee.save();
 
@@ -311,6 +329,30 @@ exports.updateEmployee = async (req, res, next) => {
     logger.info(`Employee updated`, { userId: req.userId, employeeId: employee._id, fullName: employee.fullName });
 
     res.status(200).json({ message: "Employee updated successfully", employee });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// TOGGLE EMPLOYEE ACTIVE STATUS
+exports.toggleEmployeeStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const employee = await Employee.findById(id);
+
+    if (!employee) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+
+    if (employee.createdBy.toString() !== req.userId) {
+      return res.status(403).json({ message: "Not authorized to update this employee" });
+    }
+
+    employee.isActive = !employee.isActive;
+    await employee.save();
+
+    res.status(200).json({ message: "Employee status updated", employee });
   } catch (error) {
     next(error);
   }
