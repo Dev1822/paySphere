@@ -7,6 +7,8 @@ import {
 } from "@mui/icons-material";
 
 export default function SummaryCards({ data }) {
+  if (!data) return null;
+
   const cards = [
     {
       title: "Total Payroll",

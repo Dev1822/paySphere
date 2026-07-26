@@ -17,6 +17,8 @@ const COLORS = [
 ];
 
 export default function SalaryDistributionChart({ data }) {
+  if (!data || data.length === 0) return null;
+
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
       <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-5">
