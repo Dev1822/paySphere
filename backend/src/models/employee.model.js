@@ -36,10 +36,6 @@ const employeeSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  isActive: {
-    type: Boolean,
-    default: true,
-  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
