@@ -202,6 +202,16 @@ export default function Settings() {
     }
   };
 
+  const handleLogoutAllDevices = async () => {
+    if (!window.confirm("This will log out all other active sessions. Continue?")) return;
+    try {
+      await api.patch("/api/auth/security/logout-all");
+      alert("All other sessions have been logged out.");
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to logout other sessions.");
+    }
+  };
+
   const executeDeleteAccount = async () => {
     try {
       await api.delete("/api/auth/security/account");
@@ -350,7 +360,7 @@ export default function Settings() {
             <div className="p-5 border border-red-200 dark:border-red-900/30 rounded-2xl bg-red-50/50 dark:bg-red-950/10 shadow-sm">
               <h3 className="font-bold text-sm text-red-600 dark:text-red-400 mb-2">Danger Zone</h3>
               <div className="flex flex-col sm:flex-row gap-3">
-                <button onClick={() => alert("All other active sessions have been logged out.")} className="px-5 py-2.5 bg-white dark:bg-slate-800 text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 rounded-lg text-sm font-bold transition hover:bg-gray-50 dark:hover:bg-slate-700">
+                <button onClick={handleLogoutAllDevices} className="px-5 py-2.5 bg-white dark:bg-slate-800 text-gray-900 dark:text-white border border-gray-200 dark:border-slate-700 rounded-lg text-sm font-bold transition hover:bg-gray-50 dark:hover:bg-slate-700">
                   Logout All Devices
                 </button>
                 <button onClick={() => setShowDeleteModal(true)} className="px-5 py-2.5 bg-red-600 text-white rounded-lg text-sm font-bold transition hover:bg-red-700">

@@ -1,5 +1,5 @@
 const express = require("express");
-const { signup, login, getSettings, updateSettings, updatePassword, googleAuth, forgotPassword, resetPassword, disconnectGoogle, deleteAccount } = require("../controllers/user.controller");
+const { signup, login, getSettings, updateSettings, updatePassword, googleAuth, forgotPassword, resetPassword, disconnectGoogle, deleteAccount, logoutAllDevices } = require("../controllers/user.controller");
 const auth = require("../middlewares/auth.middleware");
 const { authRateLimiter, writeRateLimiter } = require("../middlewares/rateLimiter.middleware");
 const router = express.Router();
@@ -16,6 +16,7 @@ router.post("/logout", authRateLimiter, require("../controllers/user.controller"
 router.get("/settings", auth, getSettings);
 router.patch("/settings", auth, writeRateLimiter, updateSettings);
 router.patch("/security/password", auth, writeRateLimiter, updatePassword);
+router.patch("/security/logout-all", auth, writeRateLimiter, logoutAllDevices);
 router.patch("/security/disconnect-google", auth, writeRateLimiter, disconnectGoogle);
 router.delete("/security/account", auth, writeRateLimiter, deleteAccount);
 

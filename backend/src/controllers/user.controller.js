@@ -574,3 +574,30 @@ exports.logout = (req, res) => {
   });
   res.status(200).json({ message: "Logged out successfully" });
 };
+
+// LOGOUT ALL DEVICES - increments tokenVersion to invalidate all existing JWTs
+exports.logoutAllDevices = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
+
+    createAuditLog({
+      userId: req.userId,
+      action: "LOGOUT_ALL_DEVICES",
+      resourceType: "User",
+      resourceIds: [user._id],
+      details: { newTokenVersion: user.tokenVersion },
+      result: "success",
+      req,
+    });
+
+    logger.info("All sessions invalidated", { userId: req.userId, newTokenVersion: user.tokenVersion });
+
+    res.status(200).json({ message: "All sessions have been invalidated" });
+  } catch (error) {
+    next(error);
+  }
+};
