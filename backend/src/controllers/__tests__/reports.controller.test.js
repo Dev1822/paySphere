@@ -45,7 +45,7 @@ describe("Reports Controller - getAnalytics", () => {
   });
 
   test("should return empty analytics when no payroll records exist", async () => {
-    PayrollUpdate.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([]) });
+    PayrollUpdate.aggregate.mockResolvedValue([]);
     Employee.find.mockResolvedValue([]);
 
     await getAnalytics(req, res, next);
@@ -60,51 +60,39 @@ describe("Reports Controller - getAnalytics", () => {
 
   test("should clamp a negative months query param instead of inverting the date range", async () => {
     req.query.months = "-3";
-    PayrollUpdate.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([]) });
-    Employee.find.mockResolvedValue([]);
+    PayrollUpdate.aggregate.mockResolvedValue([]);
 
     await getAnalytics(req, res, next);
 
     const now = new Date();
     const expectedStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const query = PayrollUpdate.find.mock.calls[0][0];
+    const matchStage = PayrollUpdate.aggregate.mock.calls[0][0][0];
 
-    expect(query.$or[1].year).toBe(expectedStart.getFullYear());
-    expect(query.$or[1].month.$gte).toBe(expectedStart.getMonth() + 1);
+    expect(matchStage.$match.$or[1].year).toBe(expectedStart.getFullYear());
+    expect(matchStage.$match.$or[1].month.$gte).toBe(expectedStart.getMonth() + 1);
   });
 
   test("should aggregate monthly trends and role breakdown correctly", async () => {
-    const mockPayrolls = [
+    const monthlyTrends = [
       {
-        employeeId: "emp1",
-        baseSalary: 50000,
-        overtimePay: 5000,
-        bonus: 2000,
-        deductions: 1000,
-        leaveDeduction: 500,
-        netSalary: 55500,
-        month: 6,
-        year: 2026,
-      },
-      {
-        employeeId: "emp2",
-        baseSalary: 60000,
-        overtimePay: 3000,
-        bonus: 0,
-        deductions: 2000,
-        leaveDeduction: 0,
-        netSalary: 61000,
-        month: 6,
-        year: 2026,
+        month: 6, year: 2026, label: "2026-06",
+        totalPayout: 116500, totalBase: 110000, totalOvertime: 8000,
+        totalBonus: 2000, totalDeductions: 3500, employeeCount: 2,
       },
     ];
-    PayrollUpdate.find.mockReturnValue({ sort: jest.fn().mockResolvedValue(mockPayrolls) });
+    const roleBreakdown = [
+      { role: "Designer", totalPayout: 61000, totalBase: 60000, totalOvertime: 3000, employeeCount: 1 },
+      { role: "Developer", totalPayout: 55500, totalBase: 50000, totalOvertime: 5000, employeeCount: 1 },
+    ];
+    const summaryResult = [{
+      totalPayout: 116500, totalBase: 110000, totalOvertime: 8000,
+      totalBonus: 2000, totalDeductions: 3500, totalRecords: 2,
+    }];
 
-    const mockEmployees = [
-      { _id: "emp1", role: "Developer" },
-      { _id: "emp2", role: "Designer" },
-    ];
-    Employee.find.mockResolvedValue(mockEmployees);
+    PayrollUpdate.aggregate
+      .mockResolvedValueOnce(monthlyTrends)
+      .mockResolvedValueOnce(roleBreakdown)
+      .mockResolvedValueOnce(summaryResult);
 
     await getAnalytics(req, res, next);
 
@@ -135,19 +123,17 @@ describe("Reports Controller - getAnalytics", () => {
   test("should cap monthsBack at 12 even if a higher value is passed", async () => {
     req.query.months = "24";
 
-    PayrollUpdate.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([]) });
-    Employee.find.mockResolvedValue([]);
+    PayrollUpdate.aggregate.mockResolvedValue([]);
 
     await getAnalytics(req, res, next);
 
-    // Verify the query was built with 12-month range (the find was called)
-    expect(PayrollUpdate.find).toHaveBeenCalled();
+    expect(PayrollUpdate.aggregate).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
   });
 
   test("should call next(error) on database failure", async () => {
     const error = new Error("DB connection failed");
-    PayrollUpdate.find.mockReturnValue({ sort: jest.fn().mockRejectedValue(error) });
+    PayrollUpdate.aggregate.mockRejectedValue(error);
 
     await getAnalytics(req, res, next);
 

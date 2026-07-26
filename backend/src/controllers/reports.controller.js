@@ -14,97 +14,117 @@ exports.getAnalytics = async (req, res, next) => {
     // Calculate date range
     const now = new Date();
     const startDate = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1);
+    const startYear = startDate.getFullYear();
+    const startMonth = startDate.getMonth() + 1;
 
-    // Fetch all payroll records within the date range
-    const payrolls = await PayrollUpdate.find({
-      createdBy: userId,
+    // Build match condition for date range
+    const dateMatch = {
       $or: [
-        { year: { $gt: startDate.getFullYear() } },
-        {
-          year: startDate.getFullYear(),
-          month: { $gte: startDate.getMonth() + 1 },
-        },
+        { year: { $gt: startYear } },
+        { year: startYear, month: { $gte: startMonth } },
       ],
-    }).sort({ year: 1, month: 1 });
+    };
 
-    // Fetch all employees for role breakdown
-    const employees = await Employee.find({ createdBy: userId });
-    const employeeMap = {};
-    employees.forEach((emp) => {
-      employeeMap[String(emp._id)] = emp;
-    });
+    // --- Monthly Payout Trends (server-side aggregation) ---
+    const monthlyTrends = await PayrollUpdate.aggregate([
+      { $match: { createdBy: userId, ...dateMatch } },
+      {
+        $group: {
+          _id: { month: "$month", year: "$year" },
+          totalPayout: { $sum: "$netSalary" },
+          totalBase: { $sum: "$baseSalary" },
+          totalOvertime: { $sum: "$overtimePay" },
+          totalBonus: { $sum: "$bonus" },
+          totalDeductions: { $sum: { $add: ["$deductions", "$leaveDeduction"] } },
+          employeeCount: { $sum: 1 },
+        },
+      },
+      { $sort: { "_id.year": 1, "_id.month": 1 } },
+      {
+        $project: {
+          _id: 0,
+          month: "$_id.month",
+          year: "$_id.year",
+          label: {
+            $concat: [
+              { $toString: "$_id.year" },
+              "-",
+              { $cond: [{ $lt: ["$_id.month", 10] }, { $concat: ["0", { $toString: "$_id.month" }] }, { $toString: "$_id.month" }] },
+            ],
+          },
+          totalPayout: 1,
+          totalBase: 1,
+          totalOvertime: 1,
+          totalBonus: 1,
+          totalDeductions: 1,
+          employeeCount: 1,
+        },
+      },
+    ]);
 
-    // --- Monthly Payout Trends ---
-    const monthlyMap = {};
-    payrolls.forEach((p) => {
-      const key = `${p.year}-${String(p.month).padStart(2, "0")}`;
-      if (!monthlyMap[key]) {
-        monthlyMap[key] = {
-          month: p.month,
-          year: p.year,
-          label: key,
-          totalPayout: 0,
-          totalBase: 0,
-          totalOvertime: 0,
-          totalBonus: 0,
-          totalDeductions: 0,
-          employeeCount: 0,
-        };
-      }
-      monthlyMap[key].totalPayout += p.netSalary;
-      monthlyMap[key].totalBase += p.baseSalary;
-      monthlyMap[key].totalOvertime += p.overtimePay;
-      monthlyMap[key].totalBonus += p.bonus;
-      monthlyMap[key].totalDeductions += p.deductions + p.leaveDeduction;
-      monthlyMap[key].employeeCount++;
-    });
+    // --- Role / Department Breakdown (server-side aggregation with $lookup) ---
+    const roleBreakdown = await PayrollUpdate.aggregate([
+      { $match: { createdBy: userId, ...dateMatch } },
+      {
+        $lookup: {
+          from: "employees",
+          localField: "employeeId",
+          foreignField: "_id",
+          as: "employee",
+        },
+      },
+      { $unwind: { path: "$employee", preserveNullAndEmptyArrays: true } },
+      {
+        $group: {
+          _id: "$employee.role",
+          totalPayout: { $sum: "$netSalary" },
+          totalBase: { $sum: "$baseSalary" },
+          totalOvertime: { $sum: "$overtimePay" },
+          employeeCount: { $sum: 1 },
+        },
+      },
+      { $sort: { totalPayout: -1 } },
+      {
+        $project: {
+          _id: 0,
+          role: { $ifNull: ["$_id", "Unassigned"] },
+          totalPayout: 1,
+          totalBase: 1,
+          totalOvertime: 1,
+          employeeCount: 1,
+        },
+      },
+    ]);
 
-    const monthlyTrends = Object.values(monthlyMap).sort(
-      (a, b) => a.year - b.year || a.month - b.month,
-    );
+    // --- Summary (derived from aggregation) ---
+    const summaryResult = await PayrollUpdate.aggregate([
+      { $match: { createdBy: userId, ...dateMatch } },
+      {
+        $group: {
+          _id: null,
+          totalPayout: { $sum: "$netSalary" },
+          totalBase: { $sum: "$baseSalary" },
+          totalOvertime: { $sum: "$overtimePay" },
+          totalBonus: { $sum: "$bonus" },
+          totalDeductions: { $sum: { $add: ["$deductions", "$leaveDeduction"] } },
+          totalRecords: { $sum: 1 },
+        },
+      },
+    ]);
 
-    // --- Role / Department Breakdown ---
-    const roleMap = {};
-    payrolls.forEach((p) => {
-      const emp = employeeMap[String(p.employeeId)];
-      const role = emp?.role || "Unassigned";
-      if (!roleMap[role]) {
-        roleMap[role] = {
-          role,
-          totalPayout: 0,
-          totalBase: 0,
-          totalOvertime: 0,
-          employeeCount: 0,
-        };
-      }
-      roleMap[role].totalPayout += p.netSalary;
-      roleMap[role].totalBase += p.baseSalary;
-      roleMap[role].totalOvertime += p.overtimePay;
-      roleMap[role].employeeCount++;
-    });
-
-    const roleBreakdown = Object.values(roleMap).sort(
-      (a, b) => b.totalPayout - a.totalPayout,
-    );
-
-    // --- Overtime vs Base Summary ---
-    const totalBase = payrolls.reduce((sum, p) => sum + p.baseSalary, 0);
-    const totalOvertime = payrolls.reduce((sum, p) => sum + p.overtimePay, 0);
-    const totalBonus = payrolls.reduce((sum, p) => sum + p.bonus, 0);
-    const totalDeductions = payrolls.reduce(
-      (sum, p) => sum + p.deductions + p.leaveDeduction,
-      0,
-    );
-    const totalNet = payrolls.reduce((sum, p) => sum + p.netSalary, 0);
+    const summary = summaryResult[0] || {
+      totalPayout: 0, totalBase: 0, totalOvertime: 0,
+      totalBonus: 0, totalDeductions: 0, totalRecords: 0,
+    };
 
     res.status(200).json({
       summary: {
-        totalPayout: totalNet,
-        totalBase,
-        totalOvertime,
-        totalBonus,
-        totalDeductions,
-        totalRecords: payrolls.length,
+        totalPayout: summary.totalPayout,
+        totalBase: summary.totalBase,
+        totalOvertime: summary.totalOvertime,
+        totalBonus: summary.totalBonus,
+        totalDeductions: summary.totalDeductions,
+        totalRecords: summary.totalRecords,
         monthsCovered: monthlyTrends.length,
       },
       monthlyTrends,
