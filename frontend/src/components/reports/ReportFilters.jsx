@@ -30,7 +30,7 @@ export default function ReportFilters({ onGenerate, loading ,successMessage}) {
           onChange={handleChange}
           className="px-4 py-3 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950"
         >
-          <option value="Months">Months</option>
+          <option value="All">Months</option>
           <option>January</option>
           <option>February</option>
           <option>March</option>
@@ -52,7 +52,7 @@ export default function ReportFilters({ onGenerate, loading ,successMessage}) {
           onChange={handleChange}
           className="px-4 py-3 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950"
         >
-          <option value="Years">Years</option>
+          <option value="All">Years</option>
           <option>2024</option>
           <option>2025</option>
           <option>2026</option>
@@ -65,7 +65,7 @@ export default function ReportFilters({ onGenerate, loading ,successMessage}) {
           onChange={handleChange}
           className="px-4 py-3 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950"
         >
-          <option value="Departments"> Departments</option>
+          <option value="All">Departments</option>
           <option>Engineering</option>
           <option>HR</option>
           <option>Finance</option>
@@ -81,7 +81,7 @@ export default function ReportFilters({ onGenerate, loading ,successMessage}) {
           onChange={handleChange}
           className="px-4 py-3 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950"
         >
-           <option value=" Employees"> Employees</option>
+           <option value="All">All Employees</option>
           <option value="">All Employees</option>
           <option value="Rahul Sharma">Rahul Sharma</option>
           <option value="Priya Singh">Priya Singh</option>
@@ -97,7 +97,7 @@ export default function ReportFilters({ onGenerate, loading ,successMessage}) {
           onChange={handleChange}
           className="px-4 py-3 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950"
         >
-          <option value="Status"> Status</option>
+          <option value="All">Status</option>
           <option>Paid</option>
           <option>Pending</option>
         </select>
