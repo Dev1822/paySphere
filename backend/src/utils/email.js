@@ -17,7 +17,7 @@ const sendEmail = async ({ to, subject, text, html, attachments }) => {
 
   if (!frontendUrl) {
     logger.info('Email fallback - FRONTEND_URL not configured', { to, subject, attachmentCount: formattedAttachments?.length || 0 });
-    return { success: true, logged: true };
+    return { success: false, logged: true, reason: 'FRONTEND_URL not configured' };
   }
 
   const proxyUrl = `${frontendUrl.replace(/\/+$/, '')}/api/send-email`;
@@ -45,7 +45,7 @@ const sendEmail = async ({ to, subject, text, html, attachments }) => {
   } catch (error) {
     const message = error.response?.data?.error || error.message;
     logger.warn('Email Vercel proxy unavailable, falling back to console', { to, subject, reason: message });
-    return { success: true, logged: true };
+    return { success: false, logged: true, reason: message };
   }
 };
 
