@@ -7,6 +7,7 @@ import { logout } from '../features/auth/authSlice';
 import ThemeToggle from '../components/ThemeToggle';
 import Sidebar from '../components/Sidebar';
 import EmployeeCard from '../components/EmployeeCard';
+import Approvals from './Approvals';
 import SettingsModal from '../components/SettingsModal';
 import EmptyState from '../components/common/EmptyState';
 import {
@@ -326,8 +327,8 @@ const EmployeeManagement = ({
           >
             Edit Updates
           </button>
-          <button className="flex-1 sm:flex-none cursor-pointer px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md shadow-blue-200 dark:shadow-none">
-            Finish & Pay
+          <button className="flex-1 sm:flex-none cursor-pointer px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md shadow-blue-200 dark:shadow-none" onClick={() => navigate('/monthly-updates')}>
+            Submit for Review
           </button>
         </div>
       </div>
@@ -743,7 +744,9 @@ const [employeeToEdit, setEmployeeToEdit] = useState(null);
         </header>
 
         {/* Dynamic Content */}
-        {activePage === 'Dashboard' ? (
+        {activePage === 'Approvals' ? (
+          <Approvals />
+        ) : activePage === 'Dashboard' ? (
           <DashboardOverview
             search={search}
             setSearch={setSearch}

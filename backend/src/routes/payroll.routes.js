@@ -1,5 +1,5 @@
 const express = require("express");
-const { finalizePayroll, getPayrollSummary, exportPayrollCSV, sendPayslipEmailHandler, sendAllPayslipsEmailHandler } = require("../controllers/payroll.controller");
+const {  submitPayrollForReview, getPendingApprovals, approvePayroll, rejectPayroll, getPayrollSummary, exportPayrollCSV, sendPayslipEmailHandler, sendAllPayslipsEmailHandler } = require("../controllers/payroll.controller");
 const auth = require("../middlewares/auth.middleware");
 const { requirePermission } = require("../middlewares/rbac.middleware");
 const { writeRateLimiter } = require("../middlewares/rateLimiter.middleware");

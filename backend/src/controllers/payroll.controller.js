@@ -19,7 +19,7 @@ function parseTagValue(label) {
 }
 
 // FINALIZE PAYROLL — process activity entries and save payroll records
-exports.finalizePayroll = async (req, res, next) => {
+exports.submitPayrollForReview = async (req, res, next) => {
   let session = null;
   try {
     if (!req.body || typeof req.body !== "object") {
@@ -192,7 +192,7 @@ exports.finalizePayroll = async (req, res, next) => {
         overtimePay: item.overtimePay,
         netSalary: item.netSalary,
         createdBy: req.userId,
-        status: "finalized",
+        status: "PENDING_APPROVAL",
       };
 
       return {
@@ -275,7 +275,7 @@ exports.finalizePayroll = async (req, res, next) => {
     });
 
     res.status(200).json({
-      message: `Payroll finalized for ${results.length} employee${results.length !== 1 ? "s" : ""}`,
+      message: `Payroll submitted for review for ${results.length} employee${results.length !== 1 ? "s" : ""}`,
       results,
       errors: errors.length > 0 ? errors : undefined,
     });
