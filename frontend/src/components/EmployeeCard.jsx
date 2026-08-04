@@ -90,9 +90,9 @@ const CardHeader = ({ emp, finalized, onEdit }) => (
           onClick={onEdit}
           className="pt-2 px-2 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 bg-gray-50 hover:bg-blue-50 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
           title="Edit Employee"
-        >
-          <EditOutlinedIcon fontSize="small" className='mb-2'/>
-        </button>
+         aria-label="EditOutlinedIcon">
+        <EditOutlinedIcon fontSize="small" className='mb-2'/>
+      </button>
       )}
     </div>
   </div>

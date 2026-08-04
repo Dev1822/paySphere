@@ -596,8 +596,12 @@ export default function MonthlyUpdates() {
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <ThemeToggle />
-            <button style={{ background:"none", border:"none", cursor:"pointer", display:"flex", p:2, color: isDark ? "#cbd5e1" : "#6B7280" }}><BellIcon /></button>
-            <button style={{ background:"none", border:"none", cursor:"pointer", display:"flex", p:2, color: isDark ? "#cbd5e1" : "#6B7280" }}><HelpCircleIcon /></button>
+            <button style={{ background:"none", border:"none", cursor:"pointer", display:"flex", p:2, color: isDark ? "#cbd5e1" : "#6B7280" }} aria-label="BellIcon">
+        <BellIcon />
+      </button>
+            <button style={{ background:"none", border:"none", cursor:"pointer", display:"flex", p:2, color: isDark ? "#cbd5e1" : "#6B7280" }} aria-label="HelpCircleIcon">
+        <HelpCircleIcon />
+      </button>
             <div style={{ width:34, height:34, borderRadius:"50%", background:"#1E3A5F", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:"white", cursor:"pointer" }}>
               {getCompInitials(companyName)}
             </div>
@@ -764,7 +768,9 @@ export default function MonthlyUpdates() {
                   {item.pending && (
                     <div style={{ display:"flex", gap:4, flexShrink:0 }}>
                       <button className="icon-btn focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900" onClick={() => handleDelete(item.id)} title="Delete"><TrashIcon /></button>
-                      <button className="icon-btn focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900" title="Edit"><EditIcon2 /></button>
+                      <button className="icon-btn focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900" title="Edit" aria-label="EditIcon">
+        <EditIcon2 />
+      </button>
                     </div>
                   )}
                 </div>
