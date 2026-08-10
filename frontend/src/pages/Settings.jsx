@@ -78,10 +78,14 @@ export default function Settings() {
     employeeCount: 0
   });
   const fileInputRef = useRef(null);
+  const logoInputRef = useRef(null);
+  const signatureInputRef = useRef(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [signatureUploading, setSignatureUploading] = useState(false);
   
   const [settings, setSettings] = useState({
     preferences: { language: "English (US)", theme: "system" },
-    companyInfo: { payrollCycle: "monthly" },
+    companyInfo: { payrollCycle: "monthly", companyLogo: "", showLogoOnPayslip: true, address: "", gstin: "", pan: "", contactPhone: "", contactEmail: "", bankDetails: { bankName: "", accountNumber: "", ifscCode: "" }, signatureImage: "", showSignatureOnPayslip: false },
     payrollConfig: { currency: "INR (₹)", leaveDeductionPolicy: "basic_only", processingDate: "Last working day" },
     notifications: { emailReminders: true, systemAlerts: true, payrollCompletion: true, featureAnnouncements: false }
   });
@@ -171,6 +175,62 @@ export default function Settings() {
       setUserProfile(prev => ({ ...prev, avatar: reader.result }));
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!["image/png", "image/jpeg"].includes(file.type)) {
+      alert("Only PNG and JPEG files are allowed for logo.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 300 * 1024) {
+      alert("Logo file must be less than 300 KB.");
+      e.target.value = "";
+      return;
+    }
+    setLogoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("logo", file);
+      const res = await api.post("/api/auth/settings/logo", formData, { headers: { "Content-Type": "multipart/form-data" } });
+      updateSettingsField("companyInfo", "companyLogo", res.data.companyLogo);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "Failed to upload logo.");
+    } finally {
+      setLogoUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleSignatureUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!["image/png", "image/jpeg"].includes(file.type)) {
+      alert("Only PNG and JPEG files are allowed for signature.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 300 * 1024) {
+      alert("Signature file must be less than 300 KB.");
+      e.target.value = "";
+      return;
+    }
+    setSignatureUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("signature", file);
+      const res = await api.post("/api/auth/settings/signature", formData, { headers: { "Content-Type": "multipart/form-data" } });
+      updateSettingsField("companyInfo", "signatureImage", res.data.signatureImage);
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "Failed to upload signature.");
+    } finally {
+      setSignatureUploading(false);
+      e.target.value = "";
+    }
   };
 
   const handlePasswordUpdate = async () => {
@@ -409,30 +469,154 @@ export default function Settings() {
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Company Information</h2>
-              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Details about your organization registered on PaySphere.</p>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Company Information & Payslip Customization</h2>
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Manage your organization details and customize how they appear on payslips.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div>
-                <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">Company Name</label>
-                <input type="text" value={userProfile.companyName} onChange={(e) => setUserProfile({...userProfile, companyName: e.target.value})} className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-900 border border-transparent dark:border-slate-800 outline-none text-sm text-gray-900 dark:text-white transition" />
+            {/* Company Logo */}
+            <div className="p-6 border border-gray-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider">Company Logo</h3>
+              <div className="flex items-center gap-6">
+                <div className="w-20 h-20 rounded-xl bg-gray-50 dark:bg-slate-800 border-2 border-dashed border-gray-200 dark:border-slate-700 flex items-center justify-center overflow-hidden">
+                  {settings.companyInfo.companyLogo ? (
+                    <img src={settings.companyInfo.companyLogo} alt="Company Logo" className="w-full h-full object-contain p-1" />
+                  ) : (
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-300 dark:text-slate-600"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <input type="file" accept="image/png,image/jpeg" className="hidden" ref={logoInputRef} onChange={handleLogoUpload} />
+                  <button onClick={() => logoInputRef.current?.click()} disabled={logoUploading} className="px-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-sm font-semibold hover:bg-gray-50 dark:hover:bg-slate-700 transition disabled:opacity-50">
+                    {logoUploading ? "Uploading..." : "Upload Logo"}
+                  </button>
+                  {settings.companyInfo.companyLogo && (
+                    <button onClick={() => updateSettingsField('companyInfo', 'companyLogo', '')} className="px-4 py-2 text-red-600 dark:text-red-400 text-sm font-semibold hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
+                      Remove
+                    </button>
+                  )}
+                  <p className="text-xs text-gray-400 dark:text-slate-500">PNG or JPEG, max 300 KB</p>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">Organization ID</label>
-                <input type="text" value={userProfile.organizationId || "ORG-993821"} readOnly className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900/50 border border-transparent dark:border-slate-800 text-sm text-gray-500 dark:text-slate-400 cursor-not-allowed" />
+              <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-slate-800">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 dark:text-slate-300">Show Logo on Payslip</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-500">Display the company logo on generated payslips.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer" checked={settings.companyInfo.showLogoOnPayslip} onChange={() => updateSettingsField('companyInfo', 'showLogoOnPayslip', !settings.companyInfo.showLogoOnPayslip)} />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-blue-600"></div>
+                </label>
               </div>
-              <div>
-                <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">Employee Count</label>
-                <input type="text" value={userProfile.employeeCount} readOnly className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900/50 border border-transparent dark:border-slate-800 text-sm text-gray-500 dark:text-slate-400 cursor-not-allowed" />
+            </div>
+
+            {/* Basic Info */}
+            <div className="p-6 border border-gray-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider">Basic Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">Company Name</label>
+                  <input type="text" value={userProfile.companyName} onChange={(e) => setUserProfile({...userProfile, companyName: e.target.value})} className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-900 border border-transparent dark:border-slate-800 outline-none text-sm text-gray-900 dark:text-white transition" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">Organization ID</label>
+                  <input type="text" value={userProfile.organizationId || "ORG-993821"} readOnly className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900/50 border border-transparent dark:border-slate-800 text-sm text-gray-500 dark:text-slate-400 cursor-not-allowed" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">Employee Count</label>
+                  <input type="text" value={userProfile.employeeCount} readOnly className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-900/50 border border-transparent dark:border-slate-800 text-sm text-gray-500 dark:text-slate-400 cursor-not-allowed" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">Payroll Cycle</label>
+                  <select value={settings.companyInfo.payrollCycle} onChange={(e) => updateSettingsField('companyInfo', 'payrollCycle', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-900 border border-transparent dark:border-slate-800 outline-none text-sm text-gray-900 dark:text-white transition cursor-pointer">
+                    <option value="monthly">Monthly (End of month)</option>
+                    <option value="bi-weekly">Bi-weekly</option>
+                    <option value="weekly">Weekly</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">Payroll Cycle</label>
-                <select value={settings.companyInfo.payrollCycle} onChange={(e) => updateSettingsField('companyInfo', 'payrollCycle', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-900 border border-transparent dark:border-slate-800 outline-none text-sm text-gray-900 dark:text-white transition cursor-pointer">
-                  <option value="monthly">Monthly (End of month)</option>
-                  <option value="bi-weekly">Bi-weekly</option>
-                  <option value="weekly">Weekly</option>
-                </select>
+            </div>
+
+            {/* Address & Tax */}
+            <div className="p-6 border border-gray-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider">Address & Tax Information</h3>
+              <div className="space-y-5">
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">Company Address</label>
+                  <textarea value={settings.companyInfo.address || ""} onChange={(e) => updateSettingsField('companyInfo', 'address', e.target.value)} rows={3} className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-900 border border-transparent dark:border-slate-800 outline-none text-sm text-gray-900 dark:text-white transition resize-none" placeholder="Enter full company address" />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">GSTIN</label>
+                    <input type="text" value={settings.companyInfo.gstin || ""} onChange={(e) => updateSettingsField('companyInfo', 'gstin', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-900 border border-transparent dark:border-slate-800 outline-none text-sm text-gray-900 dark:text-white transition" placeholder="e.g. 22AAAAA0000A1Z5" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">PAN</label>
+                    <input type="text" value={settings.companyInfo.pan || ""} onChange={(e) => updateSettingsField('companyInfo', 'pan', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-900 border border-transparent dark:border-slate-800 outline-none text-sm text-gray-900 dark:text-white transition" placeholder="e.g. AAAAA0000A" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">Contact Phone</label>
+                    <input type="text" value={settings.companyInfo.contactPhone || ""} onChange={(e) => updateSettingsField('companyInfo', 'contactPhone', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-900 border border-transparent dark:border-slate-800 outline-none text-sm text-gray-900 dark:text-white transition" placeholder="e.g. +91 98765 43210" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">Contact Email</label>
+                    <input type="text" value={settings.companyInfo.contactEmail || ""} onChange={(e) => updateSettingsField('companyInfo', 'contactEmail', e.target.value)} className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-900 border border-transparent dark:border-slate-800 outline-none text-sm text-gray-900 dark:text-white transition" placeholder="e.g. info@company.com" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Company Bank Details */}
+            <div className="p-6 border border-gray-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider">Company Bank Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">Bank Name</label>
+                  <input type="text" value={settings.companyInfo.bankDetails?.bankName || ""} onChange={(e) => setSettings(prev => ({ ...prev, companyInfo: { ...prev.companyInfo, bankDetails: { ...(prev.companyInfo.bankDetails || {}), bankName: e.target.value } } }))} className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-900 border border-transparent dark:border-slate-800 outline-none text-sm text-gray-900 dark:text-white transition" placeholder="e.g. State Bank of India" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">Account Number</label>
+                  <input type="text" value={settings.companyInfo.bankDetails?.accountNumber || ""} onChange={(e) => setSettings(prev => ({ ...prev, companyInfo: { ...prev.companyInfo, bankDetails: { ...(prev.companyInfo.bankDetails || {}), accountNumber: e.target.value } } }))} className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-900 border border-transparent dark:border-slate-800 outline-none text-sm text-gray-900 dark:text-white transition" placeholder="e.g. 1234567890" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider mb-2 block">IFSC Code</label>
+                  <input type="text" value={settings.companyInfo.bankDetails?.ifscCode || ""} onChange={(e) => setSettings(prev => ({ ...prev, companyInfo: { ...prev.companyInfo, bankDetails: { ...(prev.companyInfo.bankDetails || {}), ifscCode: e.target.value } } }))} className="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-900 border border-transparent dark:border-slate-800 outline-none text-sm text-gray-900 dark:text-white transition" placeholder="e.g. SBIN0001234" />
+                </div>
+              </div>
+            </div>
+
+            {/* Authorized Signature */}
+            <div className="p-6 border border-gray-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold uppercase text-gray-500 dark:text-slate-400 tracking-wider">Authorized Signature</h3>
+              <div className="flex items-center gap-6">
+                <div className="w-20 h-20 rounded-xl bg-gray-50 dark:bg-slate-800 border-2 border-dashed border-gray-200 dark:border-slate-700 flex items-center justify-center overflow-hidden">
+                  {settings.companyInfo.signatureImage ? (
+                    <img src={settings.companyInfo.signatureImage} alt="Authorized Signature" className="w-full h-full object-contain p-1" />
+                  ) : (
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-300 dark:text-slate-600"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path d="m15 5 4 4" /></svg>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <input type="file" accept="image/png,image/jpeg" className="hidden" ref={signatureInputRef} onChange={handleSignatureUpload} />
+                  <button onClick={() => signatureInputRef.current?.click()} disabled={signatureUploading} className="px-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-sm font-semibold hover:bg-gray-50 dark:hover:bg-slate-700 transition disabled:opacity-50">
+                    {signatureUploading ? "Uploading..." : "Upload Signature"}
+                  </button>
+                  {settings.companyInfo.signatureImage && (
+                    <button onClick={() => updateSettingsField('companyInfo', 'signatureImage', '')} className="px-4 py-2 text-red-600 dark:text-red-400 text-sm font-semibold hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
+                      Remove
+                    </button>
+                  )}
+                  <p className="text-xs text-gray-400 dark:text-slate-500">PNG or JPEG, max 300 KB</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-slate-800">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 dark:text-slate-300">Show Signature on Payslip</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-500">Display the authorized signature on generated payslips.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer" checked={settings.companyInfo.showSignatureOnPayslip} onChange={() => updateSettingsField('companyInfo', 'showSignatureOnPayslip', !settings.companyInfo.showSignatureOnPayslip)} />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-blue-600"></div>
+                </label>
               </div>
             </div>
 

@@ -386,7 +386,13 @@ exports.sendPayslipEmailHandler = async (req, res, next) => {
       return res.status(400).json({ message: "Employee does not have an email address set" });
     }
 
-    await sendPayslipEmail(employee, payroll);
+    const user = await User.findById(req.userId);
+    const company = {
+      ...(user?.settings?.companyInfo || {}),
+      companyName: user?.companyName || "PaySphere",
+    };
+
+    await sendPayslipEmail(employee, payroll, company);
 
     createAuditLog({
       userId: req.userId,
@@ -428,6 +434,12 @@ exports.sendAllPayslipsEmailHandler = async (req, res, next) => {
       return res.status(404).json({ message: "No payroll records found for the selected month and year." });
     }
 
+    const user = await User.findById(req.userId);
+    const company = {
+      ...(user?.settings?.companyInfo || {}),
+      companyName: user?.companyName || "PaySphere",
+    };
+
     const employeeIds = [...new Set(payrolls.map(p => p.employeeId))];
     const employees = await Employee.find({ _id: { $in: employeeIds } });
     const employeeMap = new Map(employees.map(e => [String(e._id), e]));
@@ -452,7 +464,7 @@ exports.sendAllPayslipsEmailHandler = async (req, res, next) => {
       }
 
       try {
-        await sendPayslipEmail(employee, payroll);
+        await sendPayslipEmail(employee, payroll, company);
         results.push({ payrollId: payroll._id, employeeName: employee.fullName, email: employee.email, status: "sent" });
         sentCount++;
       } catch (err) {

@@ -114,7 +114,8 @@ parentPort.on("message", async (data) => {
       doc.end();
 
     } else if (type === "GENERATE_PAYSLIP") {
-      const { employee, payroll } = payload;
+      const { employee, payroll, company, currency } = payload;
+      const { renderPayslip } = require("../services/payslipRenderer.service");
       
       const doc = new PDFDocument({ margin: 50 });
       const buffers = [];
@@ -124,25 +125,7 @@ parentPort.on("message", async (data) => {
         parentPort.postMessage({ success: true, pdfData });
       });
 
-      // Build PDF content
-      doc.fontSize(20).text("PaySphere", { align: "center" });
-      doc.moveDown();
-      doc.fontSize(16).text(`Payslip for ${payroll.month}/${payroll.year}`, { align: "center" });
-      doc.moveDown(2);
-
-      doc.fontSize(12).text(`Employee Name: ${employee.fullName}`);
-      doc.text(`Role: ${employee.role || "N/A"}`);
-      doc.text(`Company: ${employee.companyName}`);
-      doc.moveDown();
-
-      doc.text(`Base Salary: Rs. ${payroll.baseSalary.toFixed(2)}`);
-      doc.text(`Leave Days: ${payroll.leaveDays} (Rs. -${payroll.leaveDeduction.toFixed(2)})`);
-      doc.text(`Overtime Hours: ${payroll.overtimeHours} (Rs. +${payroll.overtimePay.toFixed(2)})`);
-      doc.text(`Bonus: Rs. +${payroll.bonus.toFixed(2)}`);
-      doc.text(`Deductions: Rs. -${payroll.deductions.toFixed(2)}`);
-      doc.moveDown();
-
-      doc.fontSize(14).text(`Net Salary: Rs. ${payroll.netSalary.toFixed(2)}`, { underline: true });
+      renderPayslip(doc, { employee, payroll, company, currency });
       doc.end();
     }
   } catch (error) {

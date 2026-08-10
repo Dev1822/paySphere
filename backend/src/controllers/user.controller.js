@@ -8,7 +8,17 @@ const User = require("../models/user.model");
 const Employee = require("../models/employee.model");
 const PayrollUpdate = require("../models/payroll.model");
 const { sendEmail } = require("../utils/email");
-const { isNonEmptyString, isValidEmail, sanitizeText, DAILY_RATE_MAX, OVERTIME_RATE_MAX } = require("../utils/validators");
+const {
+  isNonEmptyString,
+  isValidEmail,
+  isValidPhone,
+  isValidGSTIN,
+  isValidPAN,
+  isValidIFSC,
+  sanitizeText,
+  DAILY_RATE_MAX,
+  OVERTIME_RATE_MAX,
+} = require("../utils/validators");
 const logger = require("../utils/logger");
 const { createAuditLog } = require("../services/audit.service");
 
@@ -182,6 +192,80 @@ exports.updateSettings = async (req, res, next) => {
     if (defaultDailyRate !== undefined) user.defaultDailyRate = defaultDailyRate;
     if (avatar !== undefined) user.avatar = avatar;
 
+    if (settings && settings.companyInfo) {
+      const ci = settings.companyInfo;
+      if (ci.gstin !== undefined && ci.gstin !== "" && ci.gstin !== null) {
+        if (typeof ci.gstin !== "string" || ci.gstin.length > 15 || !isValidGSTIN(ci.gstin)) {
+          return res.status(400).json({ message: "Invalid GSTIN format (must be 15 characters)" });
+        }
+      }
+      if (ci.pan !== undefined && ci.pan !== "" && ci.pan !== null) {
+        if (typeof ci.pan !== "string" || ci.pan.length > 10 || !isValidPAN(ci.pan)) {
+          return res.status(400).json({ message: "Invalid PAN format (must be 10 characters)" });
+        }
+      }
+      if (ci.contactEmail !== undefined && ci.contactEmail !== "" && ci.contactEmail !== null) {
+        if (typeof ci.contactEmail !== "string" || ci.contactEmail.length > 100 || !isValidEmail(ci.contactEmail)) {
+          return res.status(400).json({ message: "Invalid contact email address format" });
+        }
+      }
+      if (ci.contactPhone !== undefined && ci.contactPhone !== "" && ci.contactPhone !== null) {
+        if (typeof ci.contactPhone !== "string" || ci.contactPhone.length > 20 || !isValidPhone(ci.contactPhone)) {
+          return res.status(400).json({ message: "Invalid contact phone format" });
+        }
+      }
+      if (ci.companyLogo !== undefined && ci.companyLogo !== null) {
+        if (typeof ci.companyLogo !== "string") {
+          return res.status(400).json({ message: "Company logo must be a valid base64 data URL string" });
+        }
+      }
+      if (ci.signatureImage !== undefined && ci.signatureImage !== null) {
+        if (typeof ci.signatureImage !== "string") {
+          return res.status(400).json({ message: "Signature image must be a valid base64 data URL string" });
+        }
+      }
+      if (ci.showLogoOnPayslip !== undefined && typeof ci.showLogoOnPayslip !== "boolean") {
+        return res.status(400).json({ message: "showLogoOnPayslip must be a boolean" });
+      }
+      if (ci.showSignatureOnPayslip !== undefined && typeof ci.showSignatureOnPayslip !== "boolean") {
+        return res.status(400).json({ message: "showSignatureOnPayslip must be a boolean" });
+      }
+      if (ci.payrollCycle !== undefined) {
+        const allowedPayrollCycles = ["weekly", "bi-weekly", "monthly"];
+        if (typeof ci.payrollCycle !== "string" || !allowedPayrollCycles.includes(ci.payrollCycle)) {
+          return res.status(400).json({ message: "Invalid payroll cycle. Allowed values: weekly, bi-weekly, monthly" });
+        }
+      }
+      if (ci.contactPhone !== undefined && ci.contactPhone !== "" && ci.contactPhone !== null) {
+        if (typeof ci.contactPhone !== "string" || ci.contactPhone.length > 20 || !isValidPhone(ci.contactPhone)) {
+          return res.status(400).json({ message: "Contact phone cannot exceed 20 characters" });
+        }
+      }
+      if (ci.address !== undefined && ci.address !== "" && ci.address !== null) {
+        if (typeof ci.address !== "string" || ci.address.length > 300) {
+          return res.status(400).json({ message: "Address cannot exceed 300 characters" });
+        }
+      }
+      if (ci.bankDetails) {
+        const bd = ci.bankDetails;
+        if (bd.ifscCode !== undefined && bd.ifscCode !== "" && bd.ifscCode !== null) {
+          if (typeof bd.ifscCode !== "string" || bd.ifscCode.length > 20 || !isValidIFSC(bd.ifscCode)) {
+            return res.status(400).json({ message: "Invalid IFSC code format (must be 11 characters e.g. SBIN0001234)" });
+          }
+        }
+        if (bd.bankName !== undefined && bd.bankName !== "" && bd.bankName !== null) {
+          if (typeof bd.bankName !== "string" || bd.bankName.length > 100) {
+            return res.status(400).json({ message: "Bank name cannot exceed 100 characters" });
+          }
+        }
+        if (bd.accountNumber !== undefined && bd.accountNumber !== "" && bd.accountNumber !== null) {
+          if (typeof bd.accountNumber !== "string" || bd.accountNumber.length > 50) {
+            return res.status(400).json({ message: "Account number cannot exceed 50 characters" });
+          }
+        }
+      }
+    }
+
     if (!user.settings) user.settings = {};
 
     if (settings) {
@@ -189,7 +273,15 @@ exports.updateSettings = async (req, res, next) => {
         user.settings.preferences = { ...(user.settings.preferences || {}), ...settings.preferences };
       }
       if (settings.companyInfo) {
-        user.settings.companyInfo = { ...(user.settings.companyInfo || {}), ...settings.companyInfo };
+        const existingInfo = user.settings.companyInfo || {};
+        const updatedInfo = { ...existingInfo, ...settings.companyInfo };
+        if (settings.companyInfo.bankDetails) {
+          updatedInfo.bankDetails = {
+            ...(existingInfo.bankDetails || {}),
+            ...settings.companyInfo.bankDetails,
+          };
+        }
+        user.settings.companyInfo = updatedInfo;
       }
       if (settings.payrollConfig) {
         user.settings.payrollConfig = { ...(user.settings.payrollConfig || {}), ...settings.payrollConfig };
@@ -503,7 +595,7 @@ exports.deleteAccount = async (req, res, next) => {
 
     const deleteOptions = session ? { session } : {};
 
-    const AuditLog = require("../models/audit.model");
+    const AuditLog = require("../models/auditLog.model");
 
     await Employee.deleteMany({ createdBy: req.userId }, deleteOptions);
     await PayrollUpdate.deleteMany({ createdBy: req.userId }, deleteOptions);
@@ -590,6 +682,80 @@ exports.logout = async (req, res, next) => {
       sameSite: "strict"
     });
     res.status(200).json({ message: "Logged out successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// UPLOAD COMPANY LOGO (multer → base64 data URI → settings.companyInfo.companyLogo)
+exports.uploadCompanyLogo = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded. Please select a PNG or JPEG image (max 300 KB)." });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const base64 = req.file.buffer.toString("base64");
+    const dataUri = `data:${req.file.mimetype};base64,${base64}`;
+
+    if (!user.settings) user.settings = {};
+    if (!user.settings.companyInfo) user.settings.companyInfo = {};
+    user.settings.companyInfo.companyLogo = dataUri;
+    await user.save();
+
+    createAuditLog({
+      userId: req.userId,
+      action: "SETTINGS_UPDATE",
+      resourceType: "User",
+      details: { updatedFields: ["settings.companyInfo.companyLogo"] },
+      req,
+    });
+
+    logger.info("Company logo uploaded", { userId: req.userId, size: req.file.size });
+
+    res.status(200).json({
+      message: "Company logo uploaded successfully",
+      companyLogo: dataUri,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// UPLOAD SIGNATURE IMAGE (multer → base64 data URI → settings.companyInfo.signatureImage)
+exports.uploadSignature = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded. Please select a PNG or JPEG image (max 300 KB)." });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const base64 = req.file.buffer.toString("base64");
+    const dataUri = `data:${req.file.mimetype};base64,${base64}`;
+
+    if (!user.settings) user.settings = {};
+    if (!user.settings.companyInfo) user.settings.companyInfo = {};
+    user.settings.companyInfo.signatureImage = dataUri;
+    await user.save();
+
+    createAuditLog({
+      userId: req.userId,
+      action: "SETTINGS_UPDATE",
+      resourceType: "User",
+      details: { updatedFields: ["settings.companyInfo.signatureImage"] },
+      req,
+    });
+
+    logger.info("Signature image uploaded", { userId: req.userId, size: req.file.size });
+
+    res.status(200).json({
+      message: "Signature image uploaded successfully",
+      signatureImage: dataUri,
+    });
   } catch (error) {
     next(error);
   }

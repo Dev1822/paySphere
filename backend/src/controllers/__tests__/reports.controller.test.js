@@ -1,9 +1,11 @@
 const { getAnalytics, downloadPDFReport, exportExcelReport, downloadPayslipsZip } = require("../reports.controller");
 const PayrollUpdate = require("../../models/payroll.model");
 const Employee = require("../../models/employee.model");
+const User = require("../../models/user.model");
 
 jest.mock("../../models/payroll.model");
 jest.mock("../../models/employee.model");
+jest.mock("../../models/user.model");
 jest.mock("../../services/audit.service", () => ({
   createAuditLog: jest.fn(),
 }));
@@ -417,6 +419,7 @@ describe("Reports Controller - downloadPayslipsZip", () => {
       },
     ];
     PayrollUpdate.find.mockReturnValue({ sort: jest.fn().mockResolvedValue(mockPayrolls) });
+    User.findById.mockResolvedValue({ companyName: "TestCorp", settings: {} });
     Employee.find.mockResolvedValue([{ _id: "emp1", fullName: "Alice Smith", role: "Developer", companyName: "TestCorp" }]);
 
     await downloadPayslipsZip(req, res, next);

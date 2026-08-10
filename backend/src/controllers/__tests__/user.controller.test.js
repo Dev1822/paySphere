@@ -53,9 +53,16 @@ jest.mock('../../models/payroll.model', () => {
   };
 });
 
+jest.mock('../../models/auditLog.model', () => {
+  return {
+    deleteMany: jest.fn(),
+  };
+});
+
 describe('Google Authentication Controller tests', () => {
   let req;
   let res;
+  let next;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -68,14 +75,16 @@ describe('Google Authentication Controller tests', () => {
     res = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
+      cookie: jest.fn(),
     };
+    next = jest.fn((err) => console.log('GOOGLE AUTH ERROR:', err));
     jwt.sign.mockReturnValue('dummy_jwt_token');
   });
 
   test("should return 'Account created successfully' for a new Google sign-up", async () => {
     User.findOne.mockResolvedValueOnce(null);
 
-    await googleAuth(req, res);
+    await googleAuth(req, res, next);
 
     expect(User.findOne).toHaveBeenCalledWith({ email: 'newuser@example.com' });
     expect(res.status).toHaveBeenCalledWith(200);
@@ -97,7 +106,7 @@ describe('Google Authentication Controller tests', () => {
 
     User.findOne.mockResolvedValueOnce(existingUser);
 
-    await googleAuth(req, res);
+    await googleAuth(req, res, next);
 
     expect(User.findOne).toHaveBeenCalledWith({ email: 'newuser@example.com' });
     expect(res.status).toHaveBeenCalledWith(200);

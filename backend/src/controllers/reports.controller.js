@@ -1,6 +1,8 @@
 const PDFDocument = require("pdfkit");
 const PayrollUpdate = require("../models/payroll.model");
 const Employee = require("../models/employee.model");
+const User = require("../models/user.model");
+const { renderPayslip } = require("../services/payslipRenderer.service");
 const logger = require("../utils/logger");
 const { createAuditLog } = require("../services/audit.service");
 
@@ -228,7 +230,7 @@ exports.downloadPDFReport = async (req, res, next) => {
 };
 
 // Helper: Generate a single payslip PDF buffer for zip bundle
-const generatePayslipBuffer = (employee, payroll) => {
+const generatePayslipBuffer = (employee, payroll, company = {}, currency = "INR") => {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50 });
     const buffers = [];
@@ -236,28 +238,7 @@ const generatePayslipBuffer = (employee, payroll) => {
     doc.on("end", () => resolve(Buffer.concat(buffers)));
     doc.on("error", (err) => reject(err));
 
-    doc.fontSize(20).font("Helvetica-Bold").fillColor("#1e3a5f").text("PaySphere", { align: "center" });
-    doc.moveDown(0.5);
-    doc.fontSize(14).font("Helvetica").fillColor("#555555").text(`Payslip for ${payroll.month}/${payroll.year}`, { align: "center" });
-    doc.moveDown(1.5);
-
-    doc.fontSize(11).font("Helvetica-Bold").fillColor("#333333").text("Employee Details");
-    doc.fontSize(10).font("Helvetica").fillColor("#555555");
-    doc.text(`Employee Name: ${employee.fullName || payroll.employeeName}`);
-    doc.text(`Role: ${employee.role || "N/A"}`);
-    doc.text(`Company: ${employee.companyName || "PaySphere"}`);
-    doc.moveDown(1);
-
-    doc.fontSize(11).font("Helvetica-Bold").fillColor("#333333").text("Earnings & Deductions");
-    doc.fontSize(10).font("Helvetica").fillColor("#555555");
-    doc.text(`Base Salary: Rs. ${(payroll.baseSalary || 0).toFixed(2)}`);
-    doc.text(`Leave Days: ${payroll.leaveDays || 0} (Rs. -${(payroll.leaveDeduction || 0).toFixed(2)})`);
-    doc.text(`Overtime Hours: ${payroll.overtimeHours || 0} (Rs. +${(payroll.overtimePay || 0).toFixed(2)})`);
-    doc.text(`Bonus: Rs. +${(payroll.bonus || 0).toFixed(2)}`);
-    doc.text(`Deductions: Rs. -${(payroll.deductions || 0).toFixed(2)}`);
-    doc.moveDown(1);
-
-    doc.fontSize(12).font("Helvetica-Bold").fillColor("#1e3a5f").text(`Net Salary: Rs. ${(payroll.netSalary || 0).toFixed(2)}`, { underline: true });
+    renderPayslip(doc, { employee, payroll, company, currency });
     doc.end();
   });
 };
@@ -432,6 +413,13 @@ exports.downloadPayslipsZip = async (req, res, next) => {
         .json({ message: "No payroll data found for the selected period." });
     }
 
+    const user = await User.findById(userId);
+    const company = {
+      ...(user?.settings?.companyInfo || {}),
+      companyName: user?.companyName || "PaySphere",
+    };
+    const currency = user?.settings?.payrollConfig?.currency || "INR";
+
     const employeeIds = payrolls.map((p) => p.employeeId);
     const employees = await Employee.find({ _id: { $in: employeeIds } });
     const employeeMap = {};
@@ -458,7 +446,7 @@ exports.downloadPayslipsZip = async (req, res, next) => {
 
     for (const payroll of payrolls) {
       const emp = employeeMap[String(payroll.employeeId)] || { fullName: payroll.employeeName };
-      const pdfBuffer = await generatePayslipBuffer(emp, payroll);
+      const pdfBuffer = await generatePayslipBuffer(emp, payroll, company, currency);
       const safeName = (payroll.employeeName || "Employee").replace(/[^a-zA-Z0-9_-]/g, "_");
       archive.append(pdfBuffer, { name: `Payslip_${safeName}_${monthName}_${year}.pdf` });
     }

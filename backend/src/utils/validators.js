@@ -19,6 +19,13 @@ const isValidEmail = (val) => {
   return emailRegex.test(val.trim());
 };
 
+// Check valid phone format (basic international and local number support)
+const isValidPhone = (val) => {
+  if (typeof val !== "string") return false;
+  const phoneRegex = /^\+?[0-9()\-\s]{7,20}$/;
+  return phoneRegex.test(val.trim());
+};
+
 // Check valid positive number (rejects NaN, Infinity, strings, <= 0)
 const isPositiveNumber = (val) => typeof val === "number" && !isNaN(val) && Number.isFinite(val) && val > 0;
 
@@ -54,9 +61,34 @@ const sanitizeText = (val) => {
   return stripHtml(val).trim();
 };
 
+// Check valid Indian GSTIN format (15 characters)
+const isValidGSTIN = (val) => {
+  if (typeof val !== "string") return false;
+  const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i;
+  return gstinRegex.test(val.trim());
+};
+
+// Check valid Indian PAN format (10 characters)
+const isValidPAN = (val) => {
+  if (typeof val !== "string") return false;
+  const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i;
+  return panRegex.test(val.trim());
+};
+
+// Check valid Indian IFSC code format (11 characters)
+const isValidIFSC = (val) => {
+  if (typeof val !== "string") return false;
+  const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/i;
+  return ifscRegex.test(val.trim());
+};
+
 module.exports = {
   isNonEmptyString,
   isValidEmail,
+  isValidPhone,
+  isValidGSTIN,
+  isValidPAN,
+  isValidIFSC,
   isPositiveNumber,
   isNonNegativeNumber,
   sanitizeString,

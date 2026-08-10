@@ -1,7 +1,8 @@
 const express = require("express");
-const { signup, login, getSettings, updateSettings, updatePassword, googleAuth, forgotPassword, resetPassword, disconnectGoogle, deleteAccount } = require("../controllers/user.controller");
+const { signup, login, getSettings, updateSettings, updatePassword, googleAuth, forgotPassword, resetPassword, disconnectGoogle, deleteAccount, uploadCompanyLogo, uploadSignature } = require("../controllers/user.controller");
 const auth = require("../middlewares/auth.middleware");
 const { authRateLimiter, writeRateLimiter } = require("../middlewares/rateLimiter.middleware");
+const { logoUpload } = require("../middlewares/upload.middleware");
 const router = express.Router();
 
 router.post("/signup", authRateLimiter, signup);
@@ -15,6 +16,8 @@ router.post("/logout", authRateLimiter, require("../controllers/user.controller"
 // Settings
 router.get("/settings", auth, getSettings);
 router.patch("/settings", auth, writeRateLimiter, updateSettings);
+router.post("/settings/logo", auth, writeRateLimiter, logoUpload.single("logo"), uploadCompanyLogo);
+router.post("/settings/signature", auth, writeRateLimiter, logoUpload.single("signature"), uploadSignature);
 router.patch("/security/password", auth, writeRateLimiter, updatePassword);
 router.patch("/security/disconnect-google", auth, writeRateLimiter, disconnectGoogle);
 router.delete("/security/account", auth, writeRateLimiter, deleteAccount);

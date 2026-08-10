@@ -45,6 +45,20 @@ const userSchema = new mongoose.Schema({
     },
     companyInfo: {
       payrollCycle: { type: String, enum: ['weekly', 'bi-weekly', 'monthly'], default: 'monthly' },
+      companyLogo: { type: String, default: '' },
+      showLogoOnPayslip: { type: Boolean, default: true },
+      address: { type: String, maxlength: 300, default: '' },
+      gstin: { type: String, maxlength: 15, default: '' },
+      pan: { type: String, maxlength: 10, default: '' },
+      contactPhone: { type: String, maxlength: 20, default: '' },
+      contactEmail: { type: String, maxlength: 100, default: '' },
+      bankDetails: {
+        bankName: { type: String, maxlength: 100, default: '' },
+        accountNumber: { type: String, maxlength: 50, default: '' },
+        ifscCode: { type: String, maxlength: 20, default: '' },
+      },
+      signatureImage: { type: String, default: '' },
+      showSignatureOnPayslip: { type: Boolean, default: false },
     },
     payrollConfig: {
       currency: { type: String, default: 'INR' },

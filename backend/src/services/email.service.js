@@ -14,7 +14,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-exports.sendPayslipEmail = async (employee, payroll) => {
+exports.sendPayslipEmail = async (employee, payroll, company = {}) => {
   if (!employee.email) {
     logger.warn(`No email found for employee`, { employeeName: employee.fullName });
     return;
@@ -29,7 +29,7 @@ exports.sendPayslipEmail = async (employee, payroll) => {
       
       pdfWorker.postMessage({
         type: "GENERATE_PAYSLIP",
-        payload: { employee, payroll }
+        payload: { employee, payroll, company }
       });
 
       pdfWorker.on("message", async (result) => {
