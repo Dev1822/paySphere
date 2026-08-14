@@ -1,31 +1,11 @@
 const mongoose = require('mongoose');
 const Employee = require('../models/employee.model');
 const { getTenantId } = require('../utils/tenantScope');
-
-/**
- * The archive browser for soft-deleted employees (#759, repaired in #897).
- *
- * Three things were wrong with the sixteen lines this replaces, and the first
- * one made the other two invisible.
- *
- * The query selected on `isDeleted: true`, and nothing in the product has ever
- * written that field. `deleteEmployee` set `deletedAt` and left `isDeleted` at
- * its default of `false`, so this endpoint returned `[]` for every account in
- * every company since the day it shipped. The fix for that is in
- * `employee.controller.js`; without it, everything below is a correctly-scoped
- * view of an empty set.
- *
- * The filter was `createdBy: req.userId` — the account id of the caller, not
- * the company. PaySphere is multi-admin: everything Admin A archived was
- * invisible to Admin B, and the page renders the same `EmptyState` either way,
- * so neither of them could tell "nothing has been archived" from "someone else
- * archived it". For a compliance surface whose entire job is showing what was
- * deleted, quietly showing a subset is worse than an error.
- *
- * And there was no `limit`, on a query that returns whole employee documents —
- * salary, email, department — for a tenant that may have churned thousands of
- * them.
- */
+const {
+  anonymizeEmployeePII,
+  evaluateRetentionEligibility,
+} = require('../utils/retentionPolicy');
+const eventBus = require('../services/event.service');
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 20;
@@ -54,10 +34,6 @@ exports.getArchivedEmployees = async (req, res, next) => {
       limit = DEFAULT_PAGE_SIZE;
     }
 
-    // `isDeleted: true` also disables the plugin's own hook, which would
-    // otherwise append `isDeleted: { $ne: true }` and contradict the filter —
-    // but `setOptions` is passed anyway so the query does not depend on that
-    // implementation detail staying true.
     const query = { tenantId, isDeleted: true };
 
     const [total, employees] = await Promise.all([
@@ -72,8 +48,6 @@ exports.getArchivedEmployees = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: employees,
-      // `total` so the UI can show a count and page, rather than inferring the
-      // end of the list from a short page.
       total,
       page,
       limit,
@@ -86,10 +60,6 @@ exports.getArchivedEmployees = async (req, res, next) => {
 
 /**
  * GET /api/archive/employees/:id — one archived record.
- *
- * The list returns whole documents today, which is its own problem; this exists
- * so the UI can confirm what it is about to restore without holding a stale
- * copy from a list that may have been paged away.
  */
 exports.getArchivedEmployee = async (req, res, next) => {
   try {
@@ -108,12 +78,100 @@ exports.getArchivedEmployee = async (req, res, next) => {
     }).setOptions({ includeDeleted: true });
 
     if (!employee) {
-      // Indistinguishable from "does not exist", so a caller cannot probe for
-      // another company's employee ids.
       return res.status(404).json({ message: 'Archived employee not found' });
     }
 
     res.status(200).json({ success: true, data: employee });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/archive/employees/:id/anonymize — GDPR Right to be Forgotten PII Redaction.
+ */
+exports.anonymizeEmployee = async (req, res, next) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) return refuseUnscoped(res);
+
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid ID format' });
+    }
+
+    const employee = await Employee.findOne({
+      _id: id,
+      tenantId,
+      isDeleted: true,
+    }).setOptions({ includeDeleted: true });
+
+    if (!employee) {
+      return res.status(404).json({ message: 'Archived employee not found' });
+    }
+
+    const anonymizedFields = anonymizeEmployeePII(employee);
+    Object.assign(employee, anonymizedFields);
+    await employee.save();
+
+    eventBus.emit('AUDIT_LOG', {
+      userId: req.userId,
+      action: 'GDPR_EMPLOYEE_ANONYMIZED',
+      resourceType: 'Employee',
+      resourceIds: [employee._id],
+      details: { anonymizedAt: new Date() },
+      req,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Employee PII has been cryptographically anonymized in accordance with GDPR Article 17',
+      employee,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/archive/retention-check — Data retention audit for archived records.
+ */
+exports.evaluateRetention = async (req, res, next) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) return refuseUnscoped(res);
+
+    const retentionYears = Number(req.query?.retentionYears) || 7;
+
+    const archivedEmployees = await Employee.find({
+      tenantId,
+      isDeleted: true,
+    })
+      .setOptions({ includeDeleted: true })
+      .select('_id fullName email deletedAt')
+      .lean();
+
+    const results = archivedEmployees.map((emp) => {
+      const evaluation = evaluateRetentionEligibility(emp, retentionYears);
+      return {
+        id: emp._id,
+        fullName: emp.fullName,
+        deletedAt: emp.deletedAt,
+        isEligibleForPurge: evaluation.isEligibleForPurge,
+        daysArchived: evaluation.daysArchived,
+        remainingDays: evaluation.remainingDays,
+      };
+    });
+
+    const eligibleCount = results.filter((r) => r.isEligibleForPurge).length;
+
+    res.status(200).json({
+      success: true,
+      retentionYears,
+      totalArchived: archivedEmployees.length,
+      eligibleForPurgeCount: eligibleCount,
+      records: results,
+    });
   } catch (error) {
     next(error);
   }
