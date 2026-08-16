@@ -89,6 +89,11 @@ const clientInvoiceRoutes = require('./routes/clientInvoice.routes');
 const shiftRosterRoutes = require('./routes/shiftRoster.routes');
 const pyqRoutes = require('./routes/pyq.routes');
 
+// Salary disbursement (#1075). Payroll was computed to the rupee and then
+// stopped: `payroll.model.js` has a `disbursed` status and nothing in the
+// product produced the bank file that actually moves the money.
+const disbursementRoutes = require('./routes/disbursement.routes');
+
 // Training and certification expiry (#1076). The frontend's "Learning" nav
 // group held only exam-prep content; there was no employment training record
 // anywhere, and no way to answer "who holds a current POSH certification".
@@ -417,6 +422,9 @@ app.use('/api/clients', clientInvoiceRoutes);
 app.use('/api/shifts', shiftRosterRoutes);
 
 app.use('/api/pyqs', pyqRoutes);
+
+// Salary disbursement (#1075). The router owns `/batches` and `/profiles`.
+app.use('/api/disbursements', disbursementRoutes);
 
 // Training and certification (#1076). The router owns `/courses`,
 // `/enrollments`, `/compliance` and `/my-training`.

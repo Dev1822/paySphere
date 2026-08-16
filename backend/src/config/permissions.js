@@ -136,6 +136,19 @@ const PERMISSIONS = {
   // generation.
   MANAGE_PYQ: 'MANAGE_PYQ',
 
+  // --- Salary disbursement (#1075) -----------------------------------------
+  READ_DISBURSEMENT: 'READ_DISBURSEMENT',
+  // Building a batch, validating it and downloading the bank file. The download
+  // is the only response in the product that carries full bank account numbers,
+  // which is why it is not covered by the read permission.
+  MANAGE_DISBURSEMENT: 'MANAGE_DISBURSEMENT',
+  // The point of no return, and kept apart for the same maker-checker reason as
+  // APPROVE_PAYROLL (#458): whoever assembles a payment file should not be the
+  // only person standing between it and a bank transfer. This is the highest
+  // consequence write in the product — everything else changes a record, this
+  // one moves money out of the company account into several hundred others.
+  RELEASE_DISBURSEMENT: 'RELEASE_DISBURSEMENT',
+
   // --- Training and certification (#1076) ----------------------------------
   READ_TRAINING: 'READ_TRAINING',
   // Creating courses, assigning them, recording completions and waiving
@@ -340,6 +353,28 @@ const PERMISSION_DEFINITIONS = [
       'Add and bulk-upload previous-year questions, and generate trend forecasts',
   },
 
+  // #1074.
+  {
+    name: PERMISSIONS.READ_REQUISITION,
+    description:
+      'View job requisitions, candidates, interview scorecards and hiring funnel analytics',
+  },
+  {
+    name: PERMISSIONS.MANAGE_REQUISITION,
+    description:
+      'Open, hold and close job requisitions, and set the approved CTC band every offer is checked against',
+  },
+  {
+    name: PERMISSIONS.MANAGE_CANDIDATE,
+    description:
+      'Add candidates and move them through the hiring pipeline, including making offers and recording hires',
+  },
+  {
+    name: PERMISSIONS.SUBMIT_INTERVIEW_FEEDBACK,
+    description:
+      'Submit an interview scorecard for a candidate you interviewed',
+  },
+
   // #1076.
   {
     name: PERMISSIONS.READ_TRAINING,
@@ -456,6 +491,11 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_PYQ,
       PERMISSIONS.MANAGE_PYQ,
 
+      // #1075.
+      PERMISSIONS.READ_DISBURSEMENT,
+      PERMISSIONS.MANAGE_DISBURSEMENT,
+      PERMISSIONS.RELEASE_DISBURSEMENT,
+
       // #1076.
       PERMISSIONS.READ_TRAINING,
       PERMISSIONS.MANAGE_TRAINING,
@@ -525,6 +565,11 @@ const ROLE_DEFINITIONS = [
       // it.
       PERMISSIONS.READ_ESOP,
       PERMISSIONS.READ_OWN_ESOP,
+
+      // #1075. HR assembles the payment file; it does not release it. Same
+      // maker-checker split as APPROVE_PAYROLL, which HR also does not hold.
+      PERMISSIONS.READ_DISBURSEMENT,
+      PERMISSIONS.MANAGE_DISBURSEMENT,
 
       // #1076. Squarely HR: it is HR that has to produce "who was trained,
       // when, and is it still current" during an audit.

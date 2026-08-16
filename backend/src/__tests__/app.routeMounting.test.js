@@ -116,6 +116,9 @@ const MOUNTED_ROUTES = [
   ['/api/shifts', 'get', '/api/shifts/roster'],
   ['/api/pyqs', 'get', '/api/pyqs'],
 
+  // Mounted in #1075.
+  ['/api/disbursements', 'get', '/api/disbursements/batches'],
+
   // Mounted in #1076.
   ['/api/training', 'get', '/api/training/courses'],
 
