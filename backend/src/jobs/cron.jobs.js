@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const PayrollUpdate = require('../models/payroll.model');
 const Employee = require('../models/employee.model');
 const CronLock = require('../models/cronlock.model');
+const Tenant = require('../models/tenant.model');
 const { enqueueEmail } = require('../jobs/email.queue');
 const { emailableStatusFilter } = require('../config/payrollStatus');
 const { processMonthlyAccrual } = require('./leaveAccrual.job');
@@ -221,7 +222,7 @@ async function runMonthlyPayslipJob({ now = new Date() } = {}) {
  * @param {Date} [options.now]
  * @returns {Promise<{ran: boolean, reason?: string, sent: number, failed: number}>}
  */
-async function runDailyGreetingsJob({ now = new Date() } = {}) {
+async function runDailyGreetingsJob({ now = new Date(), tenantId } = {}) {
   const month = now.getMonth() + 1;
   const day = now.getDate();
   const lockId = `daily_greetings_${now.getFullYear()}_${month}_${day}`;
@@ -238,47 +239,61 @@ async function runDailyGreetingsJob({ now = new Date() } = {}) {
   }
 
   try {
-    const employees = await Employee.find({
-      isActive: true,
-      email: { $exists: true, $ne: '' },
-    });
+    let tenants = [];
+    if (tenantId) {
+      const tenant = await Tenant.findOne({ _id: tenantId, isActive: true });
+      if (tenant) {
+        tenants.push(tenant);
+      }
+    } else {
+      tenants = await Tenant.find({ isActive: true });
+    }
 
-    for (const employee of employees) {
-      try {
-        if (employee.dateOfBirth) {
-          const dob = new Date(employee.dateOfBirth);
-          if (dob.getMonth() + 1 === month && dob.getDate() === day) {
-            await enqueueEmail('generic', {
-              to: employee.email,
-              subject: `Happy Birthday, ${employee.fullName}!`,
-              text: `Dear ${employee.fullName},\n\nWishing you a very Happy Birthday from everyone at ${employee.companyName}!\n\nBest Regards,\nThe Team`,
-            });
-            sent += 1;
-          }
-        }
+    for (const tenant of tenants) {
+      const employees = await Employee.find({
+        tenantId: tenant._id,
+        isActive: true,
+        email: { $exists: true, $ne: '' },
+      });
 
-        if (employee.joiningDate) {
-          const joined = new Date(employee.joiningDate);
-          if (joined.getMonth() + 1 === month && joined.getDate() === day) {
-            const years = now.getFullYear() - joined.getFullYear();
-            if (years > 0) {
+      for (const employee of employees) {
+        try {
+          if (employee.dateOfBirth) {
+            const dob = new Date(employee.dateOfBirth);
+            if (dob.getMonth() + 1 === month && dob.getDate() === day) {
               await enqueueEmail('generic', {
                 to: employee.email,
-                subject: `Happy ${years} Year Work Anniversary, ${employee.fullName}!`,
-                text: `Dear ${employee.fullName},\n\nCongratulations on reaching your ${years} year anniversary at ${employee.companyName}! We appreciate all your hard work.\n\nBest Regards,\nThe Team`,
+                subject: `Happy Birthday, ${employee.fullName}!`,
+                text: `Dear ${employee.fullName},\n\nWishing you a very Happy Birthday from everyone at ${employee.companyName}!\n\nBest Regards,\nThe Team`,
               });
               sent += 1;
             }
           }
+
+          if (employee.joiningDate) {
+            const joined = new Date(employee.joiningDate);
+            if (joined.getMonth() + 1 === month && joined.getDate() === day) {
+              const years = now.getFullYear() - joined.getFullYear();
+              if (years > 0) {
+                await enqueueEmail('generic', {
+                  to: employee.email,
+                  subject: `Happy ${years} Year Work Anniversary, ${employee.fullName}!`,
+                  text: `Dear ${employee.fullName},\n\nCongratulations on reaching your ${years} year anniversary at ${employee.companyName}! We appreciate all your hard work.\n\nBest Regards,\nThe Team`,
+                });
+                sent += 1;
+              }
+            }
+          }
+        } catch (error) {
+          // Same reasoning as the payslip loop: one bad address is not a reason
+          // for everybody else to go without.
+          failed += 1;
+          logger.error('Failed to send a greeting', {
+            employeeId: String(employee._id),
+            tenantId: String(tenant._id),
+            error: error.message,
+          });
         }
-      } catch (error) {
-        // Same reasoning as the payslip loop: one bad address is not a reason
-        // for everybody else to go without.
-        failed += 1;
-        logger.error('Failed to send a greeting', {
-          employeeId: String(employee._id),
-          error: error.message,
-        });
       }
     }
 
