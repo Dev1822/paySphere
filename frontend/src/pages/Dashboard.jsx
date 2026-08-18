@@ -777,6 +777,7 @@ const PayrollTable = ({
   const PAYROLL_LIMIT = 10;
   const startIdx = (currentPage - 1) * PAYROLL_LIMIT + 1;
   const endIdx = Math.min(currentPage * PAYROLL_LIMIT, totalCount);
+  const currency = localStorage.getItem('currency') || 'INR';
 
   const STATUS_STYLE = {
     pending_approval:
@@ -863,10 +864,10 @@ const PayrollTable = ({
                 {MONTH_NAMES[(p.month || 1) - 1]} {p.year}
               </div>
               <div className="text-right text-sm text-gray-700 dark:text-slate-300">
-                ₹{(p.baseSalary || 0).toLocaleString('en-IN')}
+                {formatCurrency(p.baseSalary || 0, currency)}
               </div>
               <div className="text-right font-bold text-sm text-slate-900 dark:text-white">
-                ₹{(p.netSalary || 0).toLocaleString('en-IN')}
+                {formatCurrency(p.netSalary || 0, currency)}
               </div>
               <div className="flex sm:justify-center">
                 <span
