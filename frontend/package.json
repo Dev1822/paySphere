@@ -62,7 +62,8 @@
     "react-resizable": "^3.2.0",
     "react-router-dom": "^7.14.2",
     "socket.io-client": "^4.8.3",
-    "tailwindcss": "^4.2.4"
+    "tailwindcss": "^4.2.4",
+    "zustand": "^5.0.1"
   },
   "devDependencies": {
     "@chromatic-com/storybook": "latest",
