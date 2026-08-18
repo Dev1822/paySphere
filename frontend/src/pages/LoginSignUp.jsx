@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import zxcvbn from '../utils/zxcvbn';
@@ -44,6 +44,11 @@ export default function PaySphereLogin() {
   const [email, setEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [password, setPassword] = useState('');
+
+  const passwordStrength = useMemo(() => {
+    if (!password) return null;
+    return zxcvbn(password);
+  }, [password]);
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -557,35 +562,35 @@ export default function PaySphereLogin() {
                     className="w-full mb-4 px-4 py-3 rounded-lg bg-gray-100 dark:bg-slate-950 text-gray-950 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 border border-transparent dark:border-slate-800 focus:bg-white dark:focus:bg-slate-900 focus:border-blue-500 dark:focus:border-blue-500 outline-none transition-colors"
                   />
 
-                  {password && (
+                  {password && passwordStrength && (
                     <div className="mb-4 text-left">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-gray-500 dark:text-slate-450">Password Strength:</span>
+                        <span className="text-xs font-semibold text-gray-500 dark:text-slate-455">Password Strength:</span>
                         <span className={`text-xs font-bold ${
-                          zxcvbn(password).score < 2 ? 'text-red-500' :
-                          zxcvbn(password).score === 2 ? 'text-yellow-500' :
-                          zxcvbn(password).score === 3 ? 'text-blue-500' : 'text-green-500'
+                          passwordStrength.score < 2 ? 'text-red-500' :
+                          passwordStrength.score === 2 ? 'text-yellow-500' :
+                          passwordStrength.score === 3 ? 'text-blue-500' : 'text-green-500'
                         }`}>
-                          {zxcvbn(password).score === 0 && 'Very Weak'}
-                          {zxcvbn(password).score === 1 && 'Weak'}
-                          {zxcvbn(password).score === 2 && 'Fair'}
-                          {zxcvbn(password).score === 3 && 'Good'}
-                          {zxcvbn(password).score === 4 && 'Strong'}
+                          {passwordStrength.score === 0 && 'Very Weak'}
+                          {passwordStrength.score === 1 && 'Weak'}
+                          {passwordStrength.score === 2 && 'Fair'}
+                          {passwordStrength.score === 3 && 'Good'}
+                          {passwordStrength.score === 4 && 'Strong'}
                         </span>
                       </div>
                       <div className="w-full h-1.5 bg-gray-200 dark:bg-slate-800 rounded-full overflow-hidden">
                         <div 
                           className={`h-full rounded-full transition-all duration-300 ${
-                            zxcvbn(password).score < 2 ? 'bg-red-500' :
-                            zxcvbn(password).score === 2 ? 'bg-yellow-500' :
-                            zxcvbn(password).score === 3 ? 'bg-blue-500' : 'bg-green-500'
+                            passwordStrength.score < 2 ? 'bg-red-500' :
+                            passwordStrength.score === 2 ? 'bg-yellow-500' :
+                            passwordStrength.score === 3 ? 'bg-blue-500' : 'bg-green-500'
                           }`}
-                          style={{ width: `${(zxcvbn(password).score + 1) * 20}%` }}
+                          style={{ width: `${(passwordStrength.score + 1) * 20}%` }}
                         />
                       </div>
-                      {zxcvbn(password).feedback.suggestions.length > 0 && (
+                      {passwordStrength.feedback.suggestions.length > 0 && (
                         <p className="text-[10px] text-gray-400 dark:text-slate-500 mt-1 leading-normal">
-                          💡 {zxcvbn(password).feedback.suggestions[0]}
+                          💡 {passwordStrength.feedback.suggestions[0]}
                         </p>
                       )}
                     </div>
