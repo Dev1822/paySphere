@@ -1,8 +1,8 @@
 /**
  * @fileoverview Centralized Error Handling Middleware
- * @description Catches all errors thrown by the application, casts Mongoose/JWT 
+ * @description Catches all errors thrown by the application, casts Mongoose/JWT
  * errors into standardized AppErrors, and formats a consistent JSON response.
- * 
+ *
  * Issue: #730
  */
 
@@ -31,7 +31,7 @@ const handleDuplicateFieldsDB = (err) => {
  * Handles Mongoose validation errors
  */
 const handleValidationErrorDB = (err) => {
-  const errors = Object.values(err.errors).map(el => el.message);
+  const errors = Object.values(err.errors).map((el) => el.message);
   const message = `Invalid input data. ${errors.join('. ')}`;
   return new AppError(message, 400);
 };
@@ -69,10 +69,10 @@ const sendErrorDev = (err, res) => {
 const sendErrorProd = (err, res) => {
   // Operational, trusted error: send message to client
   if (err.isOperational) {
-    res.status(err.statusCode).json(
-      ResponseFormatter.error(err.message, null, err.status || 'error')
-    );
-  } 
+    res
+      .status(err.statusCode)
+      .json(ResponseFormatter.error(err.message, null, err.status || 'error'));
+  }
   // Programming or other unknown error: don't leak details
   else {
     // Log detailed error for developers
@@ -83,9 +83,15 @@ const sendErrorProd = (err, res) => {
     });
 
     // Send generic message to client
-    res.status(500).json(
-      ResponseFormatter.error('Something went very wrong!', null, 'internal_server_error')
-    );
+    res
+      .status(500)
+      .json(
+        ResponseFormatter.error(
+          'Something went very wrong!',
+          null,
+          'internal_server_error',
+        ),
+      );
   }
 };
 
@@ -93,27 +99,26 @@ const sendErrorProd = (err, res) => {
  * Global Error Handling Middleware
  * Must have exactly 4 parameters for Express to recognize it as an error handler
  */
+// eslint-disable-next-line no-unused-vars
 const globalErrorHandler = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
 
   if (process.env.NODE_ENV === 'development') {
     sendErrorDev(err, res);
-  } else if (process.env.NODE_ENV === 'production') {
+  } else {
     // Create a copy to avoid mutating the original error object
     let error = { ...err, message: err.message, name: err.name };
 
     // Cast specific database/auth errors into standardized AppErrors
     if (error.name === 'CastError') error = handleCastErrorDB(error);
     if (error.code === 11000) error = handleDuplicateFieldsDB(error);
-    if (error.name === 'ValidationError') error = handleValidationErrorDB(error);
+    if (error.name === 'ValidationError')
+      error = handleValidationErrorDB(error);
     if (error.name === 'JsonWebTokenError') error = handleJWTError();
     if (error.name === 'TokenExpiredError') error = handleJWTExpiredError();
 
     sendErrorProd(error, res);
-  } else {
-    // Fallback for test/staging environments
-    sendErrorDev(err, res);
   }
 };
 
