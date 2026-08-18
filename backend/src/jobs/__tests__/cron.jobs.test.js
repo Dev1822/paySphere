@@ -2,8 +2,7 @@ const PayrollUpdate = require('../../models/payroll.model');
 const Employee = require('../../models/employee.model');
 const CronLock = require('../../models/cronlock.model');
 const Tenant = require('../../models/tenant.model');
-const { sendPayslipEmail } = require('../../services/email.service');
-const { sendEmail } = require('../../utils/email');
+const { enqueueEmail } = require('../../jobs/email.queue');
 const {
   runMonthlyPayslipJob,
   runDailyGreetingsJob,
@@ -14,11 +13,8 @@ jest.mock('../../models/payroll.model');
 jest.mock('../../models/employee.model');
 jest.mock('../../models/cronlock.model');
 jest.mock('../../models/tenant.model');
-jest.mock('../../services/email.service', () => ({
-  sendPayslipEmail: jest.fn().mockResolvedValue(undefined),
-}));
-jest.mock('../../utils/email', () => ({
-  sendEmail: jest.fn().mockResolvedValue({ success: true }),
+jest.mock('../../jobs/email.queue', () => ({
+  enqueueEmail: jest.fn().mockResolvedValue({ id: 'mock-job-id' }),
 }));
 jest.mock('node-cron', () => ({ schedule: jest.fn() }));
 jest.mock('../../utils/logger', () => ({
@@ -26,6 +22,12 @@ jest.mock('../../utils/logger', () => ({
   warn: jest.fn(),
   error: jest.fn(),
   stream: { write: jest.fn() },
+}));
+jest.mock('../backup.job', () => ({
+  runDatabaseBackupJob: jest.fn(),
+}));
+jest.mock('../archival.job', () => ({
+  runDatabaseArchivalJob: jest.fn(),
 }));
 
 const duplicateKey = () => Object.assign(new Error('dup'), { code: 11000 });
@@ -130,11 +132,7 @@ describe('runMonthlyPayslipJob — status vocabulary (#560)', () => {
 
     const result = await runMonthlyPayslipJob({ now: new Date(2026, 7, 1) });
 
-    expect(sendPayslipEmail).toHaveBeenCalledTimes(1);
-    expect(PayrollUpdate.updateOne).toHaveBeenCalledWith(
-      { _id: 'p1' },
-      { $set: { payslipEmailed: true } },
-    );
+    expect(enqueueEmail).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ ran: true, found: 1, sent: 1, failed: 0 });
   });
 });
@@ -147,10 +145,10 @@ describe('runMonthlyPayslipJob — resilience', () => {
       payrollRow('p3'),
     ]);
     Employee.findById.mockResolvedValue({ _id: 'e', email: 'a@example.com' });
-    sendPayslipEmail
-      .mockResolvedValueOnce(undefined)
+    enqueueEmail
+      .mockResolvedValueOnce({ id: '1' })
       .mockRejectedValueOnce(new Error('SMTP said no'))
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce({ id: '3' });
 
     const result = await runMonthlyPayslipJob({ now: new Date(2026, 7, 1) });
 
@@ -166,7 +164,7 @@ describe('runMonthlyPayslipJob — resilience', () => {
     const result = await runMonthlyPayslipJob({ now: new Date(2026, 7, 1) });
 
     expect(result).toMatchObject({ found: 2, sent: 0, skipped: 2 });
-    expect(sendPayslipEmail).not.toHaveBeenCalled();
+    expect(enqueueEmail).not.toHaveBeenCalled();
   });
 
   test('a query failure does not throw out of the job', async () => {
@@ -248,8 +246,9 @@ describe('runDailyGreetingsJob', () => {
       isActive: true,
       email: { $exists: true, $ne: '' },
     });
-    expect(sendEmail).toHaveBeenCalledTimes(1);
-    expect(sendEmail.mock.calls[0][0].subject).toContain('Happy Birthday');
+    expect(enqueueEmail).toHaveBeenCalledTimes(1);
+    expect(enqueueEmail.mock.calls[0][0]).toBe('generic');
+    expect(enqueueEmail.mock.calls[0][1].subject).toContain('Happy Birthday');
     expect(result).toMatchObject({ ran: true, sent: 1 });
   });
 
@@ -276,11 +275,16 @@ describe('runDailyGreetingsJob', () => {
 
     expect(Tenant.find).toHaveBeenCalledWith({ isActive: true });
     expect(Employee.find).toHaveBeenCalledTimes(2);
-    expect(sendEmail).toHaveBeenCalledTimes(2);
+    expect(enqueueEmail).toHaveBeenCalledTimes(2);
     expect(result).toMatchObject({ ran: true, sent: 2 });
   });
 
   test('filters by specific tenantId when passed', async () => {
+    Tenant.findOne.mockResolvedValue({
+      _id: 't2',
+      name: 'Tenant 2',
+      isActive: true,
+    });
     await runDailyGreetingsJob({
       now: new Date(2026, 7, 3),
       tenantId: 't2',
