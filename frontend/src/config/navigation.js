@@ -288,6 +288,20 @@ export const APP_ROUTES = [
     employee: true,
   },
 
+  // ── Enterprise (routed but sidebar entry managed separately) ─────────────
+  {
+    path: '/enterprise/time-attendance',
+    component: lazy(() => import('../pages/timeattendance/EnterpriseTimeAttendanceDashboardPage')),
+  },
+  {
+    path: '/enterprise/onboarding',
+    component: lazy(() => import('../pages/onboarding/EnterpriseOnboardingDashboardPage')),
+  },
+  {
+    path: '/enterprise/expenses',
+    component: lazy(() => import('../pages/expenses/EnterpriseExpenseDashboardPage')),
+  },
+
   // ── Routed, but reached from elsewhere rather than from the sidebar ───────
   //
   // No `label`, so they get a route and no nav entry. Settings and the profile
