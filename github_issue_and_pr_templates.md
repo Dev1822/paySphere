@@ -5,7 +5,7 @@ Automated record of all feature hubs deployed to PaySphere.
 | # | Feature | Domain | Branch | Issue | PR | Route | Date |
 |---|---------|--------|--------|-------|----|-------|------|
 | 1 | Enterprise Cybersecurity & Zero-Trust SOC Hub | Security | `feature/frontend-cybersecurity-soc-hub` | [#1307](https://github.com/Dev1822/paySphere/issues/1307) | [#1308](https://github.com/Dev1822/paySphere/pull/1308) | `/enterprise/cybersecurity-soc` | 2026-08-20 |
-| 2 | Enterprise Zero-Trust Payroll Fraud & Anomaly Intelligence Hub | Fraud / Risk | `feature/frontend-fraud-anomaly-intelligence-hub` | [#1425](https://github.com/Dev1822/paySphere/issues/1425) | [#1426](https://github.com/Dev1822/paySphere/pull/1426) | `/enterprise/fraud-intelligence` | 2026-08-21 |
+| 2 | Enterprise Zero-Trust Payroll Fraud & Anomaly Intelligence Hub | Fraud / Risk | `feature/frontend-fraud-anomaly-intelligence-hub` | [#1427](https://github.com/Dev1822/paySphere/issues/1427) | [#1428](https://github.com/Dev1822/paySphere/pull/1428) | `/enterprise/fraud-intelligence` | 2026-08-21 |
 
 ---
 
