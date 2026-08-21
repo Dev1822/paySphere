@@ -138,6 +138,7 @@ const assignmentRoutes = require('./routes/assignment.routes');
 // calculator — and exercising an option is a taxable perquisite the employer
 // has to withhold on, so it is payroll's business and not just HR's.
 const esopRoutes = require('./routes/esop.routes');
+const fraudDetectionRoutes = require('./routes/fraudDetection.routes');
 const cryptoRouter = require('./services/CryptoPayrollService').default;
 
 // Requisitions, the candidate pipeline and interview scorecards (#1074). The
@@ -523,6 +524,7 @@ app.use('/api/recruitment', recruitmentRoutes);
 
 // Salary disbursement (#1075). The router owns `/batches` and `/profiles`.
 app.use('/api/disbursements', disbursementRoutes);
+app.use('/api/fraud-intelligence', fraudDetectionRoutes);
 
 // Leave year-end closure (#1159). The router owns `/policies`, `/preview`,
 // `/run` and `/history`. Not mounted at `/api/leave`: this router closes a
