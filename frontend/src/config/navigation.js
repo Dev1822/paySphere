@@ -306,6 +306,14 @@ export const APP_ROUTES = [
     icon: 'shield',
   },
 
+  {
+    path: '/admin',
+    component: lazy(() => import('../pages/TenantAdminDashboard')),
+    label: 'Admin dashboard',
+    group: 'compliance',
+    icon: 'grid',
+  },
+
   // ── Workplace ────────────────────────────────────────────────────────────
   {
     path: '/roster',
