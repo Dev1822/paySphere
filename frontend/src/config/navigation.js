@@ -161,6 +161,28 @@ export const APP_ROUTES = [
     icon: 'document',
   },
 
+  {
+    path: '/internal-jobs',
+    component: lazy(() => import('../pages/InternalJobBoard')),
+    label: 'Internal job board',
+    group: 'people',
+    icon: 'briefcase',
+  },
+  {
+    path: '/referrals',
+    component: lazy(() => import('../pages/ReferralPortal')),
+    label: 'Referral portal',
+    group: 'people',
+    icon: 'userPlus',
+  },
+  {
+    path: '/handover',
+    component: lazy(() => import('../pages/HandoverDashboard')),
+    label: 'Handover dashboard',
+    group: 'people',
+    icon: 'archive',
+  },
+
   // ── Payroll ──────────────────────────────────────────────────────────────
   {
     path: '/approvals',
@@ -223,6 +245,14 @@ export const APP_ROUTES = [
     icon: 'book',
   },
 
+  {
+    path: '/garnishments',
+    component: lazy(() => import('../pages/GarnishmentAdmin')),
+    label: 'Garnishment admin',
+    group: 'payroll',
+    icon: 'shield',
+  },
+
   // ── Finance ──────────────────────────────────────────────────────────────
   {
     path: '/assets',
@@ -259,6 +289,14 @@ export const APP_ROUTES = [
     label: 'Accounting export',
     group: 'finance',
     icon: 'book',
+  },
+
+  {
+    path: '/expense-submission',
+    component: lazy(() => import('../pages/ExpenseSubmission')),
+    label: 'Submit expense',
+    group: 'finance',
+    icon: 'receipt',
   },
 
   // ── Compliance ───────────────────────────────────────────────────────────
@@ -349,6 +387,14 @@ export const APP_ROUTES = [
     group: 'workplace',
     icon: 'megaphone',
     employee: true,
+  },
+
+  {
+    path: '/timesheet',
+    component: lazy(() => import('../pages/TimesheetTracker')),
+    label: 'Timesheet tracker',
+    group: 'workplace',
+    icon: 'clock',
   },
 
   // ── Learning ─────────────────────────────────────────────────────────────
