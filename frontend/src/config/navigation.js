@@ -306,6 +306,14 @@ export const APP_ROUTES = [
     icon: 'shield',
   },
 
+  {
+    path: '/helpdesk',
+    component: lazy(() => import('../pages/HRHelpdeskPage')),
+    label: 'HR Helpdesk',
+    group: 'workplace',
+    icon: 'help',
+  },
+
   // ── Workplace ────────────────────────────────────────────────────────────
   {
     path: '/roster',
