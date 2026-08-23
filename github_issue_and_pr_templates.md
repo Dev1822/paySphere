@@ -7,7 +7,7 @@ Automated record of all feature hubs deployed to PaySphere.
 | 1 | Enterprise Cybersecurity & Zero-Trust SOC Hub | Security | `feature/frontend-cybersecurity-soc-hub` | [#1307](https://github.com/Dev1822/paySphere/issues/1307) | [#1308](https://github.com/Dev1822/paySphere/pull/1308) | `/enterprise/cybersecurity-soc` | 2026-08-20 |
 | 2 | Cardiopulmonary ECMO & Mechanical Ventilation Command Station | Critical Care / ECMO | `feature/frontend-ecmo-mechanical-ventilation-telemetry-hub` | [#1440](https://github.com/Dev1822/paySphere/issues/1440) | [#1439](https://github.com/Dev1822/paySphere/pull/1439) | `/enterprise/ecmo-critical-care` | 2026-08-21 |
 | 3 | Emergency & Mass-Casualty Triage Command Station | Emergency Medicine | `feature/frontend-emergency-triage-command-station-hub` | [#1488](https://github.com/Dev1822/paySphere/issues/1488) | [#1489](https://github.com/Dev1822/paySphere/pull/1489) | `/enterprise/emergency-triage` | 2026-08-22 |
-| 4 | Extracorporeal Liver Support & ACLF Critical Care Command Station | Hepatology / Liver ICU | `feature/frontend-hepatology-liver-support-hub` | TBD | TBD | `/enterprise/hepatology-liver-support` | 2026-08-23 |
+| 4 | Extracorporeal Liver Support & ACLF Critical Care Command Station | Hepatology / Liver ICU | `feature/frontend-hepatology-liver-support-hub` | [#1562](https://github.com/Dev1822/paySphere/issues/1562) | [#1563](https://github.com/Dev1822/paySphere/pull/1563) | `/enterprise/hepatology-liver-support` | 2026-08-23 |
 
 ---
 
