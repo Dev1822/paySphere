@@ -454,6 +454,12 @@ export const APP_ROUTES = [
       () => import('../pages/emergency/EmergencyTriageCommandStationPage'),
     ),
   },
+  {
+    path: '/enterprise/picu-critical-care',
+    component: lazy(
+      () => import('../pages/picu/PicuCriticalCareTelemetryPage'),
+    ),
+  },
 
   // ── Routed, but reached from elsewhere rather than from the sidebar ───────
   //
