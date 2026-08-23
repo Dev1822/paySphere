@@ -454,6 +454,12 @@ export const APP_ROUTES = [
       () => import('../pages/emergency/EmergencyTriageCommandStationPage'),
     ),
   },
+  {
+    path: '/enterprise/immunotherapy-cart',
+    component: lazy(
+      () => import('../pages/immunotherapy/CartToxicityCommandStationPage'),
+    ),
+  },
 
   // ── Routed, but reached from elsewhere rather than from the sidebar ───────
   //
