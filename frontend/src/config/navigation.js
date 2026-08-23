@@ -454,6 +454,12 @@ export const APP_ROUTES = [
       () => import('../pages/emergency/EmergencyTriageCommandStationPage'),
     ),
   },
+  {
+    path: '/enterprise/hepatology-liver-support',
+    component: lazy(
+      () => import('../pages/hepatology/LiverSupportACLFCommandStationPage'),
+    ),
+  },
 
   // ── Routed, but reached from elsewhere rather than from the sidebar ───────
   //
