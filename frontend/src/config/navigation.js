@@ -454,6 +454,12 @@ export const APP_ROUTES = [
       () => import('../pages/emergency/EmergencyTriageCommandStationPage'),
     ),
   },
+  {
+    path: '/enterprise/burn-resuscitation',
+    component: lazy(
+      () => import('../pages/burncare/BurnResuscitationCommandStationPage'),
+    ),
+  },
 
   // ── Routed, but reached from elsewhere rather than from the sidebar ───────
   //
