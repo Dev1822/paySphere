@@ -448,8 +448,8 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: 'http://localhost:5000',
-        description: 'Development Server',
+        url: process.env.API_URL || 'http://localhost:5000',
+        description: process.env.API_URL ? 'API Server' : 'Development Server',
       },
     ],
   },
