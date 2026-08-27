@@ -239,6 +239,7 @@ const leaveClosureRoutes = require('./routes/leaveClosure.routes');
 const treasuryRoutes = require('./routes/treasury.routes');
 const regionalTaxRoutes = require('./routes/regionalTax.routes');
 const salaryAdjustmentRoutes = require('./routes/salaryAdjustment.routes');
+const deferredCompensationRoutes = require('./routes/deferredCompensation.routes');
 const pensionRoutes = require('./routes/pension.routes');
 const fbpRoutes = require('./routes/fbp.routes');
 const teamRoutes = require('./routes/team.routes');
@@ -496,6 +497,7 @@ app.use('/api/loans', loanRoutes);
 app.use('/api/treasury', treasuryRoutes);
 app.use('/api/regional-tax', regionalTaxRoutes);
 app.use('/api/salary-adjustments', salaryAdjustmentRoutes);
+app.use('/api/deferred-compensation', deferredCompensationRoutes);
 app.use('/api/pension', pensionRoutes);
 
 // The archive browser for soft-deleted employees (#759). Mounted by one of the

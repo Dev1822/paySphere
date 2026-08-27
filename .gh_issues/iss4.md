@@ -1,56 +1,26 @@
 ﻿## Summary
-
-PaySphere is a multi-tenant SaaS product but has no concept of subscription plans or feature gating. Every tenant gets every feature regardless of what they pay for. There is no admin console for plan management, no runtime feature-flag evaluation, and no metered usage tracking to support usage-based billing. Adding a paid tier requires code changes rather than a data change.
+Organizations providing educational assistance and tuition reimbursement programs must monitor employee disbursements against statutory tax-exempt annual ceilings (e.g. IRC Section 127 ,250 annual exemption threshold). Excess reimbursements beyond the cap must automatically convert to taxable compensation perquisites in the subsequent payroll run.
 
 ## Problem Statement
-
-1. **No plan model**: 	enant.model.js has no plan or eatures field. All routes are open to all tenants. Introducing a "Basic / Pro / Enterprise" tier today would require adding if (tenant.plan === 'pro') guards scattered throughout every controller — the wrong abstraction.
-2. **No feature-flag evaluation**: There is no central authority deciding whether 	enant X can call POST /api/reports/variance. The check needs to happen at the middleware layer, not inside each controller.
-3. **No metered usage**: Usage-based billing (per-payslip, per-employee, per-API-call) has no counter infrastructure. Without counters there is no basis for overage alerts or invoice line items.
-4. **No tenant self-serve portal**: Tenants cannot view their plan, see usage, or initiate an upgrade without contacting support.
-5. **No kill-switch**: When a tenant's payment lapses, there is no mechanism to restrict access to write operations while preserving read access so they can export their data.
+1. **No Section 127 Exemption Ceiling Tracking**: Annual cumulative reimbursement sums are not tracked per fiscal year, risking compliance penalties for untaxed benefits.
+2. **Missing Taxable Spillover Automation**: When a tuition reimbursement exceeds statutory limits, the excess amount must be automatically flagged for payroll tax withholding.
+3. **No Course & Grade Verification Gates**: Policy requires course completion and passing grade verification before disbursement approval.
 
 ## Proposed Implementation
 
 ### Backend
-
-- **plan.model.js** (new): Defines plan tiers — { name, slug, features: [string], limits: { employeeCount, apiCallsPerMonth, reportSchedules }, monthlyPrice }.
-- **	enantSubscription.model.js** (new): Per-tenant subscription document — { tenantId, planSlug, status: active|past_due|cancelled|trialing, currentPeriodEnd, usage: { employees, apiCalls, reportSchedules }, overageAlertSentAt }.
-- **eatureFlag.middleware.js** (new): equireFeature(featureSlug) factory — resolves 	enantSubscription from cache (60s TTL via cache.service.js), checks plan.features.includes(featureSlug). Returns 402 { message: "This feature requires a Pro plan or above.", upgradeUrl } on failure. Logs access attempts for telemetry.
-- **usageCounter.service.js** (new):
-  - increment(tenantId, metric, delta) — Redis HINCRBY on a daily bucket key usage:{tenantId}:{YYYY-MM}:{metric}.
-  - getMonthlyUsage(tenantId) — aggregates all daily keys for the month.
-  - checkLimit(tenantId, metric) — compares against plan.limits; returns { allowed, current, limit, overage }.
-  - BullMQ daily job usageRollup.job.js — persists Redis counters to 	enantSubscription.usage for billing and resets daily keys.
-- **subscription.controller.js** (new): GET /api/tenant/subscription (current plan + usage), POST /api/tenant/subscription/upgrade (stub — creates a Stripe checkout session or marks intent), GET /api/admin/subscriptions (admin overview).
-
-### Frontend
-
-- **SubscriptionPortal.jsx** (new): Current plan card, usage gauges (employees used vs limit, API calls, scheduled reports), upgrade CTA.
-- **PlanComparison.jsx** (new): Feature matrix table — rows are features, columns are plans, tick/cross cells.
-- **FeatureGate.jsx** (new): React component wrapper — <FeatureGate feature="VARIANCE_REPORT"><Reports /></FeatureGate>. Renders a "Upgrade to Pro" banner if the feature is not included in the tenant's plan.
+- **`tuitionReimbursement.model.js` (New)**: Stores tuition assistance applications, institution accreditation, grade verification documents, exempt amount, and taxable perquisite spillover.
+- **`tuitionAssistance.service.js` (New)**: Validates cumulative fiscal year claims against statutory exemption thresholds and computes taxable perquisite spillover amounts.
+- **`tuitionAssistance.controller.js` (New)**: Endpoints to submit tuition claims, approve reimbursements, and query fiscal year benefit statements.
+- **`tuitionAssistance.routes.js` (New)**: Mounted under `/api/tuition-assistance`.
+- **`tuitionAssistance.test.js` (New)**: Unit tests for annual cap enforcement and taxable spillover calculation.
+- **`README_TuitionAssistance.md` (New)**: Educational assistance tax compliance guide.
 
 ## Files Affected
-
-- ackend/src/models/plan.model.js — new
-- ackend/src/models/tenantSubscription.model.js — new
-- ackend/src/middlewares/featureFlag.middleware.js — new
-- ackend/src/services/usageCounter.service.js — new
-- ackend/src/jobs/usageRollup.job.js — new
-- ackend/src/controllers/subscription.controller.js — new
-- ackend/src/routes/subscription.routes.js — new
-- ackend/src/seeds/plan.seed.js — new (Basic, Pro, Enterprise defaults)
-- ackend/src/app.js — mount routes
-- rontend/src/pages/Settings.jsx — add Subscription tab
-- rontend/src/components/SubscriptionPortal.jsx — new
-- rontend/src/components/PlanComparison.jsx — new
-- rontend/src/components/FeatureGate.jsx — new
-
-## Acceptance Criteria
-
-- [ ] equireFeature('VARIANCE_REPORT') on a Basic-plan tenant returns 402 with upgradeUrl.
-- [ ] equireFeature('VARIANCE_REPORT') on a Pro-plan tenant proceeds to the controller.
-- [ ] Feature flag resolution is cached for 60 seconds per tenant; a plan downgrade takes effect within 60 seconds.
-- [ ] usageCounter.increment survives a Redis restart — the daily rollup job has already persisted the previous day's data.
-- [ ] GET /api/tenant/subscription returns { plan, usage: { employees: { current, limit }, apiCalls: { current, limit } } }.
-- [ ] The FeatureGate component renders the upgrade banner server-driven (feature list comes from /api/tenant/subscription), not hardcoded in the frontend bundle.
+- `backend/src/models/tuitionReimbursement.model.js` (New)
+- `backend/src/services/tuitionAssistance.service.js` (New)
+- `backend/src/controllers/tuitionAssistance.controller.js` (New)
+- `backend/src/routes/tuitionAssistance.routes.js` (New)
+- `backend/src/__tests__/tuitionAssistance.test.js` (New)
+- `backend/src/services/README_TuitionAssistance.md` (New)
+- `backend/src/app.js` (Modified)
