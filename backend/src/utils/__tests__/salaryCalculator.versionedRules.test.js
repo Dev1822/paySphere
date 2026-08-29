@@ -1,6 +1,6 @@
 const { calculateNetSalary } = require('../salaryCalculator');
 
-describe('versioned payroll calculation rules', () => {
+describe('calculateNetSalary with versioned calculation rules', () => {
   const employee = {
     monthlySalary: 30000,
     overtimeRate: 200,
@@ -11,17 +11,77 @@ describe('versioned payroll calculation rules', () => {
     defaultOvertimeRate: 0,
   };
 
-  const inputs = {
-    leaveDays: 2,
-    overtimeHours: 5,
-    bonus: 1000,
-    deductions: 500,
-  };
+  test('version 1 keeps the existing calculation behavior', () => {
+    const result = calculateNetSalary(employee, user, {
+      leaveDays: 2,
+      overtimeHours: 5,
+      bonus: 1000,
+      deductions: 500,
+      calculationRule: {
+        version: '1.0.0',
+        rules: {
+          leave: {
+            dailyRateDivisor: 30,
+            maxDays: 31,
+          },
+          overtime: {
+            rateMultiplier: 1,
+          },
+          deductions: {
+            multiplier: 1,
+          },
+          bonus: {
+            multiplier: 1,
+          },
+          salary: {
+            dailyRateDivisor: null,
+          },
+        },
+      },
+    });
 
-  test('different rule versions produce reproducible different calculations', () => {
-    const versionOne = {
+    expect(result.leaveDeduction).toBe(2000);
+    expect(result.overtimePay).toBe(1000);
+    expect(result.netSalary).toBe(29500);
+  });
+
+  test('version 2 produces a different reproducible calculation', () => {
+    const result = calculateNetSalary(employee, user, {
+      leaveDays: 2,
+      overtimeHours: 5,
+      bonus: 1000,
+      deductions: 500,
+      calculationRule: {
+        version: '2.0.0',
+        rules: {
+          leave: {
+            dailyRateDivisor: 20,
+            maxDays: 31,
+          },
+          overtime: {
+            rateMultiplier: 2,
+          },
+          deductions: {
+            multiplier: 1.5,
+          },
+          bonus: {
+            multiplier: 1.5,
+          },
+          salary: {
+            dailyRateDivisor: null,
+          },
+        },
+      },
+    });
+
+    expect(result.leaveDeduction).toBe(3000);
+    expect(result.overtimePay).toBe(2000);
+    expect(result.netSalary).toBe(29750);
+  });
+
+  test('reusing version 1 reproduces the original result after version 2 exists', () => {
+    const originalRule = {
       version: '1.0.0',
-      ruleId: 'rule-v1',
       rules: {
         leave: {
           dailyRateDivisor: 30,
@@ -42,63 +102,23 @@ describe('versioned payroll calculation rules', () => {
       },
     };
 
-    const versionTwo = {
-      version: '2.0.0',
-      ruleId: 'rule-v2',
-      rules: {
-        leave: {
-          dailyRateDivisor: 20,
-          maxDays: 31,
-        },
-        overtime: {
-          rateMultiplier: 2,
-        },
-        deductions: {
-          multiplier: 1.5,
-        },
-        bonus: {
-          multiplier: 1.5,
-        },
-        salary: {
-          dailyRateDivisor: null,
-        },
-      },
-    };
+    const firstCalculation = calculateNetSalary(employee, user, {
+      leaveDays: 2,
+      overtimeHours: 5,
+      bonus: 1000,
+      deductions: 500,
+      calculationRule: originalRule,
+    });
 
-    const firstCalculation = calculateNetSalary(
-      employee,
-      user,
-      {
-        ...inputs,
-        calculationRule: versionOne,
-      },
-    );
-
-    const secondCalculation = calculateNetSalary(
-      employee,
-      user,
-      {
-        ...inputs,
-        calculationRule: versionTwo,
-      },
-    );
-
-    expect(firstCalculation.netSalary).toBe(29500);
-    expect(secondCalculation.netSalary).toBe(29750);
-
-    expect(firstCalculation.netSalary).not.toBe(
-      secondCalculation.netSalary,
-    );
-
-    const historicalRecalculation = calculateNetSalary(
-      employee,
-      user,
-      {
-        ...inputs,
-        calculationRule: versionOne,
-      },
-    );
+    const historicalRecalculation = calculateNetSalary(employee, user, {
+      leaveDays: 2,
+      overtimeHours: 5,
+      bonus: 1000,
+      deductions: 500,
+      calculationRule: originalRule,
+    });
 
     expect(historicalRecalculation).toEqual(firstCalculation);
+    expect(historicalRecalculation.netSalary).toBe(29500);
   });
 });

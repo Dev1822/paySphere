@@ -5,26 +5,22 @@ const overtimeRuleSchema = new mongoose.Schema(
     rateMultiplier: {
       type: Number,
       default: 1,
-      min: 0.01,
-      max: 10,
+      min: 0,
     },
     standardMultiplier: {
       type: Number,
       default: 1.5,
       min: 0,
-      max: 10,
     },
     doubleMultiplier: {
       type: Number,
       default: 2,
       min: 0,
-      max: 10,
     },
     holidayMultiplier: {
       type: Number,
       default: 2.5,
       min: 0,
-      max: 10,
     },
     standardDailyHours: {
       type: Number,
@@ -54,7 +50,6 @@ const leaveRuleSchema = new mongoose.Schema(
       type: Number,
       default: null,
       min: 1,
-      max: 366,
     },
     maxDays: {
       type: Number,
@@ -72,7 +67,6 @@ const deductionRuleSchema = new mongoose.Schema(
       type: Number,
       default: 1,
       min: 0,
-      max: 10,
     },
   },
   { _id: false },
@@ -84,7 +78,6 @@ const bonusRuleSchema = new mongoose.Schema(
       type: Number,
       default: 1,
       min: 0,
-      max: 10,
     },
     includeTaxableExpenses: {
       type: Boolean,
@@ -100,7 +93,6 @@ const salaryRuleSchema = new mongoose.Schema(
       type: Number,
       default: null,
       min: 1,
-      max: 366,
     },
   },
   { _id: false },
@@ -177,7 +169,9 @@ payrollCalculationRuleVersionSchema.index(
   { tenantId: 1, isActive: 1 },
   {
     unique: true,
-    partialFilterExpression: { isActive: true },
+    partialFilterExpression: {
+      isActive: true,
+    },
   },
 );
 

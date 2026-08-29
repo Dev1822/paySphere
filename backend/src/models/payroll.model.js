@@ -341,6 +341,15 @@ const payrollUpdateSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.Mixed,
         default: null,
       },
+          ruleId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'PayrollCalculationRuleVersion',
+        default: null,
+      },
+      rules: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null,
+      },
       employee: {        fullName: String,
         email: String,
         role: String,

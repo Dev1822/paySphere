@@ -1,6 +1,7 @@
 const {
   PAYROLL_CALCULATION_VERSION,
 } = require('../config/payrollCalculationVersion');
+
 const PayrollCalculationRuleVersion = require('../models/payrollCalculationRuleVersion.model');
 
 const DEFAULT_RULES = {
@@ -13,17 +14,21 @@ const DEFAULT_RULES = {
     doubleOtDailyThreshold: 9,
     weeklyHoursCeiling: 48,
   },
+
   leave: {
     dailyRateDivisor: null,
     maxDays: 31,
   },
+
   deductions: {
     multiplier: 1,
   },
+
   bonus: {
     multiplier: 1,
     includeTaxableExpenses: true,
   },
+
   salary: {
     dailyRateDivisor: null,
   },
@@ -69,8 +74,103 @@ async function getActiveCalculationRule(tenantId) {
   return normalizeCalculationRule(rule);
 }
 
+async function createCalculationRuleVersion({
+  tenantId,
+  createdBy,
+  version,
+  effectiveFrom,
+  rules = {},
+  activate = false,
+}) {
+  const existing = await PayrollCalculationRuleVersion.findOne({
+    tenantId,
+    version,
+  });
+
+  if (existing) {
+    throw new Error(
+      `Calculation-rule version "${version}" already exists`,
+    );
+  }
+
+  if (activate) {
+    await PayrollCalculationRuleVersion.updateMany(
+      {
+        tenantId,
+        isActive: true,
+      },
+      {
+        $set: {
+          isActive: false,
+        },
+      },
+    );
+  }
+
+  return PayrollCalculationRuleVersion.create({
+    tenantId,
+    createdBy,
+    version,
+    effectiveFrom: effectiveFrom || new Date(),
+    isActive: activate,
+    overtime: {
+      ...DEFAULT_RULES.overtime,
+      ...(rules.overtime || {}),
+    },
+    leave: {
+      ...DEFAULT_RULES.leave,
+      ...(rules.leave || {}),
+    },
+    deductions: {
+      ...DEFAULT_RULES.deductions,
+      ...(rules.deductions || {}),
+    },
+    bonus: {
+      ...DEFAULT_RULES.bonus,
+      ...(rules.bonus || {}),
+    },
+    salary: {
+      ...DEFAULT_RULES.salary,
+      ...(rules.salary || {}),
+    },
+  });
+}
+
+async function activateCalculationRuleVersion(tenantId, version) {
+  const rule = await PayrollCalculationRuleVersion.findOne({
+    tenantId,
+    version,
+  });
+
+  if (!rule) {
+    throw new Error(
+      `Calculation-rule version "${version}" was not found`,
+    );
+  }
+
+  await PayrollCalculationRuleVersion.updateMany(
+    {
+      tenantId,
+      isActive: true,
+      _id: { $ne: rule._id },
+    },
+    {
+      $set: {
+        isActive: false,
+      },
+    },
+  );
+
+  rule.isActive = true;
+  await rule.save();
+
+  return rule;
+}
+
 module.exports = {
   DEFAULT_RULES,
   normalizeCalculationRule,
   getActiveCalculationRule,
+  createCalculationRuleVersion,
+  activateCalculationRuleVersion,
 };

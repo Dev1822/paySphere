@@ -14,6 +14,10 @@ const Attendance = require('../models/attendance.model');
 const {
   getActiveCalculationRule,
   normalizeCalculationRule,
+} = require('./payrollCalculationRule.service');const Attendance = require('../models/attendance.model');
+const {
+  getActiveCalculationRule,
+  normalizeCalculationRule,
 } = require('./payrollCalculationRule.service');const { derivePayrollInputs } = require('../utils/attendanceGrid');
 const Loan = require('../models/loan.model');
 const {
@@ -123,8 +127,14 @@ class PayrollEngine {
     const includeTaxableExpenses =
       resolvedCalculationRule.rules.bonus.includeTaxableExpenses !== false;
 
+        const includeTaxableExpenses =
+      resolvedCalculationRule.rules.bonus.includeTaxableExpenses !== false;
+
     const bonusWithTaxableExpenses = Math.round(
-      (bonus + (includeTaxableExpenses ? empExpenses.taxable : 0)) * 100,
+      (
+        bonus +
+        (includeTaxableExpenses ? empExpenses.taxable : 0)
+      ) * 100,
     ) / 100;
 
     const {
@@ -202,9 +212,9 @@ class PayrollEngine {
 
     return {
       employee,
+      calculationRule: resolvedCalculationRule,
       baseSalary,
-      leaveDays,
-      overtimeHours,
+      leaveDays,      overtimeHours,
       bonus: bonusWithTaxableExpenses,
       deductions,
       leaveDeduction,
@@ -282,13 +292,16 @@ class PayrollEngine {
       if (employees.length === 0)
         throw new Error('No employees found. Add employees first.');
 
+
+      const calculationRule =
+        await getActiveCalculationRule(tenantId);
+
       const user = await User.findById(userId);
 
       const calculationRule =
         await getActiveCalculationRule(tenantId);
 
-      let attendanceByEmployee = new Map();      try {
-        const attendanceRecords = await Attendance.find({
+      let attendanceByEmployee = new Map();        const attendanceRecords = await Attendance.find({
           tenantId,
           year: currentYear,
           month: currentMonth,

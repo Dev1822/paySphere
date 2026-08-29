@@ -28,7 +28,19 @@ function calculateNetSalary(employee, user, adjustments = {}) {
   const deductionRules = rules.deductions || {};
   const bonusRules = rules.bonus || {};
   const salaryRules = rules.salary || {};
+  const rules = calculationRule?.rules || {};
+  const leaveRules = rules.leave || {};
+  const overtimeRules = rules.overtime || {};
+  const deductionRules = rules.deductions || {};
+  const bonusRules = rules.bonus || {};
+  const salaryRules = rules.salary || {};
   const maxLeaveDays =
+    Number.isFinite(Number(leaveRules.maxDays)) &&
+    Number(leaveRules.maxDays) > 0
+      ? Number(leaveRules.maxDays)
+      : 31;
+
+    const maxLeaveDays =
     Number.isFinite(Number(leaveRules.maxDays)) &&
     Number(leaveRules.maxDays) > 0
       ? Number(leaveRules.maxDays)
@@ -47,21 +59,41 @@ function calculateNetSalary(employee, user, adjustments = {}) {
     overtimeHours >= 0
       ? overtimeHours
       : 0;
+  const bonusMultiplier =
+    Number.isFinite(Number(bonusRules.multiplier)) &&
+    Number(bonusRules.multiplier) >= 0
+      ? Number(bonusRules.multiplier)
+      : 1;
+
+  const deductionMultiplier =
+    Number.isFinite(Number(deductionRules.multiplier)) &&
+    Number(deductionRules.multiplier) >= 0
+      ? Number(deductionRules.multiplier)
+      : 1;
+
   bonus =
     typeof bonus === 'number' &&
     !isNaN(bonus) &&
     Number.isFinite(bonus) &&
     bonus >= 0
       ? clamp(
-          bonus *
-            (Number.isFinite(Number(bonusRules.multiplier))
-              ? Number(bonusRules.multiplier)
-              : 1),
+          bonus * bonusMultiplier,
           0,
           MONTHLY_SALARY_MAX,
         )
       : 0;
 
+  deductions =
+    typeof deductions === 'number' &&
+    !isNaN(deductions) &&
+    Number.isFinite(deductions) &&
+    deductions >= 0
+      ? clamp(
+          deductions * deductionMultiplier,
+          0,
+          MONTHLY_SALARY_MAX,
+        )
+      : 0;
   deductions =
     typeof deductions === 'number' &&
     !isNaN(deductions) &&
@@ -82,6 +114,16 @@ function calculateNetSalary(employee, user, adjustments = {}) {
       ? clamp(rawSalary, 0, MONTHLY_SALARY_MAX)
       : 0;
 
+
+  const configuredDivisor =
+    Number.isFinite(Number(salaryRules.dailyRateDivisor)) &&
+    Number(salaryRules.dailyRateDivisor) > 0
+      ? Number(salaryRules.dailyRateDivisor)
+      : Number.isFinite(Number(leaveRules.dailyRateDivisor)) &&
+          Number(leaveRules.dailyRateDivisor) > 0
+        ? Number(leaveRules.dailyRateDivisor)
+        : null;
+
   const userDailyRate = user ? Number(user.defaultDailyRate) : 0;
 
   const configuredDivisor =
@@ -93,13 +135,17 @@ function calculateNetSalary(employee, user, adjustments = {}) {
         ? Number(leaveRules.dailyRateDivisor)
         : null;
 
-  const workingDays = Math.max(1, daysInMonth - weeklyOffs - holidaysCount);
+  const workingDays = Math.max(
+    1,
+    daysInMonth - weeklyOffs - holidaysCount,
+  );
 
   const dailyRate =
-    !isNaN(userDailyRate) && Number.isFinite(userDailyRate) && userDailyRate > 0
+    !isNaN(userDailyRate) &&
+    Number.isFinite(userDailyRate) &&
+    userDailyRate > 0
       ? clamp(userDailyRate, 0, DAILY_RATE_MAX)
-      : baseSalary / (configuredDivisor || workingDays);
-  const leaveDeduction = Math.round(
+      : baseSalary / (configuredDivisor || workingDays);  const leaveDeduction = Math.round(
     Math.min(dailyRate * leaveDays, MAX_SAFE_PAYROLL),
   );
 
@@ -111,10 +157,16 @@ function calculateNetSalary(employee, user, adjustments = {}) {
       ? Number(overtimeRules.rateMultiplier)
       : 1;
 
+  const overtimeMultiplier =
+    Number.isFinite(Number(overtimeRules.rateMultiplier)) &&
+    Number(overtimeRules.rateMultiplier) >= 0
+      ? Number(overtimeRules.rateMultiplier)
+      : 1;
+
   const overtimeRate =
     !isNaN(empOvertime) && Number.isFinite(empOvertime) && empOvertime > 0
       ? clamp(
-          empOvertime * configuredOvertimeMultiplier,
+          empOvertime * overtimeMultiplier,
           0,
           OVERTIME_RATE_MAX,
         )
@@ -122,12 +174,11 @@ function calculateNetSalary(employee, user, adjustments = {}) {
           Number.isFinite(userOvertime) &&
           userOvertime > 0
         ? clamp(
-            userOvertime * configuredOvertimeMultiplier,
+            userOvertime * overtimeMultiplier,
             0,
             OVERTIME_RATE_MAX,
           )
         : 0;
-
   const overtimePay = Math.round(
     Math.min(overtimeRate * overtimeHours, MAX_SAFE_PAYROLL),
   );

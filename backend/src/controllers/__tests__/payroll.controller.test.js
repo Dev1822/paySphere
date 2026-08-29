@@ -12,7 +12,37 @@ jest.mock("../../utils/lockManager", () => ({
 jest.mock("../../models/exchangeRate.model", () => ({
   findOne: jest.fn(() => ({ sort: jest.fn().mockResolvedValue(null) })),
 }));
-
+jest.mock("../../services/payrollCalculationRule.service", () => ({
+  getActiveCalculationRule: jest.fn().mockResolvedValue({
+    ruleId: null,
+    version: "1.0.0",
+    rules: {
+      overtime: {
+        rateMultiplier: 1,
+        standardMultiplier: 1.5,
+        doubleMultiplier: 2,
+        holidayMultiplier: 2.5,
+        standardDailyHours: 8,
+        doubleOtDailyThreshold: 9,
+        weeklyHoursCeiling: 48,
+      },
+      leave: {
+        dailyRateDivisor: null,
+        maxDays: 31,
+      },
+      deductions: {
+        multiplier: 1,
+      },
+      bonus: {
+        multiplier: 1,
+        includeTaxableExpenses: true,
+      },
+      salary: {
+        dailyRateDivisor: null,
+      },
+    },
+  }),
+}));
 jest.mock("../../models/employee.model");
 jest.mock("../../models/payroll.model");
 jest.mock("../../models/user.model");

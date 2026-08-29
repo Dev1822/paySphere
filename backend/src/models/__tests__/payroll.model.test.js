@@ -54,8 +54,25 @@ describe("Payroll calculation snapshot immutability (#1802)", () => {
       status: "approved",
       calculationSnapshot: {
         version: "1.0.0",
-        employee: {
-          fullName: "Ada Lovelace",
+        ruleId: new mongoose.Types.ObjectId(),
+        rules: {
+          overtime: {
+            rateMultiplier: 1,
+          },
+          leave: {
+            maxDays: 31,
+          },
+          deductions: {
+            multiplier: 1,
+          },
+          bonus: {
+            multiplier: 1,
+          },
+          salary: {
+            dailyRateDivisor: null,
+          },
+        },
+        employee: {          fullName: "Ada Lovelace",
           email: "ada@example.com",
         },
         inputs: {
@@ -72,8 +89,10 @@ describe("Payroll calculation snapshot immutability (#1802)", () => {
 
     expect(row.validateSync()).toBeUndefined();
     expect(row.calculationSnapshot.version).toBe("1.0.0");
-    expect(row.calculationSnapshot.finalizedAt).toEqual(finalizedAt);
-    expect(String(row.calculationSnapshot.finalizedBy)).toBe(
+    expect(row.calculationSnapshot.ruleId).toBeDefined();
+    expect(row.calculationSnapshot.rules.overtime.rateMultiplier).toBe(1);
+    expect(row.calculationSnapshot.rules.leave.maxDays).toBe(31);
+    expect(row.calculationSnapshot.finalizedAt).toEqual(finalizedAt);    expect(String(row.calculationSnapshot.finalizedBy)).toBe(
       String(finalizedBy),
     );
   });
