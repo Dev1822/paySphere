@@ -340,6 +340,7 @@ const fbpRoutes = require('./routes/fbp.routes');
 const teamRoutes = require('./routes/team.routes');
 const healthChallengeRoutes = require('./routes/healthChallenge.routes');
 const offboardingRoutes = require('./routes/offboarding.routes');
+const competencyRoutes = require('./routes/competency.routes');
 const {
   tenantRouter: subscriptionTenantRoutes,
   adminRouter: subscriptionAdminRoutes,
@@ -917,6 +918,11 @@ app.use('/api/offboarding', offboardingRoutes);
 
 // Skill Inventory & Competency Framework
 app.use('/api/skills', skillInventoryRoutes);
+
+// Employee competency tracking — skills, proficiency levels, gap analysis.
+// Placed next to team because the two share the employee directory and the
+// department dimension the matrix uses.
+app.use('/api/competencies', competencyRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────
 // Must be registered AFTER all valid routes but BEFORE error handlers.
