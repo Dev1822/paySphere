@@ -9,10 +9,15 @@ const {
   ShiftRoster,
   ShiftSwapRequest,
 } = require('../models/shiftRoster.model');
+const { BurnoutTelemetry } = require('../models/BurnoutRiskModels');
 const { validateShiftAssignment } = require('../utils/shiftConflictDetector');
 const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
+const {
+  acquireLock,
+  releaseLock,
+} = require('../services/predictiveOvertime.service');
 
 /**
  * POST /api/shifts/templates
@@ -66,8 +71,17 @@ exports.getRoster = async (req, res, next) => {
  * Assign a shift to an employee with automated conflict detection.
  */
 exports.assignShift = async (req, res, next) => {
+  const { employeeId, shiftTemplateId, date } = req.body;
+  const lockKey = `shift_assign_lock_${employeeId}`;
+  let lockAcquired = false;
+
   try {
-    const { employeeId, shiftTemplateId, date } = req.body;
+    lockAcquired = await acquireLock(lockKey, 15); // 15s lock
+    if (!lockAcquired) {
+      return res
+        .status(409)
+        .json({ message: 'Assignment in progress, please try again.' });
+    }
 
     const template = await ShiftTemplate.findOne({
       _id: shiftTemplateId,
@@ -75,6 +89,15 @@ exports.assignShift = async (req, res, next) => {
     });
     if (!template)
       return res.status(404).json({ message: 'Shift template not found' });
+
+    // Burnout Check
+    const telemetry = await BurnoutTelemetry.findOne({ employeeId }).lean();
+    if (telemetry && telemetry.riskCategory === 'CRITICAL') {
+      return res.status(403).json({
+        message:
+          'Shift assignment blocked: Employee is at CRITICAL burnout risk.',
+      });
+    }
 
     // Fetch surrounding 7 days of shifts for conflict checking
     const targetDate = new Date(date);
@@ -109,12 +132,10 @@ exports.assignShift = async (req, res, next) => {
     );
 
     if (!validation.isValid) {
-      return res
-        .status(400)
-        .json({
-          message: 'Shift conflict detected',
-          errors: validation.errors,
-        });
+      return res.status(400).json({
+        message: 'Shift conflict detected',
+        errors: validation.errors,
+      });
     }
 
     // If valid, create the roster entry
@@ -139,12 +160,14 @@ exports.assignShift = async (req, res, next) => {
       .json({ message: 'Shift assigned successfully', roster: rosterEntry });
   } catch (error) {
     if (error.code === 11000)
-      return res
-        .status(409)
-        .json({
-          message: 'Employee already has a shift scheduled on this date.',
-        });
+      return res.status(409).json({
+        message: 'Employee already has a shift scheduled on this date.',
+      });
     next(error);
+  } finally {
+    if (lockAcquired) {
+      await releaseLock(lockKey);
+    }
   }
 };
 
@@ -202,11 +225,9 @@ exports.approveSwap = async (req, res, next) => {
 
     if (!request || request.status !== 'Pending Manager') {
       await session.abortTransaction();
-      return res
-        .status(400)
-        .json({
-          message: 'Invalid swap request or not pending manager approval',
-        });
+      return res.status(400).json({
+        message: 'Invalid swap request or not pending manager approval',
+      });
     }
 
     const originalRoster = await ShiftRoster.findOne(
@@ -239,11 +260,9 @@ exports.approveSwap = async (req, res, next) => {
 
     if (!targetRoster) {
       await session.abortTransaction();
-      return res
-        .status(400)
-        .json({
-          message: 'Replacement does not have a shift on this date to swap.',
-        });
+      return res.status(400).json({
+        message: 'Replacement does not have a shift on this date to swap.',
+      });
     }
 
     // Atomic Swap

@@ -36,7 +36,7 @@ const BenefitsEnrollmentCard: React.FC<BenefitsEnrollmentCardProps> = ({
   employerContribution, employeeContribution, dependents, ytdEmployerSpend,
 }) => {
   const [expanded, setExpanded] = useState(false);
-  const sc = statusColors[active] || statusColors.active;
+  const sc = statusColors[status] || statusColors.active;
   const icon = planTypeIcons[planType] || '📋';
 
   return (

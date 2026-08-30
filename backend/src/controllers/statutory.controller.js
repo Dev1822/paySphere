@@ -8,6 +8,7 @@ const PayrollUpdate = require('../models/payroll.model');
 const Employee = require('../models/employee.model');
 const { generateEPFOEcrText } = require('../utils/ecrGenerator.utils');
 const logger = require('../utils/logger');
+const { createObjectKey, getDownloadUrl, putObject, isStorageUri } = require('../services/objectStorage.service');
 
 exports.generateECR = async (req, res, next) => {
     try {
@@ -43,8 +44,17 @@ exports.generateECR = async (req, res, next) => {
             return res.status(400).json({ message: 'Only EPFO ECR generation is supported in this release.' });
         }
 
-        // In production, upload result.ecrText to S3 and get URL. Mocking here.
-        const mockFileUrl = `mock://ecr-files/${tenantId}-${type}-${month}-${year}.txt`;
+        const ecrKey = createObjectKey({
+            tenantId: req.tenantId,
+            area: 'statutory/ecr',
+            extension: 'txt',
+        });
+        const storedEcr = await putObject({
+            key: ecrKey,
+            body: Buffer.from(result.ecrText, 'utf8'),
+            contentType: 'text/plain; charset=utf-8',
+            metadata: { type, month: String(month), year: String(year) },
+        });
 
         const challan = await StatutoryChallan.create({
             tenantId: req.tenantId,
@@ -52,7 +62,7 @@ exports.generateECR = async (req, res, next) => {
             month,
             year,
             status: result.errors.length > 0 ? 'Failed Validation' : 'Generated',
-            ecrFileUrl: mockFileUrl,
+            ecrFileUrl: storedEcr.uri,
             totalEmployees: result.summary.totalEmployees,
             totalGrossWages: result.summary.totalGrossWages,
             totalEmployerContribution: result.summary.totalEmployerContribution,
@@ -81,7 +91,23 @@ exports.uploadPaymentReceipt = async (req, res, next) => {
             parsed = await parseChallanPdf(Buffer.from(req.body.receiptText, 'utf8'));
         }
 
-        challan.paymentReceiptUrl = receiptUrl || (req.file ? `mock://receipts/${req.file.originalname}` : '');
+        if (req.file) {
+            const extension = req.file.mimetype === 'application/pdf' ? 'pdf' : 'bin';
+            const receiptKey = createObjectKey({
+                tenantId: req.tenantId,
+                area: 'statutory/payment-receipts',
+                extension,
+            });
+            const storedReceipt = await putObject({
+                key: receiptKey,
+                body: req.file.buffer,
+                contentType: req.file.mimetype,
+                metadata: { originalname: String(req.file.originalname || '').slice(0, 255) },
+            });
+            challan.paymentReceiptUrl = storedReceipt.uri;
+        } else {
+            challan.paymentReceiptUrl = receiptUrl || '';
+        }
         challan.paidAt = new Date();
 
         if (parsed) {
@@ -113,7 +139,13 @@ exports.uploadPaymentReceipt = async (req, res, next) => {
 exports.getVaultHistory = async (req, res, next) => {
     try {
         const history = await StatutoryChallan.find({ tenantId: req.tenantId })
-            .sort({ year: -1, month: -1, type: 1 });
-        res.status(200).json({ history });
+            .sort({ year: -1, month: -1, type: 1 })
+            .lean();
+        const hydratedHistory = await Promise.all(history.map(async (item) => ({
+            ...item,
+            ecrFileUrl: isStorageUri(item.ecrFileUrl) ? await getDownloadUrl(item.ecrFileUrl) : item.ecrFileUrl,
+            paymentReceiptUrl: isStorageUri(item.paymentReceiptUrl) ? await getDownloadUrl(item.paymentReceiptUrl) : item.paymentReceiptUrl,
+        })));
+        res.status(200).json({ history: hydratedHistory });
     } catch (error) { next(error); }
 };

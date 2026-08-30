@@ -58,7 +58,14 @@ const expenseClaimSchema = new mongoose.Schema(
     receipts: [receiptSchema],
     status: {
       type: String,
-      enum: ['draft', 'pending_approval', 'approved', 'rejected', 'reimbursed'],
+      enum: [
+        'draft',
+        'pending_approval',
+        'needs_info',
+        'approved',
+        'rejected',
+        'reimbursed',
+      ],
       default: 'pending_approval',
       index: true,
     },
@@ -120,13 +127,15 @@ const expenseClaimSchema = new mongoose.Schema(
     imageHash: { type: String, default: '' },
     isPossibleFraud: { type: Boolean, default: false },
     fraudDetails: { type: String, default: '' },
+    fraudRiskScore: { type: Number, default: 0 },
+    policyViolations: [{ type: String }],
     ocrMetadata: {
       amountMatches: { type: Boolean, default: true },
       dateMatches: { type: Boolean, default: true },
       currencyMatches: { type: Boolean, default: true },
       extractedAmount: { type: Number },
       extractedDate: { type: Date },
-      extractedCurrency: { type: String }
+      extractedCurrency: { type: String },
     },
   },
   { timestamps: true },

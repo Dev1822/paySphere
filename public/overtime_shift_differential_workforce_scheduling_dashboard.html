@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Overtime, Shift Differential & Workforce Scheduling Dashboard - PaySphere</title>
+    <link rel="stylesheet" href="styles/overtime_shift_differential_workforce_scheduling.css" />
+    <script defer src="overtime_shift_differential_workforce_scheduling_engine.js"></script>
+</head>
+
+<body>
+    <!-- ======================================================================== -->
+    <!-- Enterprise Payroll Overtime, Shift Differential & Workforce Scheduling   -->
+    <!-- PaySphere Global HR & Payroll Platform                                    -->
+    <!-- Version: 2.7.0 | Author: PaySphere Workforce Engineering                 -->
+    <!-- Description: Overtime rule engine, shift differential calculation,        -->
+    <!-- workforce scheduling optimization, FLSA compliance monitoring,            -->
+    <!-- predictive scheduling analytics, and labor cost forecasting.              -->
+    <!-- Compliance: FLSA §207, CA AB10 / predictive scheduling, ACA §4980H,       -->
+    <!-- state-specific OT laws (CA, NY, OR, WA), DOL Wage & Hour Division         -->
+    <!-- ======================================================================== -->
+
+    <!-- Top Navigation Bar -->
+    <header class="dashboard-header">
+        <div class="header-left">
+            <img src="logo.png" alt="PaySphere Logo" class="logo" />
+            <h1 class="dashboard-title">Overtime, Shift Differentials & Scheduling</h1>
+        </div>
+        <div class="header-right">
+            <span class="badge badge-live">● LIVE</span>
+            <span class="badge badge-compliance">FLSA Compliant</span>
+            <span class="last-sync" id="lastSyncTime">Last synced: --</span>
+            <button class="btn btn-refresh" id="refreshBtn">⟳ Refresh</button>
+            <div class="user-avatar" id="userAvatar">WF</div>
+        </div>
+    </header>
+
+    <main class="dashboard-main">
+        <!-- Filter & Controls Panel -->
+        <section class="controls-panel glass-card">
+            <h2 class="section-title">Workforce Intelligence Filters</h2>
+            <div class="filter-grid">
+                <div class="filter-group">
+                    <label for="departmentSelect">Department</label>
+                    <select id="departmentSelect" class="glass-input">
+                        <option value="all">All Departments</option>
+                        <option value="warehouse">Warehouse & Logistics</option>
+                        <option value="manufacturing">Manufacturing</option>
+                        <option value="retail">Retail Operations</option>
+                        <option value="call_center">Call Center</option>
+                        <option value="healthcare">Healthcare</option>
+                        <option value="security">Security & Facilities</option>
+                        <option value="it">IT & Engineering</option>
+                        <option value="office">Corporate Office</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="stateSelect">State / Jurisdiction</label>
+                    <select id="stateSelect" class="glass-input">
+                        <option value="all">All States (Federal FLSA)</option>
+                        <option value="CA">California (CA Labor Code §510)</option>
+                        <option value="NY">New York (NY Labor Law §160)</option>
+                        <option value="OR">Oregon (OR Predictive Scheduling)</option>
+                        <option value="WA">Washington (WA OT Law)</option>
+                        <option value="TX">Texas (Federal FLSA Only)</option>
+                        <option value="IL">Illinois (IL Overtime Law)</option>
+                        <option value="MA">Massachusetts (MA OT Law)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="payPeriodSelect">Pay Period</label>
+                    <select id="payPeriodSelect" class="glass-input">
+                        <option value="current">Current Period</option>
+                        <option value="prev1">Previous Period</option>
+                        <option value="prev2">2 Periods Ago</option>
+                        <option value="mtd">Month-to-Date</option>
+                        <option value="ytd">Year-to-Date</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="shiftTypeSelect">Shift Type</label>
+                    <select id="shiftTypeSelect" class="glass-input">
+                        <option value="all">All Shifts</option>
+                        <option value="day">Day Shift (6AM-2PM)</option>
+                        <option value="evening">Evening Shift (2PM-10PM)</option>
+                        <option value="night">Night / Graveyard (10PM-6AM)</option>
+                        <option value="split">Split Shift</option>
+                        <option value="on_call">On-Call</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="classificationSelect">Classification</label>
+                    <select id="classificationSelect" class="glass-input">
+                        <option value="all">All</option>
+                        <option value="non_exempt">Non-Exempt (OT Eligible)</option>
+                        <option value="exempt_salaried">Exempt (Salaried)</option>
+                        <option value="exempt_highly_comp">Highly Compensated Exempt</option>
+                    </select>
+                </div>
+                <div class="filter-group filter-actions">
+                    <button class="btn btn-primary" id="applyFiltersBtn">Apply Filters</button>
+                    <button class="btn btn-secondary" id="resetFiltersBtn">Reset</button>
+                    <button class="btn btn-export" id="exportCsvBtn">↓ Export CSV</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- KPI Row -->
+        <section class="kpi-row">
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">Total OT Hours (Current Period)</div>
+                <div class="kpi-value" id="totalOTHours">4,218</div>
+                <div class="kpi-change negative">▲ 12% vs prior period</div>
+            </div>
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">OT Premium Cost (Current Period)</div>
+                <div class="kpi-value" id="otPremiumCost">$187K</div>
+                <div class="kpi-change negative">▲ $24K vs prior period</div>
+            </div>
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">Avg Shift Differential Rate</div>
+                <div class="kpi-value" id="avgShiftDiffRate">$3.42</div>
+                <div class="kpi-change neutral">Stable</div>
+            </div>
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">Scheduling Compliance Rate</div>
+                <div class="kpi-value" id="scheduleComplianceRate">96.8%</div>
+                <div class="kpi-change positive">▲ 1.2pp improvement</div>
+            </div>
+        </section>
+
+        <!-- Main Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Overtime Rule Engine Panel -->
+            <section class="panel glass-card" id="otRuleEngine">
+                <h3 class="panel-title">Overtime Rule Engine & State Compliance Matrix</h3>
+                <div class="ot-rules-table-wrap">
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th>Jurisdiction</th>
+                                <th>Daily OT Trigger</th>
+                                <th>Weekly OT Trigger</th>
+                                <th>7th Day Rule</th>
+                                <th>Double-Time</th>
+                                <th>OT Rate</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="otRulesTableBody">
+                            <!-- Populated by JS engine -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">FLSA §207 | State Labor Code cross-reference | Last updated: Q1 2026</span>
+                </div>
+            </section>
+
+            <!-- Shift Differential Calculator Panel -->
+            <section class="panel glass-card" id="shiftDiffCalculator">
+                <h3 class="panel-title">Shift Differential Rate Calculator</h3>
+                <div class="shift-diff-grid" id="shiftDiffGrid">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Rates: Company policy + state-specific minimums (CA, NY, WA)</span>
+                </div>
+            </section>
+
+            <!-- OT Trend Analysis Panel -->
+            <section class="panel glass-card" id="otTrendAnalysis">
+                <h3 class="panel-title">Overtime Trend Analysis (12-Period Rolling)</h3>
+                <div class="trend-chart" id="trendChart">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Trend data: Rolling 12 pay periods with seasonal adjustment</span>
+                </div>
+            </section>
+
+            <!-- Labor Cost Forecasting Panel -->
+            <section class="panel glass-card" id="laborCostForecast">
+                <h3 class="panel-title">Labor Cost Forecast (OT + Shift Diff)</h3>
+                <div class="forecast-summary" id="forecastSummary">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Forecast: Linear projection with 3% OT growth assumption</span>
+                </div>
+            </section>
+
+            <!-- Workforce Scheduling Optimization Panel -->
+            <section class="panel glass-card panel-wide" id="schedulingOptimization">
+                <h3 class="panel-title">Workforce Scheduling Optimization & Predictive Scheduling Compliance</h3>
+                <div class="schedule-metrics" id="scheduleMetrics">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">CA AB10 / OR Predictive Scheduling / NYC Fair Workweek Act compliance</span>
+                </div>
+            </section>
+
+            <!-- Employee Overtime Leaderboard Panel -->
+            <section class="panel glass-card" id="otLeaderboard">
+                <h3 class="panel-title">Overtime Hours Leaderboard (Top 10)</h3>
+                <div class="ot-leaderboard" id="otLeaderboardList">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Flagged: Employees exceeding 20% OT ratio require manager review</span>
+                </div>
+            </section>
+        </div>
+
+        <!-- Footer -->
+        <footer class="dashboard-footer">
+            <div class="footer-left">
+                <span>PaySphere Workforce Scheduling Engine v2.7.0</span>
+                <span class="separator">|</span>
+                <span>FLSA §207</span>
+                <span class="separator">|</span>
+                <span>CA AB10</span>
+                <span class="separator">|</span>
+                <span>DOL Wage & Hour</span>
+            </div>
+            <div class="footer-right">
+                <span id="auditTimestamp">Audit Trail: --</span>
+                <span class="separator">|</span>
+                <span id="sessionId">Session: --</span>
+            </div>
+        </footer>
+    </main>
+</body>
+
+</html>

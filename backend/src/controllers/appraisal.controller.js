@@ -20,8 +20,10 @@ const {
   buildDistributionReport,
   calibrateIncrementBudget,
 } = require('../utils/appraisalNormalizer');
-const { tenantFilter } = require('../utils/tenantScope');
+const User = require('../models/user.model');
 const eventBus = require('../services/event.service');
+const { tenantFilter } = require('../utils/tenantScope');
+const lifecycleEventService = require('../services/lifecycleEvent.service');
 
 /**
  * Load a cycle and the finalised reviews that make up its calibration cohort.
@@ -350,6 +352,20 @@ exports.submitManagerReview = async (req, res, next) => {
         recommendedIncrement,
       },
       req,
+    });
+
+    await lifecycleEventService.recordEvent({
+      employeeId: review.employeeId,
+      tenantId: review.tenantId,
+      eventType: 'APPRAISAL_COMPLETED',
+      category: 'Performance',
+      recordedBy: req.userId,
+      newValues: {
+        finalScore,
+        recommendedIncrement,
+        managerRating: managerOverallRating,
+      },
+      sourceId: review._id,
     });
 
     res.status(200).json({ message: 'Appraisal finalized', review });

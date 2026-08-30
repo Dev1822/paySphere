@@ -11,7 +11,115 @@ const PayrollUpdate = require("../payroll.model");
  */
 const AUDIT_REFS = ["submittedBy", "approvedBy", "rejectedBy"];
 const AUDIT_DATES = ["submittedAt", "approvedAt", "rejectedAt"];
+describe("Payroll calculation snapshot immutability (#1802)", () => {
+  test("requires a calculation snapshot version", () => {
+    const row = new PayrollUpdate({
+      employeeId: new mongoose.Types.ObjectId(),
+      employeeName: "Ada Lovelace",
+      month: 7,
+      year: 2026,
+      baseSalary: 90000,
+      netSalary: 88000,
+      createdBy: new mongoose.Types.ObjectId(),
+      tenantId: new mongoose.Types.ObjectId(),
+      status: "approved",
+      calculationSnapshot: {
+        employee: {
+          fullName: "Ada Lovelace",
+        },
+        finalAmounts: {
+          netSalary: 88000,
+        },
+      },
+    });
 
+    const error = row.validateSync();
+
+    expect(error.errors["calculationSnapshot.version"]).toBeDefined();
+  });
+
+  test("stores the calculation version and finalization metadata", () => {
+    const finalizedAt = new Date("2026-08-27T10:00:00Z");
+    const finalizedBy = new mongoose.Types.ObjectId();
+
+    const row = new PayrollUpdate({
+      employeeId: new mongoose.Types.ObjectId(),
+      employeeName: "Ada Lovelace",
+      month: 7,
+      year: 2026,
+      baseSalary: 90000,
+      netSalary: 88000,
+      createdBy: new mongoose.Types.ObjectId(),
+      tenantId: new mongoose.Types.ObjectId(),
+      status: "approved",
+      calculationSnapshot: {
+        version: "1.0.0",
+        employee: {
+          fullName: "Ada Lovelace",
+          email: "ada@example.com",
+        },
+        inputs: {
+          baseSalary: 90000,
+          deductions: 2000,
+        },
+        finalAmounts: {
+          netSalary: 88000,
+        },
+        finalizedAt,
+        finalizedBy,
+      },
+    });
+
+    expect(row.validateSync()).toBeUndefined();
+    expect(row.calculationSnapshot.version).toBe("1.0.0");
+    expect(row.calculationSnapshot.finalizedAt).toEqual(finalizedAt);
+    expect(String(row.calculationSnapshot.finalizedBy)).toBe(
+      String(finalizedBy),
+    );
+  });
+
+  test("rejects changing a finalized calculation snapshot through save", () => {
+    const row = new PayrollUpdate({
+      employeeId: new mongoose.Types.ObjectId(),
+      employeeName: "Ada Lovelace",
+      month: 7,
+      year: 2026,
+      baseSalary: 90000,
+      netSalary: 88000,
+      createdBy: new mongoose.Types.ObjectId(),
+      tenantId: new mongoose.Types.ObjectId(),
+      status: "approved",
+      calculationSnapshot: {
+        version: "1.0.0",
+        employee: {
+          fullName: "Ada Lovelace",
+        },
+        finalAmounts: {
+          netSalary: 88000,
+        },
+        finalizedAt: new Date(),
+        finalizedBy: new mongoose.Types.ObjectId(),
+      },
+    });
+
+    row.calculationSnapshot.employee.fullName = "Changed Name";
+
+    const error = row.validateSync();
+
+    expect(error).toBeUndefined();
+
+    return expect(
+      new Promise((resolve, reject) => {
+        row.save((saveError) => {
+          if (saveError) reject(saveError);
+          else resolve();
+        });
+      }),
+    ).rejects.toThrow(
+      "Finalized payroll calculation snapshot cannot be modified",
+    );
+  });
+});
 describe("PayrollUpdate schema — approval trail (#559)", () => {
   test.each(AUDIT_REFS)("%s is an ObjectId reference to User", (field) => {
     const path = PayrollUpdate.schema.path(field);

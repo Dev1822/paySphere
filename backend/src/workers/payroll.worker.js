@@ -2,8 +2,8 @@ const { Worker } = require('bullmq');
 const mongoose = require('mongoose');
 const Employee = require('../models/employee.model');
 const PayrollUpdate = require('../models/payroll.model');
-const User = require('../models/user.model');
-const { calculateNetSalary } = require('../utils/salaryCalculator');
+const PayrollRun = require('../models/payrollRun.model');
+const User = require('../models/user.model');const { calculateNetSalary } = require('../utils/salaryCalculator');
 const { connection } = require('../jobs/queue.service');
 const { acquireLock, releaseLock } = require('../utils/lockManager');
 const logger = require('../utils/logger');
@@ -17,17 +17,15 @@ function parseTagValue(label) {
   return isNaN(parsed) || !Number.isFinite(parsed) || parsed < 0 ? 0 : parsed;
 }
 
-const payrollWorker = new Worker(
-  'payroll-processing',
-  async (job) => {
+async function processPayrollJob(job) {
     let session = null;
     let lock = false;
-    try {
-      logger.info(
+    let payrollRun = null;
+    try {    logger.info(
         `Starting payroll processing job ${job.id} for user ${job.data.userId}`,
       );
 
-      const { activities, currentMonth, currentYear, userId } = job.data;
+      const { activities, currentMonth, currentYear, userId, tenantId } = job.data;
 
       // ── Idempotency Guard ────────────────────────────────────────────────
       // Prevent double-processing the same payroll period if two BullMQ workers
@@ -42,8 +40,59 @@ const payrollWorker = new Worker(
       }
       // ────────────────────────────────────────────────────────────────────
 
-      const employees = await Employee.find({ createdBy: userId, deletedAt: null });
-      const user = await User.findById(userId);
+      // ── Durable Idempotency Record (deterministic run identity) ─────────
+      // tenantId + payrollPeriod + payrollRunType, per #1800. The Redis lock
+      // above only stops two workers racing *right now*; this record is what
+      // makes a retried job (picked up after the run already finished, or
+      // after the lock TTL lapsed following a crash) safe to replay instead
+      // of reprocessing payroll again.
+      const runTenantId = tenantId || userId;
+      const payrollRunType = job.data.payrollRunType || 'REGULAR';
+      const payrollPeriod = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+
+      const existingRun = await PayrollRun.findOne({
+        tenantId: runTenantId,
+        payrollPeriod,
+        payrollRunType,
+      });
+
+      if (existingRun && existingRun.status === 'completed') {
+        logger.info('Payroll run already completed — returning stored result', {
+          tenantId: runTenantId, payrollPeriod, payrollRunType,
+        });
+        return { skipped: true, reason: 'already_completed', result: existingRun.result };
+      }
+
+      try {
+        if (existingRun) {
+          // A "processing" row with no completion — most likely a worker
+          // that crashed mid-run. The Redis lock TTL has already expired
+          // (that's how we got here), so it's safe to resume this same
+          // run rather than leaving it stuck or creating a duplicate.
+          payrollRun = existingRun;
+          payrollRun.status = 'processing';
+          payrollRun.jobId = String(job.id);
+          await payrollRun.save();
+        } else {
+          payrollRun = await PayrollRun.create({
+            tenantId: runTenantId,
+            payrollPeriod,
+            payrollRunType,
+            jobId: String(job.id),
+            status: 'processing',
+          });
+        }
+      } catch (createErr) {
+        if (createErr.code === 11000) {
+          // Another process won the race between findOne and create above —
+          // the unique index caught it, exactly as it's meant to.
+          return { skipped: true, reason: 'duplicate_run' };
+        }
+        throw createErr;
+      }
+      // ────────────────────────────────────────────────────────────────────
+
+      const employees = await Employee.find({ createdBy: userId, deletedAt: null });      const user = await User.findById(userId);
 
       const preparedItems = [];
       const errors = [];
@@ -246,17 +295,30 @@ const payrollWorker = new Worker(
         session.endSession();
       }
 
+      const runResult = { success: true, processedCount: savedRecords.length };
+      if (payrollRun) {
+        await PayrollRun.updateOne(
+          { _id: payrollRun._id },
+          { $set: { status: 'completed', result: runResult, finishedAt: new Date() } },
+        );
+      }
+
       logger.info(`Successfully processed payroll job ${job.id}`);
-      return { success: true, processedCount: savedRecords.length };
+      return runResult;
     } catch (error) {
       if (session) {
         await session.abortTransaction();
         session.endSession();
       }
+      if (payrollRun) {
+        await PayrollRun.updateOne(
+          { _id: payrollRun._id },
+          { $set: { status: 'failed', error: error.message, finishedAt: new Date() } },
+        ).catch((e) => logger.warn('Failed to mark payroll run as failed:', e.message));
+      }
       logger.error(`Error processing payroll job ${job.id}:`, error);
       throw error;
-    } finally {
-      // release lock if it was acquired by us
+    } finally {      // release lock if it was acquired by us
       if (typeof lock !== 'undefined' && lock) {
         try {
           const lockName = `payroll_${job.data.userId}_${job.data.currentYear}_${String(job.data.currentMonth).padStart(2, '0')}`;
@@ -266,12 +328,14 @@ const payrollWorker = new Worker(
         }
       }
     }
-  },
-  { connection },
-);
+}
 
-payrollWorker.on('completed', (job) => {
-  logger.info(`Job ${job.id} has completed!`);
+const payrollWorker = new Worker('payroll-processing', processPayrollJob, {
+  connection,
+});
+payrollWorker.processFn = processPayrollJob;
+
+payrollWorker.on('completed', (job) => {  logger.info(`Job ${job.id} has completed!`);
 });
 
 payrollWorker.on('failed', (job, err) => {

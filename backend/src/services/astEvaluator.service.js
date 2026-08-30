@@ -56,12 +56,10 @@ class ASTEvaluator {
 
         switch (node.operator) {
           case '==':
-            // eslint-disable-next-line eqeqeq
             return left == right;
           case '===':
             return left === right;
           case '!=':
-            // eslint-disable-next-line eqeqeq
             return left != right;
           case '!==':
             return left !== right;
@@ -76,19 +74,29 @@ class ASTEvaluator {
           case 'in':
             return Array.isArray(right) ? right.includes(left) : false;
           case 'contains':
-            return Array.isArray(left) ? left.includes(right) : String(left).includes(String(right));
+            return Array.isArray(left)
+              ? left.includes(right)
+              : String(left).includes(String(right));
           default:
-            logger.warn(`Unsupported binary operator in AST Evaluator: ${node.operator}`);
+            logger.warn(
+              `Unsupported binary operator in AST Evaluator: ${node.operator}`,
+            );
             return false;
         }
       }
 
       case 'LogicalExpression': {
         if (node.operator === '&&') {
-          return Boolean(this.evaluate(node.left, context)) && Boolean(this.evaluate(node.right, context));
+          return (
+            Boolean(this.evaluate(node.left, context)) &&
+            Boolean(this.evaluate(node.right, context))
+          );
         }
         if (node.operator === '||') {
-          return Boolean(this.evaluate(node.left, context)) || Boolean(this.evaluate(node.right, context));
+          return (
+            Boolean(this.evaluate(node.left, context)) ||
+            Boolean(this.evaluate(node.right, context))
+          );
         }
         return false;
       }

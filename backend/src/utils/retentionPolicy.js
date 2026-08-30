@@ -49,8 +49,13 @@ function anonymizeEmployeePII(employee = {}) {
  * @param {Date|string} [now=new Date()]
  * @returns {object}
  */
-function evaluateRetentionEligibility(employee = {}, retentionYears = 7, now = new Date()) {
+function evaluateRetentionEligibility(
+  employee = {},
+  retentionYears = 7,
+  now = new Date(),
+) {
   const deletedAt = employee.deletedAt ? new Date(employee.deletedAt) : null;
+
   if (!deletedAt || Number.isNaN(deletedAt.getTime())) {
     return {
       isEligibleForPurge: false,
@@ -62,20 +67,20 @@ function evaluateRetentionEligibility(employee = {}, retentionYears = 7, now = n
 
   const currentTime = new Date(now).getTime();
   const deletedTime = deletedAt.getTime();
-  const daysArchived = Math.floor((currentTime - deletedTime) / (1000 * 60 * 60 * 24));
+  const daysArchived = Math.max(
+    0,
+    Math.floor((currentTime - deletedTime) / (1000 * 60 * 60 * 24)),
+  );
   const retentionDaysRequired = retentionYears * 365;
 
-  const isEligibleForPurge = daysArchived >= retentionDaysRequired;
-
   return {
-    isEligibleForPurge,
+    isEligibleForPurge: daysArchived >= retentionDaysRequired,
     deletedDate: deletedAt,
     daysArchived,
     retentionDaysRequired,
     remainingDays: Math.max(0, retentionDaysRequired - daysArchived),
   };
 }
-
 module.exports = {
   anonymizeEmployeePII,
   evaluateRetentionEligibility,

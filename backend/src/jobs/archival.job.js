@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Database Archival and Purge Job
+ * @description Monthly cron job to compress and archive payroll/audit/attendance records older than 7 years to AWS S3 Glacier.
+ * Issue: #1846
+ */
 const fs = require('fs');
 const path = require('path');
 const archiver = require('archiver');
@@ -99,17 +104,21 @@ async function runDatabaseArchivalJob() {
     });
   }
 
-  // 4. Safely purge live database collections
-  logger.info('Starting purge of archived records from live collections...');
-  const [payrollPurged, auditPurged, attendancePurged] = await Promise.all([
-    PayrollUpdate.deleteMany(payrollQuery),
-    AuditLog.deleteMany(auditQuery),
-    Attendance.deleteMany(attendanceQuery),
-  ]);
+  // 4. Payroll and audit records are historical records and must remain
+  // available for reporting and audit purposes. Only attendance is eligible
+  // for physical removal here because finalized payroll snapshots contain the
+  // attendance-derived values needed to reproduce historical payroll.
+  logger.info(
+    'Historical payroll and audit records retained after archival.',
+    {
+      payrollsRetained: payrolls.length,
+      auditLogsRetained: auditLogs.length,
+    },
+  );
 
-  logger.info('Database purge completed successfully.', {
-    payrollsPurged: payrollPurged.deletedCount,
-    auditLogsPurged: auditPurged.deletedCount,
+  const attendancePurged = await Attendance.deleteMany(attendanceQuery);
+
+  logger.info('Attendance purge completed successfully.', {
     attendancesPurged: attendancePurged.deletedCount,
   });
 
@@ -118,11 +127,14 @@ async function runDatabaseArchivalJob() {
     archivedCount: totalCount,
     uploadedToS3: isUploaded,
     purged: {
-      payrolls: payrollPurged.deletedCount,
-      auditLogs: auditPurged.deletedCount,
+      payrolls: 0,
+      auditLogs: 0,
       attendances: attendancePurged.deletedCount,
-    }
-  };
-}
+    },
+    retained: {
+      payrolls: payrolls.length,
+      auditLogs: auditLogs.length,
+    },
+  };}
 
 module.exports = { runDatabaseArchivalJob };

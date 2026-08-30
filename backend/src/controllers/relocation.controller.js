@@ -1,118 +1,151 @@
 /**
- * @fileoverview Relocation Controller
- * @description Manages relocation requests, expense uploads, and gross-up calculations.
- * Issue: #1368
+ * @fileoverview Employee Relocation Controller
+ * @description Manages relocation package head allocations, reimbursement claims,
+ * and Section 10(14) tax exemption vs taxable perquisite accounting.
+ * Issue: #1765
  */
-const { RelocationRequest, RelocationExpense, TaxGrossUp } = require('../models/relocation.model');
+
+const {
+  classifyRelocationExpense,
+  calculateRelocationPackageTaxSplit,
+  RELOCATION_CATEGORIES,
+} = require('../utils/relocationEngine.utils');
 const Employee = require('../models/employee.model');
-const { calculateGrossUp, isExpenseTaxable } = require('../utils/grossUpCalculator.utils');
 const logger = require('../utils/logger');
 
-exports.createRequest = async (req, res, next) => {
-    try {
-        const { originCity, destinationCity, relocationDate, approvedBudget, marginalTaxRate } = req.body;
-        const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
-        if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
+// In-memory or database-backed relocation stores
+const activeRelocationPackages = new Map();
+const recordedRelocationClaims = [];
 
-        const request = await RelocationRequest.create({
-            tenantId: req.tenantId,
-            employeeId: employee._id,
-            originCity, destinationCity, relocationDate: new Date(relocationDate),
-            approvedBudget, marginalTaxRate: marginalTaxRate || 0.30
-        });
+/**
+ * POST /api/relocation/create-package
+ * Allocates a relocation budget package for an employee transfer.
+ */
+async function createPackage(req, res, next) {
+  try {
+    const {
+      employeeId,
+      transferFromCity = 'MUMBAI',
+      transferToCity = 'BANGALORE',
+      effectiveDate,
+      allocatedBudget = 150000,
+    } = req.body;
 
-        res.status(201).json({ message: 'Relocation request submitted', request });
-    } catch (error) { next(error); }
-};
+    if (!employeeId) {
+      return res.status(400).json({
+        success: false,
+        message: 'employeeId is required',
+      });
+    }
 
-exports.submitExpense = async (req, res, next) => {
-    try {
-        const { requestId, category, amount, receiptUrl, description } = req.body;
-        const request = await RelocationRequest.findOne({ _id: requestId, tenantId: req.tenantId });
-        if (!request) return res.status(404).json({ message: 'Request not found' });
+    const packageRecord = {
+      packageId: `RELOC-PKG-${Date.now()}`,
+      employeeId: String(employeeId),
+      transferFromCity,
+      transferToCity,
+      effectiveDate: effectiveDate || new Date().toISOString(),
+      allocatedBudget: Number(allocatedBudget),
+      createdAt: new Date().toISOString(),
+      categories: RELOCATION_CATEGORIES,
+    };
 
-        // Determine taxability based on category and cross-border status (mocked here as false)
-        const isCrossBorder = false; // In real app, compare country codes of cities
-        const taxable = isExpenseTaxable(category, isCrossBorder);
+    activeRelocationPackages.set(String(employeeId), packageRecord);
 
-        const expense = await RelocationExpense.create({
-            tenantId: req.tenantId,
-            requestId,
-            category,
-            amount,
-            receiptUrl,
-            description,
-            isTaxable: taxable,
-            status: 'Approved' // Auto-approve for demo, or route to manager
-        });
+    return res.status(201).json({
+      success: true,
+      message: 'Relocation package initialized successfully',
+      data: packageRecord,
+    });
+  } catch (error) {
+    logger.error('Error creating relocation package:', error);
+    return next(error);
+  }
+}
 
-        res.status(201).json({ message: 'Expense submitted', expense, isTaxable: taxable });
-    } catch (error) { next(error); }
-};
+/**
+ * POST /api/relocation/submit-claim
+ * Submits a relocation expense voucher with GST invoice audit.
+ */
+async function submitClaim(req, res, next) {
+  try {
+    const {
+      employeeId,
+      category = 'GOODS_PACKING_TRANSIT',
+      amount,
+      stayDurationDays = 0,
+      gstNumber,
+      invoiceUrl,
+      isGstVerified = true,
+    } = req.body;
 
-exports.calculateGrossUps = async (req, res, next) => {
-    try {
-        const { requestId } = req.params;
-        const request = await RelocationRequest.findOne({ _id: requestId, tenantId: req.tenantId });
-        if (!request) return res.status(404).json({ message: 'Request not found' });
+    if (!employeeId || amount === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'employeeId and amount are required',
+      });
+    }
 
-        // Fetch all approved taxable expenses for this request
-        const expenses = await RelocationExpense.find({ requestId, status: 'Approved', isTaxable: true });
-        const totalTaxableExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const classification = classifyRelocationExpense(
+      category,
+      Number(amount),
+      Number(stayDurationDays),
+      Boolean(isGstVerified),
+    );
 
-        const grossUpData = calculateGrossUp(totalTaxableExpenses, request.marginalTaxRate);
+    const claimRecord = {
+      claimId: `RELOC-CLM-${Date.now()}`,
+      employeeId: String(employeeId),
+      gstNumber: gstNumber || null,
+      invoiceUrl: invoiceUrl || null,
+      submittedAt: new Date().toISOString(),
+      ...classification,
+    };
 
-        // Upsert the gross-up record
-        const grossUp = await TaxGrossUp.findOneAndUpdate(
-            { requestId },
-            {
-                tenantId: req.tenantId,
-                totalTaxableExpenses,
-                grossUpAmount: grossUpData.grossUpAmount,
-                taxRateApplied: request.marginalTaxRate
-            },
-            { upsert: true, new: true }
-        );
+    recordedRelocationClaims.push(claimRecord);
 
-        res.status(200).json({ message: 'Gross-up calculated', grossUp, grossUpData });
-    } catch (error) { next(error); }
-};
+    return res.status(200).json({
+      success: true,
+      message: 'Relocation expense claim processed and categorized',
+      data: claimRecord,
+    });
+  } catch (error) {
+    logger.error('Error submitting relocation claim:', error);
+    return next(error);
+  }
+}
 
-exports.injectToPayroll = async (req, res, next) => {
-    try {
-        const { requestId } = req.params;
-        const grossUp = await TaxGrossUp.findOne({ requestId, tenantId: req.tenantId });
-        if (!grossUp) return res.status(404).json({ message: 'Gross-up record not found. Calculate first.' });
+/**
+ * GET /api/relocation/tax-summary/:employeeId
+ * Retrieves tax-exempt reimbursements and taxable perquisite splits.
+ */
+async function getRelocationTaxSummary(req, res, next) {
+  try {
+    const { employeeId } = req.params;
+    const pkg = activeRelocationPackages.get(String(employeeId)) || null;
+    const employeeClaims = recordedRelocationClaims.filter(
+      (c) => String(c.employeeId) === String(employeeId),
+    );
 
-        if (grossUp.isInjectedToPayroll) {
-            return res.status(400).json({ message: 'Already injected into payroll.' });
-        }
+    const summary = calculateRelocationPackageTaxSplit(employeeClaims);
 
-        // In a real system, this would push line items to the PayrollUpdate model:
-        // 1. Relocation Reimbursement (Non-taxable portion)
-        // 2. Relocation Gross-Up Bonus (Taxable)
-        // 3. TDS on Gross-Up
+    return res.status(200).json({
+      success: true,
+      data: {
+        employeeId,
+        package: pkg,
+        summary,
+      },
+    });
+  } catch (error) {
+    logger.error('Error fetching relocation tax summary:', error);
+    return next(error);
+  }
+}
 
-        grossUp.isInjectedToPayroll = true;
-        await grossUp.save();
-
-        logger.info(`[Relocation] Injected gross-up of ${grossUp.grossUpAmount} to payroll for request ${requestId}`);
-        res.status(200).json({ message: 'Successfully injected into next payroll run.', grossUp });
-    } catch (error) { next(error); }
-};
-
-exports.getMyRequests = async (req, res, next) => {
-    try {
-        const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
-        if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
-
-        const requests = await RelocationRequest.find({ employeeId: employee._id, tenantId: req.tenantId }).sort({ createdAt: -1 });
-
-        // Fetch expenses and gross-ups for these requests
-        const requestIds = requests.map(r => r._id);
-        const expenses = await RelocationExpense.find({ requestId: { $in: requestIds } });
-        const grossUps = await TaxGrossUp.find({ requestId: { $in: requestIds } });
-
-        res.status(200).json({ requests, expenses, grossUps });
-    } catch (error) { next(error); }
+module.exports = {
+  createPackage,
+  submitClaim,
+  getRelocationTaxSummary,
+  activeRelocationPackages,
+  recordedRelocationClaims,
 };

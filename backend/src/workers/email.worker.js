@@ -66,4 +66,16 @@ function startEmailWorker() {
   return worker;
 }
 
-module.exports = { startEmailWorker, processEmailJob };
+/**
+ * Gracefully shuts down the BullMQ worker.
+ * Awaits completion of in-progress jobs.
+ * @returns {Promise<void>}
+ */
+async function stopEmailWorker() {
+  if (worker) {
+    await worker.close();
+    worker = null;
+  }
+}
+
+module.exports = { startEmailWorker, stopEmailWorker, processEmailJob };

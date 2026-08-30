@@ -15,6 +15,8 @@ const {
   Candidate,
   InterviewFeedback,
 } = require('../models/recruitment.model');
+const HeadcountRequisition = require('../models/headcountRequisition.model');
+const Position = require('../models/position.model');
 const {
   PIPELINE_STAGES,
   REQUISITION_STATUS,
@@ -402,6 +404,47 @@ exports.updateCandidateStage = async (req, res, next) => {
           .status(409)
           .json({ message: capacity.reason, fill: capacity.fill });
       }
+
+      // Decrement the open headcount on the HeadcountRequisition if linked
+      const headcountReq = await HeadcountRequisition.findOne({
+        requisitionCode: requisition.requisitionCode,
+        tenantId: req.tenantId,
+      });
+      if (headcountReq && headcountReq.requestedCount > 0) {
+        headcountReq.requestedCount -= 1;
+        if (headcountReq.requestedCount === 0)
+          headcountReq.status = 'Fulfilled';
+        await headcountReq.save();
+      }
+
+      // Decrement openings on the JobRequisition
+      if (requisition.openings > 0) {
+        await JobRequisition.updateOne(
+          { _id: requisition._id },
+          { $inc: { openings: -1 } },
+        );
+      }
+
+      // Mark linked position as active
+      // Assuming positionCode matches requisitionCode or we create a new Position
+      const positionCode = `${requisition.requisitionCode}-${Date.now()}`;
+      await Position.findOneAndUpdate(
+        { positionCode, tenantId: req.tenantId },
+        {
+          $setOnInsert: {
+            tenantId: req.tenantId,
+            positionCode,
+            department: requisition.department,
+            title: requisition.title,
+            createdBy: req.userId,
+          },
+          $set: {
+            status: 'Active',
+            employeeId: candidate.convertedEmployeeId || null,
+          },
+        },
+        { upsert: true, new: true },
+      );
     }
 
     candidate.currentStage = transition.stage;

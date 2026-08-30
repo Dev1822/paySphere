@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Heart, ShieldCheck, Download, Search, Sparkles, CheckCircle2, Clock, Globe, ArrowUpRight, DollarSign, Users, Activity, PlusCircle } from 'lucide-react';
 import BenefitPlanCard, { BenefitPlan } from '../../components/benefits/BenefitPlanCard';
 import BenefitsEnrollmentTimeline from '../../components/benefits/BenefitsEnrollmentTimeline';
+import CompensationBandCard, { CompensationBandCardProps } from '../../components/benefits/CompensationBandCard';
 
 const BENEFIT_PLANS: BenefitPlan[] = [
   {
@@ -45,10 +46,61 @@ const BENEFIT_PLANS: BenefitPlan[] = [
   },
 ];
 
+const COMPENSATION_BANDS: CompensationBandCardProps[] = [
+  {
+    grade: 'executive',
+    title: 'Executive Leadership Band',
+    minSalary: 180000,
+    midpoint: 220000,
+    maxSalary: 260000,
+    marketP25: 195000,
+    marketP50: 215000,
+    marketP75: 240000,
+    bonusTarget: 35,
+    benefitsValue: 25000,
+    equityRange: { min: 50000, max: 120000, type: 'rsu' },
+    headcount: 5,
+    location: 'San Francisco, CA',
+    lastUpdated: '2026-08-01',
+  },
+  {
+    grade: 'director',
+    title: 'Engineering Director Band',
+    minSalary: 140000,
+    midpoint: 165000,
+    maxSalary: 190000,
+    marketP25: 145000,
+    marketP50: 168000,
+    marketP75: 185000,
+    bonusTarget: 25,
+    benefitsValue: 18000,
+    equityRange: { min: 30000, max: 75000, type: 'stock_option' },
+    headcount: 12,
+    location: 'Remote, US',
+    lastUpdated: '2026-08-10',
+  },
+  {
+    grade: 'manager',
+    title: 'Engineering Manager Band',
+    minSalary: 110000,
+    midpoint: 130000,
+    maxSalary: 150000,
+    marketP25: 115000,
+    marketP50: 128000,
+    marketP75: 142000,
+    bonusTarget: 15,
+    benefitsValue: 12000,
+    equityRange: { min: 15000, max: 40000, type: 'rsu' },
+    headcount: 24,
+    location: 'New York, NY',
+    lastUpdated: '2026-08-15',
+  },
+];
+
 export default function EnterpriseBenefitsDashboardPage() {
   const [plans, setPlans] = useState<BenefitPlan[]>(BENEFIT_PLANS);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'plans' | 'enrollment-stream'>('plans');
+  const [activeTab, setActiveTab] = useState<'plans' | 'enrollment-stream' | 'compensation-bands'>('plans');
   const [selectedPlanModal, setSelectedPlanModal] = useState<BenefitPlan | null>(null);
 
   const totalEmployerMonthlySubsidyUSD = plans.reduce((acc, p) => acc + (p.monthlyEmployerContributionUSD * p.coveredEmployees), 0);
@@ -151,6 +203,17 @@ export default function EnterpriseBenefitsDashboardPage() {
             >
               <Activity className="w-4 h-4" /> Open Enrollment Stream
             </button>
+            <button
+              onClick={() => setActiveTab('compensation-bands')}
+              id="compensation-bands-tab"
+              className={`flex-1 md:flex-none px-5 py-2.5 rounded-xl font-medium text-sm transition flex items-center justify-center gap-2 ${
+                activeTab === 'compensation-bands'
+                  ? 'bg-cyan-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              <Sparkles className="w-4 h-4" /> Compensation Bands
+            </button>
           </div>
 
           <div className="flex items-center gap-3 w-full md:w-auto">
@@ -167,16 +230,28 @@ export default function EnterpriseBenefitsDashboardPage() {
           </div>
         </div>
 
-        {/* Tab Body */}
-        {activeTab === 'enrollment-stream' ? (
+        {activeTab === 'enrollment-stream' && (
           <BenefitsEnrollmentTimeline />
-        ) : (
+        )}
+        {activeTab === 'plans' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {filteredPlans.map((plan) => (
               <BenefitPlanCard
                 key={plan.id}
                 plan={plan}
                 onInspect={() => setSelectedPlanModal(plan)}
+              />
+            ))}
+          </div>
+        )}
+        {activeTab === 'compensation-bands' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="compensation-bands-grid">
+            {COMPENSATION_BANDS.map((band) => (
+              <CompensationBandCard
+                key={band.grade}
+                {...band}
+                onExpand={(grade, expanded) => console.log(`Card ${grade} expanded: ${expanded}`)}
+                onCompare={(grade) => console.log(`Comparing grade: ${grade}`)}
               />
             ))}
           </div>
