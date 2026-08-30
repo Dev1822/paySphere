@@ -422,6 +422,14 @@ export const APP_ROUTES = [
   },
   {
     path: '/enterprise/onboarding-lifecycle',
+  {
+    path: '/employee-referrals',
+    component: lazy(() => import('../pages/referrals/EmployeeReferralProgramPage')),
+    label: 'Employee Referrals',
+    group: 'enterprise',
+    icon: 'group_add',
+    employee: true,
+  },
     component: lazy(() => import('../pages/onboarding/EnterpriseOnboardingLifecyclePage')),
   },
 
