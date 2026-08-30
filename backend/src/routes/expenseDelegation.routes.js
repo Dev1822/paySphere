@@ -10,10 +10,10 @@ const {
   getActiveDelegations,
   processEscalations,
 } = require('../controllers/expenseDelegation.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/delegate', protect, createDelegation);
-router.get('/active', protect, getActiveDelegations);
-router.post('/process-escalations', protect, processEscalations);
+router.post('/delegate', auth, createDelegation);
+router.get('/active', auth, getActiveDelegations);
+router.post('/process-escalations', auth, processEscalations);
 
 module.exports = router;

@@ -10,10 +10,10 @@ const {
   executePurchase,
   getEsppSummary,
 } = require('../controllers/espp.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/enroll', protect, enrollEspp);
-router.post('/execute-purchase', protect, executePurchase);
-router.get('/summary/:employeeId', protect, getEsppSummary);
+router.post('/enroll', auth, enrollEspp);
+router.post('/execute-purchase', auth, executePurchase);
+router.get('/summary/:employeeId', auth, getEsppSummary);
 
 module.exports = router;

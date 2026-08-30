@@ -127,4 +127,3 @@ module.exports = {
   rollbackJob,
   getImportProgress
 };
-module.exports = { startImport, getImportJob, commitJob, rollbackJob };

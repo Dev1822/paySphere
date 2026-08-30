@@ -10,10 +10,10 @@ const {
   getBlockStatus,
   getLtaTaxReport,
 } = require('../controllers/ltaExemption.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/claim', protect, claimLta);
-router.get('/block-status/:employeeId', protect, getBlockStatus);
-router.get('/tax-report/:employeeId', protect, getLtaTaxReport);
+router.post('/claim', auth, claimLta);
+router.get('/block-status/:employeeId', auth, getBlockStatus);
+router.get('/tax-report/:employeeId', auth, getLtaTaxReport);
 
 module.exports = router;

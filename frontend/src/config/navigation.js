@@ -190,6 +190,23 @@ export const APP_ROUTES = [
     icon: 'chart',
   },
   {
+    // Retention analytics sits in People beside Pay equity — both answer
+    // workforce-stability questions, and the risk scores here feed directly
+    // into the compensation decisions on that page (#1902).
+    path: '/retention',
+    component: lazy(() => import('../components/EmployeeRetentionDashboard')),
+    label: 'Retention analytics',
+    group: 'people',
+    icon: 'chart',
+  },
+  {
+    path: '/offer-letters',
+    component: lazy(() => import('../pages/OfferLetterBuilder')),
+    label: 'Offer letters',
+    group: 'people',
+    icon: 'document',
+  },
+  {
     path: '/templates',
     component: lazy(() => import('../pages/LetterTemplateManager')),
     label: 'Letter templates',
@@ -252,6 +269,15 @@ export const APP_ROUTES = [
     label: 'Onboarding tracker',
     group: 'people',
     icon: 'rocket',
+  },
+  {
+    // Offboarding is the lifecycle counterpart to onboarding — the natural
+    // companion for an HR manager reviewing the People section.
+    path: '/offboarding',
+    component: lazy(() => import('../components/EmployeeOffboardingTracker')),
+    label: 'Offboarding tracker',
+    group: 'people',
+    icon: 'exit',
   },
   {
     // In People rather than Compliance: engaging an apprentice and keeping the
