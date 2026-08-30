@@ -309,6 +309,29 @@ const PERMISSIONS = {
   READ_INTERNATIONAL_WORKER: 'READ_INTERNATIONAL_WORKER',
   MANAGE_IW_CONTRIBUTION: 'MANAGE_IW_CONTRIBUTION',
   MANAGE_IW_DETERMINATION: 'MANAGE_IW_DETERMINATION',
+
+  // --- Shops and Commercial Establishments Acts (#1972) --------------------
+  //
+  // The split is on which name can make an establishment look registered when
+  // it is not.
+  //
+  // MANAGE_ESTABLISHMENT_REGISTRATION holds the certificate: the commencement
+  // date the registration window runs from, the registration date, and the
+  // expiry. Moving any of the three changes whether the establishment is
+  // trading lawfully, and a `validTo` pushed a year out makes a lapsed
+  // certificate look current with nothing else on the record changing.
+  //
+  // MANAGE_ESTABLISHMENT_PARTICULAR records what a particular says on the
+  // certificate against what it actually is, and syncs the headcount band.
+  // Clerical against the certificate itself — but separate, because a
+  // particular quietly "corrected" to match the establishment closes an
+  // amendment obligation that was owed and leaves no trace that it was.
+  //
+  // Deliberately not the entity permissions. Those record who the company is;
+  // these record whether a place of business is lawfully open.
+  READ_ESTABLISHMENT_REGISTRATION: 'READ_ESTABLISHMENT_REGISTRATION',
+  MANAGE_ESTABLISHMENT_PARTICULAR: 'MANAGE_ESTABLISHMENT_PARTICULAR',
+  MANAGE_ESTABLISHMENT_REGISTRATION: 'MANAGE_ESTABLISHMENT_REGISTRATION',
   MANAGE_EC_CLAIM: 'MANAGE_EC_CLAIM',
 
   // --- Industrial Disputes Act, Chapters VA and VB (#1830) -----------------
@@ -1026,6 +1049,21 @@ const PERMISSION_DEFINITIONS = [
       'Record the paragraph 83 status and the Certificate of Coverage — the two determinations that take the statutory wage ceiling off a member, or stop their contribution entirely',
   },
   {
+    name: PERMISSIONS.READ_ESTABLISHMENT_REGISTRATION,
+    description:
+      'View the establishment register — the state Act that applies, each certificate as a countdown, the amendments a change in particulars has already made due, and the hours and weekly holiday position',
+  },
+  {
+    name: PERMISSIONS.MANAGE_ESTABLISHMENT_PARTICULAR,
+    description:
+      'Record what a particular says on the certificate against what it actually is, and sync the headcount band an ordinary hire has moved',
+  },
+  {
+    name: PERMISSIONS.MANAGE_ESTABLISHMENT_REGISTRATION,
+    description:
+      'Record an establishment\u2019s commencement, its registration and the certificate\u2019s validity, and intimate a closure \u2014 the dates that decide whether a place of business is lawfully open',
+  },
+  {
     name: PERMISSIONS.READ_CONSTRUCTION_CESS,
     description:
       'View the construction cess position per project, the advance deducted against the section 5 assessment and the beneficiary register',
@@ -1460,6 +1498,14 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.MANAGE_IW_CONTRIBUTION,
       PERMISSIONS.MANAGE_IW_DETERMINATION,
 
+      // #1972. All three. The certificate dates decide whether the
+      // establishment is trading lawfully at all, and there is no figure
+      // elsewhere in the product to check them against — so the owner is the
+      // one account allowed to be both halves of that check.
+      PERMISSIONS.READ_ESTABLISHMENT_REGISTRATION,
+      PERMISSIONS.MANAGE_ESTABLISHMENT_PARTICULAR,
+      PERMISSIONS.MANAGE_ESTABLISHMENT_REGISTRATION,
+
       // #1344. All three. MANAGE_GRATUITY_ASSUMPTIONS stops here for the same
       // reason MANAGE_COMPLIANCE does — it decides what gets reported, not who
       // gets paid.
@@ -1750,6 +1796,15 @@ const ROLE_DEFINITIONS = [
       // decide that and then compute against it.
       PERMISSIONS.READ_INTERNATIONAL_WORKER,
       PERMISSIONS.MANAGE_IW_CONTRIBUTION,
+
+      // #1972. Read and the particulars, not the certificate. Recording that
+      // the headcount on the certificate has fallen behind the establishment's
+      // actual strength is register-keeping, and the person who runs the hiring
+      // is the one who notices. The certificate's dates are what decide whether
+      // the establishment is trading lawfully, and moving them is how a lapse
+      // gets made to look like a renewal.
+      PERMISSIONS.READ_ESTABLISHMENT_REGISTRATION,
+      PERMISSIONS.MANAGE_ESTABLISHMENT_PARTICULAR,
 
       PERMISSIONS.READ_VENDOR,
 
