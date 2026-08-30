@@ -426,6 +426,13 @@ export const APP_ROUTES = [
   },
 
   {
+    path: '/workforce-analytics',
+    component: lazy(() => import('../pages/analytics/WorkforceAnalyticsDashboardPage')),
+    label: 'Workforce Analytics',
+    group: 'people',
+    icon: 'chart',
+  },
+  {
     path: '/settings',
     component: lazy(() => import('../pages/Settings')),
   },
