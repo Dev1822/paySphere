@@ -924,6 +924,21 @@ app.use('/api/skills', skillInventoryRoutes);
 // department dimension the matrix uses.
 app.use('/api/competencies', competencyRoutes);
 
+// Workforce Cost Forecasting — salary projections, scenario comparison,
+// headcount modeling, and statutory contribution estimates.
+const workforceCostForecastRoutes = require('./routes/workforceCostForecast.routes');
+app.use('/api/workforce-cost-forecast', workforceCostForecastRoutes);
+
+// Talent Retention Analytics — flight risk, attrition trends, compensation benchmarks.
+const retentionAnalyticsRoutes = require('./routes/retentionAnalytics.routes');
+app.use('/api/retention-analytics', retentionAnalyticsRoutes);
+
+// Pulse Surveys — engagement polling and analytics.
+const pulseSurveyRoutes = require('./routes/pulseSurvey.routes');
+const surveyAnalyticsRoutes = require('./routes/surveyAnalytics.routes');
+app.use('/api/pulse-surveys', pulseSurveyRoutes);
+app.use('/api/pulse-surveys/analytics', surveyAnalyticsRoutes);
+
 // ─── 404 Handler ──────────────────────────────────────────────────────────
 // Must be registered AFTER all valid routes but BEFORE error handlers.
 // Uses NotFoundError if available, otherwise falls back to a standard Error
