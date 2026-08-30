@@ -10,6 +10,7 @@ const { Worker } = require('worker_threads');
 const path = require('path');
 const os = require('os');
 const logger = require('../utils/logger');
+const { getDownloadUrl, putObject } = require('./objectStorage.service');
 
 // Cap maximum concurrent worker threads to CPU core count minus one (minimum 2)
 const MAX_WORKERS = Math.max(2, os.cpus().length - 1);
@@ -123,15 +124,21 @@ class ExportService {
    * @returns {Promise<{fileUrl: string, key: string, expiresAt: string}>}
    */
   async uploadToS3(filename, content, mimeType = 'application/pdf') {
-    logger.info('Simulating S3 stream upload for export file', { filename, mimeType });
-    const key = `exports/${Date.now()}_${filename}`;
-    const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString(); // 1 hour presigned URL TTL
-    const fileUrl = `https://${process.env.S3_BUCKET || 'paysphere-exports'}.s3.amazonaws.com/${key}?presignedToken=mock_token`;
+    const safeFilename = String(filename || 'export.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const key = `exports/${Date.now()}_${safeFilename}`;
+    const stored = await putObject({
+      key,
+      body: content,
+      contentType: mimeType,
+    });
+    const expiresIn = 3600;
+    const fileUrl = await getDownloadUrl(stored.uri, { expiresIn });
 
     return {
       fileUrl,
-      key,
-      expiresAt,
+      key: stored.key,
+      expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
+      uri: stored.uri,
     };
   }
 }

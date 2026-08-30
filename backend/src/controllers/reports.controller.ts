@@ -13,6 +13,7 @@ const { payableStatusFilter } = payrollStatusConfig;
 import Employee = require('../models/employee.model');
 import User = require('../models/user.model');
 import logger = require('../utils/logger');
+const { getDownloadUrl, putObject } = require('../services/objectStorage.service');
 import eventBus = require('../services/event.service');
 
 import currencyUtils = require('../utils/currency');
@@ -21,6 +22,7 @@ const { getCurrencySymbol, formatCurrency } = currencyUtils;
 import tenantScopeUtils = require('../utils/tenantScope');
 const { getTenantId } = tenantScopeUtils;
 
+import type { TurnoverMetrics } from '../services/turnover.service';
 export interface AuthenticatedRequest extends Request {
   userId?: string;
   tenantId?: string;
@@ -32,12 +34,14 @@ interface AnalyticsQuery {
   startDate?: string;
   endDate?: string;
   departments?: string;
+  delivery?: string;
 }
 
 interface DownloadPDFQuery {
   month?: string;
   year?: string;
   departments?: string;
+  delivery?: string;
 }
 
 interface CustomReportFilter {
@@ -52,6 +56,21 @@ interface CustomReportBody {
   filters?: CustomReportFilter[];
 }
 
+interface TurnoverMonthlyTrend {
+  month: string;
+  year: number;
+  active: number;
+  terminated: number;
+}
+
+interface TurnoverMetricsResponseBody {
+  turnoverRate: number;
+  averageTenureDays: number;
+  averageTenureMonths: number;
+  totalTerminated: number;
+  departuresByReason: TurnoverMetrics['departuresByReason'];
+  trends: TurnoverMonthlyTrend[];
+}
 /**
  * Helper function to parse department filter from query parameters
  * Supports both single department (backward compatibility) and comma-separated list
@@ -440,13 +459,43 @@ const downloadPDFReport = async (
       clearTimeout(workerTimeout);
 
       if (result.success) {
-        // Set response headers for PDF download
+        const pdfBuffer = Buffer.from(result.pdfData);
+        let storedFile: { uri: string; key: string } | null = null;
+        let signedUrl = '';
+
+        // When S3 is configured, persist the generated artifact there rather
+        // than relying on instance-local storage. The existing binary response
+        // remains backward compatible; callers that want a portable cloud URL
+        // can request `?delivery=signed-url`.
+        if (process.env.AWS_S3_BUCKET || process.env.S3_BUCKET) {
+          storedFile = await putObject({
+            key: `exports/${tenantId}/payroll-report-${monthName.toLowerCase()}-${year}-${Date.now()}.pdf`,
+            body: pdfBuffer,
+            contentType: 'application/pdf',
+          });
+          signedUrl = await getDownloadUrl(storedFile.uri, { expiresIn: 3600 });
+        }
+
+        if (String(query.delivery || '').toLowerCase() === 'signed-url') {
+          if (!signedUrl) {
+            return res.status(503).json({
+              message: 'S3 storage is not configured for signed downloads.',
+            });
+          }
+          return res.status(200).json({
+            fileUrl: signedUrl,
+            key: storedFile!.key,
+            expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+          });
+        }
+
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader(
           'Content-Disposition',
           `attachment; filename=payroll-report-${monthName}-${year}.pdf`,
         );
-        res.send(Buffer.from(result.pdfData));
+        if (signedUrl) res.setHeader('X-PaySphere-File-URL', signedUrl);
+        res.send(pdfBuffer);
 
         eventBus.emit('AUDIT_LOG', {
           userId: req.userId,
@@ -913,11 +962,15 @@ const getTurnoverMetrics = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
-): Promise<any> => {
+): Promise<Response | void> => {
   try {
     const userId = req.userId;
-    const turnoverService = require('../services/turnover.service');
-
+    const turnoverService: {
+      getTurnoverMetrics: (
+        userId: string,
+        monthsBack?: number,
+      ) => Promise<TurnoverMetrics>;
+    } = require('../services/turnover.service');
     // Include all employees (even deleted) for historical turnover analysis
     const allEmployees = await Employee.find({
       createdBy: userId,
@@ -926,8 +979,7 @@ const getTurnoverMetrics = async (
 
     const now = new Date();
     const monthsBack = 12;
-    const trends: any[] = [];
-
+    const trends: TurnoverMonthlyTrend[] = [];
     let totalTenureDays = 0;
     let terminatedCount = 0;
 
@@ -993,15 +1045,16 @@ const getTurnoverMetrics = async (
       monthsBack,
     );
 
-    res.status(200).json({
+    const responseBody: TurnoverMetricsResponseBody = {
       turnoverRate: parseFloat(turnoverRate as string),
       averageTenureDays,
       averageTenureMonths: parseFloat(averageTenureMonths),
       totalTerminated: terminatedCount,
       departuresByReason,
       trends,
-    });
-  } catch (error) {
+    };
+
+    return res.status(200).json(responseBody);  } catch (error) {
     next(error);
   }
 };

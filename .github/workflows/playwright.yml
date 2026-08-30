@@ -2,82 +2,99 @@ name: Playwright E2E Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: playwright-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
+    name: E2E (${{ matrix.browser }})
     timeout-minutes: 60
     runs-on: ubuntu-latest
-    
-    # Set environment variables for the test
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+
+    services:
+      mongodb:
+        image: mongo:6.0
+        ports:
+          - 27017:27017
+      redis:
+        image: redis:7.0
+        ports:
+          - 6379:6379
+
     env:
       CI: true
       BASE_URL: http://localhost:5173
-      TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
-      TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+      TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL || 'test@example.com' }}
+      TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD || 'testpassword' }}
       VITE_API_URL: http://localhost:5000
-    
+      MONGO_URI: mongodb://127.0.0.1:27017/paySphere_test
+      JWT_SECRET: test_jwt_secret_change_me
+      JWT_REFRESH_SECRET: test_jwt_refresh_secret_change_me
+      REDIS_URI: redis://127.0.0.1:6379
+      NODE_ENV: test
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: package-lock.json
-    
-    - name: Install dependencies
-      run: npm ci
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Run Jest unit tests with coverage
-      working-directory: ./backend
-      run: npm run test -- --coverage
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: package-lock.json
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        directory: ./backend/coverage/
-    
-    - name: Install Playwright browsers
-      working-directory: ./frontend
-      run: npx playwright install --with-deps chromium
-    
-    - name: Start backend server
-      working-directory: ./backend
-      run: |
-        npm run dev &
-      env:
-        MONGO_URI: ${{ secrets.TEST_MONGO_URI }}
-        JWT_SECRET: ${{ secrets.TEST_JWT_SECRET }}
-        REDIS_URI: ${{ secrets.TEST_REDIS_URI }}
-        NODE_ENV: test
-    
-    - name: Wait for backend to be ready
-      run: |
-        timeout 60 bash -c 'until curl -f http://localhost:5000/api/health; do sleep 2; done'
-    
-    - name: Run Playwright tests
-      working-directory: ./frontend
-      run: npx playwright test
-    
-    - name: Upload test results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: playwright-report
-        path: frontend/playwright-report/
-        retention-days: 30
-    
-    - name: Upload test artifacts (screenshots, videos, traces)
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: playwright-artifacts
-        path: |
-          frontend/test-results/
-        retention-days: 7
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Seed E2E test user
+        working-directory: backend
+        run: node src/seeds/e2eSeeder.js
+        env:
+          MONGO_URI: mongodb://127.0.0.1:27017/paySphere_test
+          TEST_USER_EMAIL: test@example.com
+          TEST_USER_PASSWORD: testpassword
+
+      - name: Start backend server
+        working-directory: backend
+        run: npm run dev &
+
+      - name: Wait for backend to be ready
+        run: |
+          timeout 60 bash -c 'until curl -f http://localhost:5000/health/ready; do sleep 2; done'
+
+      - name: Run Playwright tests
+        working-directory: frontend
+        run: npx playwright test --project=${{ matrix.browser }}
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: frontend/playwright-report/
+          retention-days: 30
+
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts-${{ matrix.browser }}
+          path: frontend/test-results/
+          retention-days: 7

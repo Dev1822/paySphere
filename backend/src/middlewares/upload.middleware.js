@@ -1,6 +1,3 @@
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
 const multer = require('multer');
 
 const storage = multer.memoryStorage();
@@ -30,21 +27,12 @@ const upload = multer({
 
 // --- Expense receipts (#719) ----------------------------------------------
 //
-// `routes/expense.routes.js` used the CSV uploader above for receipt uploads,
-// which fails twice over (#794):
-//
-//   - the fileFilter accepts `text/csv` and nothing else, so every photographed
-//     receipt and every PDF was rejected with "Only CSV files are allowed";
-//   - memory storage leaves no `file.filename`, and the controller records
-//     `` `/uploads/${file.filename}` `` — so even a CSV pretending to be a
-//     receipt was stored as the literal path `/uploads/undefined`.
-//
-// Receipts are attachments rather than input to be parsed, so they go to disk
-// under a name of our choosing.
+// Receipts are attachments rather than parser input. They stay in memory until
+// the expense controller has validated the claim and explicitly uploads each
+// attachment to S3. This prevents application-local disk storage, which is not
+// durable across horizontally scaled instances.
 
-const RECEIPTS_DIR = path.join(__dirname, '..', '..', 'uploads', 'receipts');
-
-const MAX_RECEIPT_SIZE = 5 * 1024 * 1024; // 5MB — a phone photo of a receipt
+const MAX_RECEIPT_SIZE = 5 * 1024 * 1024;
 
 /** Real receipts are photos or scans. Nothing here is executable. */
 const RECEIPT_MIME_TYPES = new Set([
@@ -55,30 +43,8 @@ const RECEIPT_MIME_TYPES = new Set([
   'application/pdf',
 ]);
 
-const receiptStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // Created lazily rather than at require time so importing this module in a
-    // test does not write to the filesystem.
-    fs.mkdir(RECEIPTS_DIR, { recursive: true }, (error) =>
-      cb(error, RECEIPTS_DIR),
-    );
-  },
-  filename: (req, file, cb) => {
-    // Never the client's filename. It is attacker-controlled, can contain path
-    // separators, and two people uploading "receipt.jpg" must not collide.
-    // The extension is derived from the (already whitelisted) mime type rather
-    // than taken from the name.
-    const extension =
-      file.mimetype === 'application/pdf'
-        ? '.pdf'
-        : `.${file.mimetype.split('/')[1]}`;
-
-    cb(null, `${crypto.randomUUID()}${extension}`);
-  },
-});
-
 const receiptUpload = multer({
-  storage: receiptStorage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: MAX_RECEIPT_SIZE,
     files: 5,
@@ -100,6 +66,5 @@ upload.MAX_FILE_SIZE = MAX_FILE_SIZE;
 upload.receiptUpload = receiptUpload;
 upload.MAX_RECEIPT_SIZE = MAX_RECEIPT_SIZE;
 upload.RECEIPT_MIME_TYPES = RECEIPT_MIME_TYPES;
-upload.RECEIPTS_DIR = RECEIPTS_DIR;
 
 module.exports = upload;

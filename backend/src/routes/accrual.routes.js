@@ -1,0 +1,10 @@
+const express = require('express');
+const auth = require('../middlewares/auth.middleware');
+const { requirePermission } = require('../middlewares/rbac.middleware');
+const { writeRateLimiter } = require('../middlewares/rateLimiter.middleware');
+const { configurePolicy, runMonthEndBatch, getDashboard } = require('../controllers/accrual.controller');
+const router = express.Router();
+router.post('/policy', auth, requirePermission('WRITE_PAYROLL'), writeRateLimiter, configurePolicy);
+router.post('/batch', auth, requirePermission('WRITE_PAYROLL'), writeRateLimiter, runMonthEndBatch);
+router.get('/dashboard', auth, requirePermission('READ_PAYROLL'), getDashboard);
+module.exports = router;

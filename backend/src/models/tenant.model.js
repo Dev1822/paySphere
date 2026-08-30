@@ -59,7 +59,42 @@ const tenantSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-  },
+
+    /**
+     * Retention policy for sensitive tenant data.
+     *
+     * Payroll and audit history are retained for historical/legal reporting.
+     * Employee PII is anonymized after the employee retention period when the
+     * employee has been soft-deleted. Attendance can be physically removed
+     * after its shorter operational retention period because finalized payroll
+     * snapshots contain the values required to reproduce historical payroll.
+     */
+    retentionPolicy: {
+      employeePiiYears: {
+        type: Number,
+        default: 7,
+        min: 1,
+        max: 50,
+      },
+      attendanceYears: {
+        type: Number,
+        default: 2,
+        min: 1,
+        max: 50,
+      },
+      payrollYears: {
+        type: Number,
+        default: 7,
+        min: 1,
+        max: 50,
+      },
+      auditLogYears: {
+        type: Number,
+        default: 7,
+        min: 1,
+        max: 50,
+      },
+    },  },
   { timestamps: true },
 );
 

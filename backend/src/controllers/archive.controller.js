@@ -176,3 +176,102 @@ exports.evaluateRetention = async (req, res, next) => {
     next(error);
   }
 };
+/**
+ * GET /api/archive/retention-policy
+ *
+ * Returns the retention configuration for the current company.
+ */
+exports.getRetentionPolicy = async (req, res, next) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) return refuseUnscoped(res);
+
+    const Tenant = require('../models/tenant.model');
+
+    const tenant = await Tenant.findOne({ _id: tenantId }).select(
+      'retentionPolicy',
+    );
+
+    if (!tenant) {
+      return res.status(404).json({ message: 'Company not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      retentionPolicy: tenant.retentionPolicy,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/archive/retention-policy
+ *
+ * Administrators can configure supported retention periods.
+ */
+exports.updateRetentionPolicy = async (req, res, next) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) return refuseUnscoped(res);
+
+    const Tenant = require('../models/tenant.model');
+
+    const allowedFields = [
+      'employeePiiYears',
+      'attendanceYears',
+      'payrollYears',
+      'auditLogYears',
+    ];
+
+    const updates = {};
+
+    for (const field of allowedFields) {
+      if (req.body?.[field] === undefined) continue;
+
+      const value = Number(req.body[field]);
+
+      if (!Number.isInteger(value) || value < 1 || value > 50) {
+        return res.status(400).json({
+          message: `${field} must be an integer between 1 and 50`,
+        });
+      }
+
+      updates[`retentionPolicy.${field}`] = value;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        message: 'At least one retention policy value is required',
+      });
+    }
+
+    const tenant = await Tenant.findOneAndUpdate(
+      { _id: tenantId },
+      { $set: updates },
+      { new: true, runValidators: true },
+    ).select('retentionPolicy');
+
+    if (!tenant) {
+      return res.status(404).json({ message: 'Company not found' });
+    }
+
+    eventBus.emit('AUDIT_LOG', {
+      userId: req.userId,
+      action: 'RETENTION_POLICY_UPDATED',
+      resourceType: 'Employee',
+      details: {
+        updatedFields: Object.keys(updates),
+        retentionPolicy: tenant.retentionPolicy,
+      },
+      req,
+    });
+
+    res.status(200).json({
+      success: true,
+      retentionPolicy: tenant.retentionPolicy,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

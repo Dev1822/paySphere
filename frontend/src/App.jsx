@@ -14,6 +14,13 @@ import { NotFound, ROUTABLE } from './config/navigation';
 import RouteFallback from './components/common/RouteFallback';
 import AppPageShell from './components/Layout/AppPageShell';
 import ImpersonationBanner from './components/common/ImpersonationBanner';
+import OnboardingTooltip from './components/onboarding/OnboardingTooltip';
+import ErrorBoundary from './components/common/ErrorBoundary';
+
+// DEV-ONLY: exposes window.devLogin() / window.devLogout() in browser console
+if (import.meta.env.DEV) {
+  import('./utils/devBypass');
+}
 
 function App() {
   const user = useAppStore((state) => state.user);
@@ -101,17 +108,21 @@ function App() {
                     key={route.path}
                     path={route.path}
                     element={
-                      route.isProtected === false ? (
-                        <Page />
-                      ) : (
-                        <ProtectedRoute>
-                          {route.appShell ? (
-                            <AppPageShell><Page /></AppPageShell>
-                          ) : (
-                            <Page />
-                          )}
-                        </ProtectedRoute>
-                      )
+                      <ErrorBoundary level="page">
+                        {route.isProtected === false ? (
+                          <Page />
+                        ) : (
+                          <ProtectedRoute>
+                            {route.appShell ? (
+                              <AppPageShell>
+                                <Page />
+                              </AppPageShell>
+                            ) : (
+                              <Page />
+                            )}
+                          </ProtectedRoute>
+                        )}
+                      </ErrorBoundary>
                     }
                   />
                 );
@@ -127,6 +138,7 @@ function App() {
 
           {/* Global Offline Sync Indicator (Issue #815) */}
           <OfflineSyncIndicator />
+          <OnboardingTooltip />
         </BrowserRouter>
       </ToastProvider>
     </ThemeProvider>

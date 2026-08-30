@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Forex Reconciliation Report Controller
+ * @description Computes variance between payroll run conversion rates and current market rates.
+ * Issue: #1844
+ */
 const PayrollUpdate = require('../models/payroll.model');
 const ExchangeRate = require('../models/exchangeRate.model');
 

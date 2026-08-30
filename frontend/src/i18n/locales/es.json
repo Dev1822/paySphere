@@ -228,6 +228,7 @@
     "language": "Idioma",
     "english": "English",
     "spanish": "Español",
+    "french": "Francés",
     "lightMode": "Modo Claro",
     "darkMode": "Modo Oscuro",
     "systemDefault": "Predeterminado del Sistema"
@@ -311,5 +312,23 @@
     "viewAll": "Ver Todo",
     "noEmployeesYet": "Aún no se han agregado empleados.",
     "impersonate": "Suplantar"
+  },
+  "portal": {
+    "title": "Portal de Autoservicio del Empleado",
+    "badge": "Portal del Empleado",
+    "profileSettings": "Configuración de Perfil",
+    "welcomeBack": "Bienvenido de nuevo",
+    "baseMonthlySalary": "Salario Base Mensual",
+    "overtimeRate": "Tarifa de Horas Extras",
+    "perHour": "h",
+    "payslipHistory": "Historial de Recibos de Nómina",
+    "noPayslips": "Aún no se han finalizado recibos de nómina para usted.",
+    "period": "Período",
+    "baseSalary": "Salario Base",
+    "overtimePay": "Pago de Horas Extras",
+    "leaveDeductions": "Deducciones por Permiso",
+    "netPayout": "Pago Neto",
+    "status": "Estado",
+    "employee": "Empleado"
   }
 }

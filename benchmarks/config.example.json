@@ -1,0 +1,26 @@
+{
+  "baseUrl": "http://localhost:5000",
+  "connections": 10,
+  "duration": 10,
+  "pipelining": 1,
+  "report": "benchmarks/results/latest.md",
+  "targets": [
+    {
+      "name": "Payroll Summary",
+      "method": "GET",
+      "path": "/api/payroll/summary?month=7&year=2026&page=1&limit=50",
+      "auth": true
+    },
+    {
+      "name": "Payroll Finalize (opt-in)",
+      "method": "POST",
+      "path": "/api/payroll/finalize",
+      "auth": true,
+      "body": {
+        "month": 7,
+        "year": 2026,
+        "activities": []
+      }
+    }
+  ]
+}

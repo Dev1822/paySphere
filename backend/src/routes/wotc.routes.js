@@ -1,0 +1,11 @@
+const express = require('express');
+const auth = require('../middlewares/auth.middleware');
+const { requirePermission } = require('../middlewares/rbac.middleware');
+const { writeRateLimiter } = require('../middlewares/rateLimiter.middleware');
+const { addTargetGroup, logCertification, allocatePayrollWages, getDashboard } = require('../controllers/wotc.controller');
+const router = express.Router();
+router.post('/group', auth, requirePermission('WRITE_PAYROLL'), writeRateLimiter, addTargetGroup);
+router.post('/cert', auth, requirePermission('WRITE_EMPLOYEE'), writeRateLimiter, logCertification);
+router.post('/allocate', auth, requirePermission('WRITE_PAYROLL'), writeRateLimiter, allocatePayrollWages);
+router.get('/dashboard', auth, requirePermission('READ_PAYROLL'), getDashboard);
+module.exports = router;
