@@ -271,6 +271,14 @@ const apprenticeshipRoutes = require('./routes/apprenticeships.routes');
 // neither the site nor the trade but the fact of having been recruited in one
 // state and employed in another, which neither of the other two routers can see.
 const migrantWorkmenRoutes = require('./routes/migrantWorkmen.routes');
+// Industrial Employment (Standing Orders) Act, 1946 (#2029). Apart from #1828's
+// subsistence router, which reads whether the orders are certified from a
+// boolean somebody typed, and apart from #1972's establishment register:
+// registration under a Shops Act and certification of standing orders are
+// different instruments under different Acts at different thresholds — a shop
+// with four employees is registered and has no standing orders, a factory with
+// four hundred has both.
+const standingOrdersRoutes = require('./routes/standingOrders.routes');
 // EDLI paragraph 22, the assurance benefit (#1878). Apart from the settlement
 // router even though a death in service also triggers a full and final: that
 // one answers what the employer owes, and this answers what the scheme pays out
@@ -848,6 +856,15 @@ app.use('/api/apprenticeships', apprenticeshipRoutes);
 // be reached through the other. The router owns `/rules`, `/workmen`,
 // `/facilities` and `/assessments`.
 app.use('/api/migrant-workmen', migrantWorkmenRoutes);
+
+// #2029. The router owns `/rules`, `/queue`, `/establishments`,
+// `/establishments/:id` and the headcount, certification and modification
+// sub-paths. It reports an uncertified establishment as governed by the Model
+// Standing Orders rather than by nothing — section 12A deems them adopted, and
+// 'no standing orders' is wrong in the direction that matters — and it returns
+// a modification inside the six-month bar as BARRED_UNILATERALLY, because the
+// bar lifts on an agreement with the workmen rather than only on time.
+app.use('/api/standing-orders', standingOrdersRoutes);
 
 // POSH grievances (#958). Gated by `requireICC` rather than `requirePermission`
 // — the committee is deliberately not the same population as "HR", and admins

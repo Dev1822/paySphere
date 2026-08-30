@@ -223,6 +223,29 @@ const AUDIT_ACTIONS = [
   'EPS_ASSUMPTIONS_UPDATED',
   'EPS_WAGE_HISTORY_BACKFILLED',
   'EPS_VALUATION_COMMITTED',
+  // Industrial Employment (Standing Orders) Act, 1946 (#2029). The
+  // applicability determination is audited with the crossing date on it, not
+  // with today's, because the whole finding is that the section 3(1) six months
+  // may already have been running for a quarter before anybody looked.
+  //
+  // The headcount sync is audited with `stillApplicable` beside the strength,
+  // because a strength recorded below the threshold on an applicable
+  // establishment is the row somebody will later read as 'the Act stopped
+  // applying' — the proviso to section 1(3) says it did not, and the record has
+  // to show it.
+  //
+  // The certification carries both the certificate date and the dispatch date.
+  // Section 7 runs from the second; using the first brings the orders into
+  // force weeks early, and the pair is what lets a reviewer see which was used.
+  //
+  // The modification carries the agreement's party and reference rather than a
+  // flag, because section 10(1) excepts a modification *agreed* — and an
+  // agreement with nothing to point at is the claim, not the document.
+  'STANDING_ORDERS_ESTABLISHMENT_RECORDED',
+  'STANDING_ORDERS_APPLICABILITY_DETERMINED',
+  'STANDING_ORDERS_HEADCOUNT_SYNCED',
+  'STANDING_ORDERS_CERTIFIED',
+  'STANDING_ORDERS_MODIFICATION_PROPOSED',
   // National and Festival Holidays Acts (#1970). The substitution is audited
   // with the holiday's kind on it, because a NATIONAL kind on one of these rows
   // means the engine's refusal was bypassed — 26 January, 15 August and 2

@@ -200,6 +200,33 @@ const PERMISSIONS = {
   MANAGE_GIG_WORKER_REGISTER: 'MANAGE_GIG_WORKER_REGISTER',
   MANAGE_AGGREGATOR_TURNOVER: 'MANAGE_AGGREGATOR_TURNOVER',
 
+  // --- Industrial Employment (Standing Orders) Act, 1946 (#2029) -----------
+  //
+  // The split is on which name can make an establishment look like it has
+  // standing orders when the Model orders are what govern it.
+  //
+  // MANAGE_STANDING_ORDERS_CERTIFICATION holds the certified set — the date
+  // authenticated copies were sent, the appeal, and the Schedule matters
+  // covered. Moving the dispatch date earlier brings the orders into force
+  // before they bind anybody, and adding a matter the set does not cover takes
+  // that matter off the Model orders on paper and nowhere else.
+  //
+  // MANAGE_STANDING_ORDERS_REGISTER records the establishment and syncs the
+  // headcount. Clerical, but it is what dates applicability, and applicability
+  // starts the six months.
+  //
+  // PROPOSE_STANDING_ORDERS_MODIFICATION is narrowest. Section 10(1) bars
+  // unilateral amendment and excepts an agreement, so the name that records
+  // 'we agreed this with the union' is the name that can make a barred
+  // modification look permitted.
+  //
+  // Deliberately not the #1828 subsistence names. That module reads whether the
+  // orders are certified; it does not get to decide it.
+  READ_STANDING_ORDERS: 'READ_STANDING_ORDERS',
+  MANAGE_STANDING_ORDERS_REGISTER: 'MANAGE_STANDING_ORDERS_REGISTER',
+  MANAGE_STANDING_ORDERS_CERTIFICATION: 'MANAGE_STANDING_ORDERS_CERTIFICATION',
+  PROPOSE_STANDING_ORDERS_MODIFICATION: 'PROPOSE_STANDING_ORDERS_MODIFICATION',
+
   // --- Employees' State Insurance Act, 1948 (#1768) ------------------------
   //
   // Next to the compliance names because a monthly ESI return is a filing, and
@@ -909,6 +936,26 @@ const PERMISSION_DEFINITIONS = [
     description:
       'State the aggregator’s turnover and its Seventh Schedule split, set the rate band and the payout ceiling, finalise a year and commit the assessment',
   },
+  {
+    name: PERMISSIONS.READ_STANDING_ORDERS,
+    description:
+      'View the standing orders register — when the Act became applicable, the six months running against it, what actually governs the establishment today, and the Schedule matters still on the Model orders',
+  },
+  {
+    name: PERMISSIONS.MANAGE_STANDING_ORDERS_REGISTER,
+    description:
+      'Record an industrial establishment under the Act and sync its workmen strength — the sync that dates applicability and starts the section 3(1) six months',
+  },
+  {
+    name: PERMISSIONS.MANAGE_STANDING_ORDERS_CERTIFICATION,
+    description:
+      'Record a certified set of standing orders, the date authenticated copies were sent, any section 6 appeal, and the Schedule matters the set covers — the three things that decide what binds the workmen',
+  },
+  {
+    name: PERMISSIONS.PROPOSE_STANDING_ORDERS_MODIFICATION,
+    description:
+      'Propose a modification to certified standing orders and record the section 10(1) agreement relied on — the exception that turns a barred unilateral amendment into a permitted one',
+  },
 
   {
     name: PERMISSIONS.READ_COMPLIANCE,
@@ -1502,6 +1549,14 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.MANAGE_GIG_WORKER_REGISTER,
       PERMISSIONS.MANAGE_AGGREGATOR_TURNOVER,
 
+      // #2029. All four. Certifying what binds the workmen and agreeing a
+      // modification to it inside the six-month bar are two halves of the same
+      // check, and the owner is the one account allowed to be both.
+      PERMISSIONS.READ_STANDING_ORDERS,
+      PERMISSIONS.MANAGE_STANDING_ORDERS_REGISTER,
+      PERMISSIONS.MANAGE_STANDING_ORDERS_CERTIFICATION,
+      PERMISSIONS.PROPOSE_STANDING_ORDERS_MODIFICATION,
+
       PERMISSIONS.READ_COMPLIANCE,
       PERMISSIONS.MANAGE_COMPLIANCE,
 
@@ -1887,6 +1942,15 @@ const ROLE_DEFINITIONS = [
       // moves no money.
       PERMISSIONS.READ_CONTRACT_LABOUR,
       PERMISSIONS.MANAGE_CONTRACT_LABOUR,
+
+      // #2029. Read and the register, not the certification and not the
+      // modification. Keeping the workmen strength current is register-keeping
+      // and the person running the hiring is the one who notices — and it is the
+      // sync that starts the six months, so it should not wait on anybody.
+      // Recording what a certified set covers decides what binds the workmen,
+      // and recording an agreement with the union lifts the section 10 bar.
+      PERMISSIONS.READ_STANDING_ORDERS,
+      PERMISSIONS.MANAGE_STANDING_ORDERS_REGISTER,
 
       // #1771. HR engages apprentices and keeps the roll — recruiting them and
       // recording their attendance is HR administration in the ordinary sense.
