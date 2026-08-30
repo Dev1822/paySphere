@@ -477,6 +477,29 @@ const AUDIT_ACTIONS = [
 
   'MIGRANT_RETURN_JOURNEY_ACCRUED',
   'MIGRANT_ASSESSMENT_COMMITTED',
+  // Payment of Gratuity Act, 1972 (#2031). The claim is audited with
+  // `payableFrom` on it because that single date decides both whether the
+  // thirty days have run and how much section 7(3A) interest has accrued —
+  // moving it forward makes an overdue gratuity look current and shrinks a
+  // statutory liability with nothing else on the record changing.
+  //
+  // The forfeiture carries the amount claimed beside the amount permitted. The
+  // gap is the finding: a ₹6,00,000 forfeiture claimed against ₹4,000 of
+  // damage under section 4(6)(a) is the case the module exists to make visible,
+  // and storing only the capped figure would erase that it was attempted.
+  //
+  // The payment carries the interest owed beside the interest paid, because a
+  // late gratuity discharged without the 7(3A) interest is a live liability and
+  // the pair is the only thing that shows it.
+  //
+  // The nomination is audited with the shares because it decides who receives
+  // the money on death, and a share edited afterwards moves an amount between
+  // two named people at the point it is most contested.
+  'GRATUITY_NOMINATION_RECORDED',
+  'GRATUITY_CLAIM_OPENED',
+  'GRATUITY_NOTICE_RECORDED',
+  'GRATUITY_FORFEITURE_RECORDED',
+  'GRATUITY_PAYMENT_RECORDED',
   // International assignments (#1348). Opening one commits the employer to
   // bearing somebody's foreign tax bill for years; a settlement moves money
   // between the employee and the company; and the two threshold events record

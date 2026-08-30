@@ -298,6 +298,14 @@ const perquisiteRoutes = require('./routes/perquisites.routes');
 // completely different rule set behind it: the entitlement is a four-year
 // statutory block rather than a financial year.
 const ltaRoutes = require('./routes/lta.routes');
+// Payment of Gratuity Act, 1972 (#2031). Apart from the settlement router,
+// which computes the amount once and holds no state afterwards, and apart from
+// #1344's valuation router, which measures the whole workforce's obligation
+// under Ind AS 19. This one owns the obligation for one person: the thirty days
+// that run from the last working day whether or not anybody applies, the ten per
+// cent that accrues until payment, the Form F that decides who is paid on death,
+// and the two sub-sections of section 4(6).
+const gratuityEntitlementRoutes = require('./routes/gratuityEntitlement.routes');
 const appraisalRoutes = require('./routes/appraisal.routes');
 const contractRoutes = require('./routes/contract.routes');
 const forecastRoutes = require('./routes/forecast.routes');
@@ -882,6 +890,14 @@ app.use('/api/perquisites', perquisiteRoutes);
 // #1345. The router owns `/claims`, `/preview`, `/entitlement`, `/my-claims`,
 // `/queue` and `/summary/:employeeId`.
 app.use('/api/lta', ltaRoutes);
+
+// #2031. The router owns `/rules`, `/queue`, `/nominations`, `/claims`,
+// `/claims/:id` and the notices, forfeiture and payment sub-paths. It does not
+// recompute the amount — `settlement.js` keeps the five-year gate, the 15/26
+// formula and the ceiling — and it reports the section 7(3A) interest whether
+// or not anybody asked, because it accrues at a statutory rate from a date the
+// system already knows.
+app.use('/api/gratuity-entitlement', gratuityEntitlementRoutes);
 app.use('/api/appraisals', appraisalRoutes);
 app.use('/api/contracts', contractRoutes);
 

@@ -247,6 +247,37 @@ const PERMISSIONS = {
   MANAGE_ESI_RULES: 'MANAGE_ESI_RULES',
   FILE_ESI_RETURN: 'FILE_ESI_RETURN',
 
+  // --- Payment of Gratuity Act, 1972 (#2031) -------------------------------
+  //
+  // The split is on which name can reduce what an employee or their family is
+  // paid.
+  //
+  // MANAGE_GRATUITY_CLAIM opens the obligation and records the two section 7(2)
+  // notices. `payableFrom` sits here and it is the sharpest field in the
+  // module: moving it forward makes an overdue gratuity look current and
+  // reduces the section 7(3A) interest with nothing else on the record
+  // changing.
+  //
+  // MANAGE_GRATUITY_NOMINATION holds the Form F. Editing a share moves money
+  // between two named people on the day it is most contested, and the person it
+  // was taken from is dead.
+  //
+  // FORFEIT_GRATUITY takes money away. The engine caps it at what section 4(6)
+  // permits, but the sub-section chosen, the damage figure under (a) and
+  // whether termination was for the act under (b) all move that cap.
+  //
+  // RECORD_GRATUITY_PAYMENT is narrowest: it carries the 7(3A) relief, and a
+  // controlling-authority permission recorded that does not exist writes off a
+  // statutory interest liability outright.
+  //
+  // Deliberately not the #1344 valuation names. Those measure the workforce's
+  // obligation under Ind AS 19; these decide what one person is owed.
+  READ_GRATUITY_CLAIM: 'READ_GRATUITY_CLAIM',
+  MANAGE_GRATUITY_CLAIM: 'MANAGE_GRATUITY_CLAIM',
+  MANAGE_GRATUITY_NOMINATION: 'MANAGE_GRATUITY_NOMINATION',
+  FORFEIT_GRATUITY: 'FORFEIT_GRATUITY',
+  RECORD_GRATUITY_PAYMENT: 'RECORD_GRATUITY_PAYMENT',
+
   IMPERSONATE_USER: 'IMPERSONATE_USER',
 
   // --- Feature areas that had no vocabulary of their own (#1011) -----------
@@ -983,6 +1014,31 @@ const PERMISSION_DEFINITIONS = [
       'File the monthly ESI return and record its remittance, which fixes the coverage each employee carries into the next month',
   },
   {
+    name: PERMISSIONS.READ_GRATUITY_CLAIM,
+    description:
+      'View the gratuity queue — who is payable and on what ground, the thirty days running against each claim, the section 7(3A) interest already accrued, and the Form F nomination that decides who is paid on death',
+  },
+  {
+    name: PERMISSIONS.MANAGE_GRATUITY_CLAIM,
+    description:
+      'Open a gratuity claim from the last working day and record the two section 7(2) notices — to the payee and to the controlling authority',
+  },
+  {
+    name: PERMISSIONS.MANAGE_GRATUITY_NOMINATION,
+    description:
+      'Record a Form F nomination and its shares — the instrument that decides who receives the amount on the death of an employee',
+  },
+  {
+    name: PERMISSIONS.FORFEIT_GRATUITY,
+    description:
+      'Forfeit gratuity under section 4(6) — the sub-section relied on, the damage quantified under (a), and whether services were terminated for the act under (b)',
+  },
+  {
+    name: PERMISSIONS.RECORD_GRATUITY_PAYMENT,
+    description:
+      'Record payment of gratuity and the section 7(3A) relief — the employee-fault ground together with the controlling authority’s written permission that alone stops the interest',
+  },
+  {
     name: PERMISSIONS.MANAGE_ROLES,
     description:
       'Create, update and delete custom roles and their permission sets',
@@ -1567,6 +1623,17 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.MANAGE_ESI_RULES,
       PERMISSIONS.FILE_ESI_RETURN,
 
+      // #2031. All five. Forfeiting gratuity and then certifying that it was
+      // lawfully forfeited are two halves of the same check, and the owner is
+      // the one account allowed to be both. RECORD_GRATUITY_PAYMENT stops here
+      // for the reason APPROVE_PAYROLL does: writing off accrued statutory
+      // interest is forgiving a debt.
+      PERMISSIONS.READ_GRATUITY_CLAIM,
+      PERMISSIONS.MANAGE_GRATUITY_CLAIM,
+      PERMISSIONS.MANAGE_GRATUITY_NOMINATION,
+      PERMISSIONS.FORFEIT_GRATUITY,
+      PERMISSIONS.RECORD_GRATUITY_PAYMENT,
+
       // Held by the owner alone: a role edit changes what every other account
       // in the company can do.
       PERMISSIONS.MANAGE_ROLES,
@@ -1974,6 +2041,17 @@ const ROLE_DEFINITIONS = [
       // does not commit the assessment.
       PERMISSIONS.READ_MIGRANT_WORKMEN,
       PERMISSIONS.MANAGE_MIGRANT_WORKMAN,
+
+      // #2031. Read, the claim and the nomination — not the forfeiture and not
+      // the payment. Opening the claim and collecting the Form F is
+      // record-keeping HR does, and the claim has to be opened on the last
+      // working day rather than when somebody senior gets to it, because that
+      // is when the thirty days start. Forfeiting takes money away, and
+      // recording the 7(3A) relief writes off interest that has already
+      // accrued.
+      PERMISSIONS.READ_GRATUITY_CLAIM,
+      PERMISSIONS.MANAGE_GRATUITY_CLAIM,
+      PERMISSIONS.MANAGE_GRATUITY_NOMINATION,
 
       PERMISSIONS.READ_ROSTER,
       PERMISSIONS.MANAGE_ROSTER,
