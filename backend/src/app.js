@@ -340,6 +340,7 @@ const fbpRoutes = require('./routes/fbp.routes');
 const teamRoutes = require('./routes/team.routes');
 const healthChallengeRoutes = require('./routes/healthChallenge.routes');
 const offboardingRoutes = require('./routes/offboarding.routes');
+const policyAcknowledgmentRoutes = require('./routes/policyAcknowledgment.routes');
 const {
   tenantRouter: subscriptionTenantRoutes,
   adminRouter: subscriptionAdminRoutes,
@@ -917,6 +918,11 @@ app.use('/api/offboarding', offboardingRoutes);
 
 // Skill Inventory & Competency Framework
 app.use('/api/skills', skillInventoryRoutes);
+
+// Policy acknowledgment tracking & compliance reporting.
+// Mounted at a separate path to avoid conflicting with the existing
+// /api/policies routes that handle policy CRUD.
+app.use('/api/policy-acknowledgments', policyAcknowledgmentRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────
 // Must be registered AFTER all valid routes but BEFORE error handlers.
