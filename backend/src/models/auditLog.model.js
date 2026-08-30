@@ -108,6 +108,27 @@ const AUDIT_ACTIONS = [
   'CESS_ASSESSMENT_ORDER_RECORDED',
   'CESS_BENEFICIARY_REGISTERED',
   'CESS_ASSESSMENT_COMMITTED',
+  // Industrial Disputes Act section 9A (#1973). The classification is audited
+  // because reclassifying a change from a Fourth Schedule item to none is how a
+  // notice obligation is cleared without being discharged, and nothing else on
+  // the record changes when it happens. The `from` and `to` are both carried
+  // for that reason.
+  //
+  // The proceeding is audited because clearing the express permission reference
+  // turns a section 33 requirement into a twenty-one-day wait — the one error in
+  // the module that tells an employer to commit an offence on a date certain.
+  //
+  // The population is audited with the affected count beside the obliged count,
+  // because the gap between them is the finding: a change touching forty people
+  // and obliging notice to six is a different record from one obliging notice to
+  // all forty, and a single number cannot say which happened.
+  'SECTION_9A_CHANGE_RECORDED',
+  'SECTION_9A_CHANGE_CLASSIFIED',
+  'SECTION_9A_POPULATION_DETERMINED',
+  'SECTION_9A_NOTICE_SERVED',
+  'SECTION_9A_EFFECTIVE_DATE_MOVED',
+  'SECTION_9A_PROCEEDING_RECORDED',
+  'SECTION_9A_EXEMPTION_RECORDED',
   // Payment of Wages Act, 1936 (#1767). Next to the minimum wage actions
   // because the rules move findings the same way a notification does: raising
   // the section 1(6) applicability ceiling takes employees out of the Act and

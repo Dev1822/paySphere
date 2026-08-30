@@ -397,6 +397,32 @@ const PERMISSIONS = {
   MANAGE_CESS_REGISTER: 'MANAGE_CESS_REGISTER',
   MANAGE_CESS_BASE: 'MANAGE_CESS_BASE',
 
+  // --- Industrial Disputes Act, section 9A (#1973) -------------------------
+  //
+  // The split is on which name can make a notice obligation disappear.
+  //
+  // MANAGE_NOTICE_OF_CHANGE records the change and moves the effective date.
+  // Moving the date is the ordinary remedy for a short notice — it is the thing
+  // the module exists to prompt — so it stays with the clerical name.
+  //
+  // CLASSIFY_NOTICE_OF_CHANGE holds the Fourth Schedule item, the
+  // standing-orders and casual-fluctuation qualifiers, and the section 9B or
+  // settlement exemption. Any of the four takes a change out of the notice
+  // queue entirely and none of them leaves another trace that it did.
+  //
+  // RECORD_PENDING_PROCEEDING is narrower again. Clearing the express
+  // permission reference turns 'you need the Tribunal's permission' into 'you
+  // need to wait twenty-one days', which is the one error here that tells an
+  // employer to commit an offence on a date certain.
+  //
+  // Deliberately not the payroll or roster names. Those change what a workman is
+  // paid and when they work; these record whether the employer was entitled to
+  // change it on the date they picked.
+  READ_NOTICE_OF_CHANGE: 'READ_NOTICE_OF_CHANGE',
+  MANAGE_NOTICE_OF_CHANGE: 'MANAGE_NOTICE_OF_CHANGE',
+  CLASSIFY_NOTICE_OF_CHANGE: 'CLASSIFY_NOTICE_OF_CHANGE',
+  RECORD_PENDING_PROCEEDING: 'RECORD_PENDING_PROCEEDING',
+
   // --- Contract Labour (Regulation and Abolition) Act, 1970 (#1700) --------
   //
   // Next to the vendor names, and deliberately not the same as them. The vendor
@@ -1079,6 +1105,26 @@ const PERMISSION_DEFINITIONS = [
       'Set the cost of construction and its section 3 exclusions, the notified rate and the section 7 registration, record an assessment order, and commit the assessment',
   },
   {
+    name: PERMISSIONS.READ_NOTICE_OF_CHANGE,
+    description:
+      'View the section 9A queue — the Fourth Schedule item on each proposed change, the workmen it obliges notice to, the days left to serve it, and the changes that took effect without notice',
+  },
+  {
+    name: PERMISSIONS.MANAGE_NOTICE_OF_CHANGE,
+    description:
+      'Record a proposed change, determine per person who is a workman under section 2(s), serve the Form E notice, and move a proposed effective date to cure a short notice',
+  },
+  {
+    name: PERMISSIONS.CLASSIFY_NOTICE_OF_CHANGE,
+    description:
+      'Decide the Fourth Schedule item a change falls under, apply the standing-orders and casual-fluctuation qualifiers, and record a section 9B or settlement exemption with its authority — each of which takes a change out of the notice queue',
+  },
+  {
+    name: PERMISSIONS.RECORD_PENDING_PROCEEDING,
+    description:
+      'Record a pending conciliation or adjudication and the express permission obtained under section 33 — the field that decides whether the obligation is a notice period at all',
+  },
+  {
     name: PERMISSIONS.READ_CONTRACT_LABOUR,
     description:
       'View the contract labour registers, the principal employer’s section 21 exposure and the wage parity comparison against directly employed staff',
@@ -1476,6 +1522,14 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.MANAGE_PROFESSIONAL_TAX,
       PERMISSIONS.MANAGE_PT_RULE,
 
+      // #1973. All four. Deciding that a change is outside the Fourth Schedule
+      // and then effecting it on the date of your choice are two halves of the
+      // same check, and the owner is the one account allowed to be both.
+      PERMISSIONS.READ_NOTICE_OF_CHANGE,
+      PERMISSIONS.MANAGE_NOTICE_OF_CHANGE,
+      PERMISSIONS.CLASSIFY_NOTICE_OF_CHANGE,
+      PERMISSIONS.RECORD_PENDING_PROCEEDING,
+
       PERMISSIONS.IMPERSONATE_USER,
 
       // #1011. The owner holds everything, including the three that stop at
@@ -1816,6 +1870,15 @@ const ROLE_DEFINITIONS = [
       // assessment.
       PERMISSIONS.READ_CONSTRUCTION_CESS,
       PERMISSIONS.MANAGE_CESS_REGISTER,
+
+      // #1973. Read and record, not classify and not the proceeding. HR is who
+      // notices the change and who serves the notice, and moving an effective
+      // date to give twenty-one clear days is the remedy they should be able to
+      // apply without waiting for anybody. Deciding that a change falls outside
+      // the Fourth Schedule, and recording that express permission under
+      // section 33 exists, both remove the obligation rather than discharge it.
+      PERMISSIONS.READ_NOTICE_OF_CHANGE,
+      PERMISSIONS.MANAGE_NOTICE_OF_CHANGE,
 
       // #1700. Both. Registering a contractor and recording who is on site each
       // month is HR administration in the ordinary sense — somebody has to walk

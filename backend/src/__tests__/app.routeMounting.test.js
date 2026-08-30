@@ -125,6 +125,7 @@ const MOUNTED_ROUTES = [
   ['/api/integrations', 'get', '/api/integrations'],
   ['/api/compliance', 'get', '/api/compliance/config'],
   ['/api/aggregator-contribution', 'get', '/api/aggregator-contribution/rules'],
+  ['/api/notice-of-change', 'get', '/api/notice-of-change/rules'],
   ['/api/email', 'post', '/api/email/webhooks'],
 
   // Mounted in #1009. Each of these had a router, a controller, models and in
@@ -294,6 +295,7 @@ const ROUTER_MOUNTS = {
   esi: '/api/esi',
   vendor: '/api/vendors',
   constructionCess: '/api/construction-cess',
+  noticeOfChange: '/api/notice-of-change',
   wageDeduction: '/api/wage-deductions',
   webhook: '/api/webhooks',
   workingHours: '/api/working-hours',
