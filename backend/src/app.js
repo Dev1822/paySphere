@@ -87,6 +87,7 @@ const auditRoutes = require('./routes/audit.routes');
 const epfRemittanceRoutes = require('./routes/epfRemittance.routes');
 
 const attendanceRoutes = require('./routes/attendance.routes');
+const attendanceGatewayRoutes = require('./routes/attendanceGateway.routes');
 
 // Working hours compliance (#1702). Next to attendance because it reads that
 // ledger, and separate from it because the questions differ: attendance answers
@@ -593,6 +594,7 @@ app.use('/api/epf-remittance', epfRemittanceRoutes);
 
 app.use('/api/schedules', schedulerRoutes);
 app.use('/api/audit-logs', auditRoutes);
+app.use('/api/attendance', attendanceGatewayRoutes);
 app.use('/api/attendance', attendanceRoutes);
 
 // #1702. Its own prefix rather than a sub-path of `/api/attendance`: an
