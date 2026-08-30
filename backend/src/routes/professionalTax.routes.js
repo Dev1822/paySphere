@@ -10,10 +10,10 @@ const {
   configureStateSlab,
   getAnnualReturn,
 } = require('../controllers/professionalTax.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/calculate', protect, calculatePt);
-router.post('/configure-slab', protect, configureStateSlab);
-router.get('/annual-return/:state', protect, getAnnualReturn);
+router.post('/calculate', auth, calculatePt);
+router.post('/configure-slab', auth, configureStateSlab);
+router.get('/annual-return/:state', auth, getAnnualReturn);
 
 module.exports = router;

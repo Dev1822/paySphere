@@ -1,8 +1,8 @@
 const SkillInventoryService = require('../services/skillInventory.service');
-const catchAsync = require('../utils/catchAsync');
+const asyncHandler = require('../middlewares/asyncHandler.middleware');
 const AppError = require('../utils/appError');
 
-exports.createTaxonomy = catchAsync(async (req, res, next) => {
+exports.createTaxonomy = asyncHandler(async (req, res, next) => {
   const skill = await SkillInventoryService.createSkillTaxonomy(
     req.body,
     req.tenantId,
@@ -14,7 +14,7 @@ exports.createTaxonomy = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.getTaxonomy = catchAsync(async (req, res, next) => {
+exports.getTaxonomy = asyncHandler(async (req, res, next) => {
   const skills = await SkillInventoryService.getSkillTaxonomy(req.tenantId);
   res.status(200).json({
     status: 'success',
@@ -23,7 +23,7 @@ exports.getTaxonomy = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.addEmployeeSkill = catchAsync(async (req, res, next) => {
+exports.addEmployeeSkill = asyncHandler(async (req, res, next) => {
   const employeeId = req.params.employeeId;
   const skill = await SkillInventoryService.addEmployeeSkill(
     employeeId,
@@ -37,7 +37,7 @@ exports.addEmployeeSkill = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.endorseSkill = catchAsync(async (req, res, next) => {
+exports.endorseSkill = asyncHandler(async (req, res, next) => {
   const skillId = req.params.skillId;
   const skill = await SkillInventoryService.endorseEmployeeSkill(
     skillId,
@@ -55,7 +55,7 @@ exports.endorseSkill = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.getTeamMatrix = catchAsync(async (req, res, next) => {
+exports.getTeamMatrix = asyncHandler(async (req, res, next) => {
   // Use the currently logged-in user as the manager
   // In a real implementation, you might pass managerId or resolve it via employee records
   const matrix = await SkillInventoryService.getTeamSkillMatrix(
@@ -68,7 +68,7 @@ exports.getTeamMatrix = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.getSkillGapAnalysis = catchAsync(async (req, res, next) => {
+exports.getSkillGapAnalysis = asyncHandler(async (req, res, next) => {
   const employeeId = req.params.employeeId;
   const analysis = await SkillInventoryService.getSkillGapAnalysis(
     employeeId,

@@ -10,10 +10,10 @@ const {
   processAnnualBatch,
   getBonusReport,
 } = require('../controllers/statutoryBonus.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/calculate-employee', protect, calculateEmployeeBonus);
-router.post('/process-annual-batch', protect, processAnnualBatch);
-router.get('/report', protect, getBonusReport);
+router.post('/calculate-employee', auth, calculateEmployeeBonus);
+router.post('/process-annual-batch', auth, processAnnualBatch);
+router.get('/report', auth, getBonusReport);
 
 module.exports = router;

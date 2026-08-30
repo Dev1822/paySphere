@@ -10,10 +10,10 @@ const {
   scheduleClawback,
   getEmployeeLopSummary,
 } = require('../controllers/lopAdjustment.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/calculate-delta', protect, calculateDelta);
-router.post('/schedule-clawback', protect, scheduleClawback);
-router.get('/summary/:employeeId', protect, getEmployeeLopSummary);
+router.post('/calculate-delta', auth, calculateDelta);
+router.post('/schedule-clawback', auth, scheduleClawback);
+router.get('/summary/:employeeId', auth, getEmployeeLopSummary);
 
 module.exports = router;

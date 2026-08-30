@@ -10,10 +10,10 @@ const {
   submitReceipts,
   getHraSummary,
 } = require('../controllers/hraExemption.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/calculate', protect, calculateHra);
-router.post('/submit-receipts', protect, submitReceipts);
-router.get('/summary/:employeeId', protect, getHraSummary);
+router.post('/calculate', auth, calculateHra);
+router.post('/submit-receipts', auth, submitReceipts);
+router.get('/summary/:employeeId', auth, getHraSummary);
 
 module.exports = router;

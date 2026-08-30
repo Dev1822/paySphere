@@ -1,5 +1,5 @@
 const immigrationService = require('../services/immigrationService');
-const { asyncHandler } = require('../middleware/async');
+const asyncHandler = require('../middlewares/asyncHandler.middleware');
 
 exports.getWorkers = asyncHandler(async (req, res) => {
     const data = await immigrationService.getWorkers(req.query);

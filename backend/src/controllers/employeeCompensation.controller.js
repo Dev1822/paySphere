@@ -1,10 +1,10 @@
 const employeeCompensationService = require('../services/employeeCompensation.service');
-const { catchAsync } = require('../utils/apiError');
+const asyncHandler = require('../middlewares/asyncHandler.middleware');
 
 /**
  * Get longitudinal compensation timeline
  */
-exports.getTimeline = catchAsync(async (req, res) => {
+exports.getTimeline = asyncHandler(async (req, res) => {
   const { employeeId } = req.params;
   const tenantId = req.tenantId || req.user.tenantId;
 
@@ -37,7 +37,7 @@ exports.getTimeline = catchAsync(async (req, res) => {
 /**
  * Get Year-to-Date summary
  */
-exports.getYTD = catchAsync(async (req, res) => {
+exports.getYTD = asyncHandler(async (req, res) => {
   const { employeeId } = req.params;
   const { financialYearStart } = req.query; // Expecting '2023', '2024' etc.
   const tenantId = req.tenantId || req.user.tenantId;
@@ -80,7 +80,7 @@ exports.getYTD = catchAsync(async (req, res) => {
 /**
  * Generate and download PDF Statement
  */
-exports.downloadStatement = catchAsync(async (req, res) => {
+exports.downloadStatement = asyncHandler(async (req, res) => {
   const { employeeId } = req.params;
   const { financialYearStart } = req.query;
   const tenantId = req.tenantId || req.user.tenantId;
