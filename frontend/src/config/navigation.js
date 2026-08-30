@@ -200,6 +200,13 @@ export const APP_ROUTES = [
     icon: 'chart',
   },
   {
+    path: '/compensation-intelligence',
+    component: lazy(() => import('../pages/compensation/CompensationIntelligencePage')),
+    label: 'Compensation Intelligence',
+    group: 'people',
+    icon: 'calculator',
+  },
+  {
     path: '/offer-letters',
     component: lazy(() => import('../pages/OfferLetterBuilder')),
     label: 'Offer letters',
