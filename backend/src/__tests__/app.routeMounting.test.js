@@ -90,6 +90,7 @@ const MOUNTED_ROUTES = [
   ['/api/injury-compensation', 'get', '/api/injury-compensation/claims'],
   ['/api/layoffs', 'get', '/api/layoffs/rules'],
   ['/api/esi', 'get', '/api/esi/rules'],
+  ['/api/gratuity-entitlement', 'get', '/api/gratuity-entitlement/rules'],
   ['/api/gratuity', 'get', '/api/gratuity/valuations'],
   ['/api/eps', 'get', '/api/eps/valuations'],
   ['/api/professional-tax', 'get', '/api/professional-tax/rules'],
@@ -242,6 +243,7 @@ const ROUTER_MOUNTS = {
   forecast: '/api/forecasts',
   eps: '/api/eps',
   gratuity: '/api/gratuity',
+  gratuityEntitlement: '/api/gratuity-entitlement',
   grievance: '/api/grievances',
 
   // Mounted at the root — `app.use(healthRoutes)` with no prefix — on purpose,
