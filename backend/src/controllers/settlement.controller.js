@@ -550,13 +550,22 @@ exports.submitSettlement = makeTransitionHandler(
 
 exports.approveSettlement = makeTransitionHandler(
   SETTLEMENT_STATUS.APPROVED,
-  (settlement, req) => ({
-    fields: {
-      approvedBy: req.userId,
-      approvedAt: new Date(),
-      rejectionReason: undefined,
-    },
-  }),
+  (settlement, req) => {
+    if (settlement.negativeOverride && String(settlement.createdBy) === String(req.userId)) {
+      return {
+        error: 'Segregation of duties violation: Negative settlements require dual authorization (maker-checker). You cannot approve a negative settlement that you created.',
+        status: 403,
+      };
+    }
+    
+    return {
+      fields: {
+        approvedBy: req.userId,
+        approvedAt: new Date(),
+        rejectionReason: undefined,
+      },
+    };
+  },
 );
 
 exports.rejectSettlement = makeTransitionHandler(
