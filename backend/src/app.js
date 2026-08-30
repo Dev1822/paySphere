@@ -340,6 +340,7 @@ const fbpRoutes = require('./routes/fbp.routes');
 const teamRoutes = require('./routes/team.routes');
 const healthChallengeRoutes = require('./routes/healthChallenge.routes');
 const offboardingRoutes = require('./routes/offboarding.routes');
+const pulseSurveyRoutes = require('./routes/pulseSurvey.routes');
 const {
   tenantRouter: subscriptionTenantRoutes,
   adminRouter: subscriptionAdminRoutes,
@@ -917,6 +918,9 @@ app.use('/api/offboarding', offboardingRoutes);
 
 // Skill Inventory & Competency Framework
 app.use('/api/skills', skillInventoryRoutes);
+
+// Pulse surveys — quick employee engagement polls.
+app.use('/api/pulse-surveys', pulseSurveyRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────
 // Must be registered AFTER all valid routes but BEFORE error handlers.
