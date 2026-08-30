@@ -10,10 +10,10 @@ const {
   submitWaiver,
   getNoticeSummary,
 } = require('../controllers/noticeBuyout.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/calculate-recovery', protect, calculateRecovery);
-router.post('/submit-waiver', protect, submitWaiver);
-router.get('/summary/:employeeId', protect, getNoticeSummary);
+router.post('/calculate-recovery', auth, calculateRecovery);
+router.post('/submit-waiver', auth, submitWaiver);
+router.get('/summary/:employeeId', auth, getNoticeSummary);
 
 module.exports = router;

@@ -10,10 +10,10 @@ const {
   claimCoff,
   getEmployeeOtSummary,
 } = require('../controllers/overtimeMultiplier.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/calculate-ot', protect, calculateOt);
-router.post('/claim-c-off', protect, claimCoff);
-router.get('/summary/:employeeId', protect, getEmployeeOtSummary);
+router.post('/calculate-ot', auth, calculateOt);
+router.post('/claim-c-off', auth, claimCoff);
+router.get('/summary/:employeeId', auth, getEmployeeOtSummary);
 
 module.exports = router;

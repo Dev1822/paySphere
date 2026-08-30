@@ -10,10 +10,10 @@ const {
   getVpfSummary,
   getOrganizationVpfReport,
 } = require('../controllers/vpf.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/elect', protect, electVpf);
-router.get('/summary/:employeeId', protect, getVpfSummary);
-router.get('/organization-report', protect, getOrganizationVpfReport);
+router.post('/elect', auth, electVpf);
+router.get('/summary/:employeeId', auth, getVpfSummary);
+router.get('/organization-report', auth, getOrganizationVpfReport);
 
 module.exports = router;

@@ -10,10 +10,10 @@ const {
   runAutoMatch,
   getVarianceReport,
 } = require('../controllers/cardReconciliation.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/import-feed', protect, importFeed);
-router.post('/auto-match', protect, runAutoMatch);
-router.get('/variance-report', protect, getVarianceReport);
+router.post('/import-feed', auth, importFeed);
+router.post('/auto-match', auth, runAutoMatch);
+router.get('/variance-report', auth, getVarianceReport);
 
 module.exports = router;
