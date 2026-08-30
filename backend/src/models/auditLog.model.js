@@ -383,6 +383,23 @@ const AUDIT_ACTIONS = [
   'IW_CERTIFICATE_RECORDED',
   'IW_CONTRIBUTION_COMPUTED',
   'IW_ONE_FILED',
+  // Shops and Commercial Establishments Acts (#1972). The registration is
+  // audited because its three dates are the whole finding: `commencedOn` is
+  // what the registration window runs from, and `validTo` is what separates an
+  // establishment filing a renewal late from one trading unregistered. Either
+  // can be moved to make a lapse look like a renewal with nothing else on the
+  // record changing, and the certificate itself is a scan in a vault that says
+  // whatever the last edit said.
+  //
+  // The particular and the headcount sync are audited together because they are
+  // the two ways an amendment obligation gets closed without being discharged.
+  // The clock runs from the date the particular changed, so a particular
+  // "corrected" to match the establishment — or a band silently resynced after
+  // a hire — makes fifteen days that were already running disappear.
+  'ESTABLISHMENT_REGISTRATION_RECORDED',
+  'ESTABLISHMENT_PARTICULAR_RECORDED',
+  'ESTABLISHMENT_HEADCOUNT_SYNCED',
+  'ESTABLISHMENT_CLOSURE_RECORDED',
   'APPRENTICESHIP_ASSESSMENT_COMMITTED',
   // Inter-State Migrant Workmen Act, 1979 (#1826). The comparator is audited
   // for the same reason the recorded strength above is: it is the denominator

@@ -234,6 +234,14 @@ const constructionCessRoutes = require('./routes/constructionCess.routes');
 // supplies the contribution basis and does not build the ECR — `ecrGenerator`
 // keeps that — and a shortfall it finds is fed to #1875 rather than recomputed.
 const internationalWorkerRoutes = require('./routes/internationalWorkerPf.routes');
+// Shops and Commercial Establishments Acts (#1972). Apart from the entity
+// router because that records who the company is, and this records whether a
+// place of business is lawfully open — different objects with different
+// lifecycles. Apart from the document vault for the same reason: the vault will
+// hold the scanned certificate and remind on a date, but it does not know that
+// a certificate which has expired means the establishment is trading
+// unregistered rather than filing a renewal late.
+const shopsEstablishmentsRoutes = require('./routes/shopsEstablishments.routes');
 
 // Contract Labour (Regulation and Abolition) Act, 1970 (#1700). Next to the
 // vendor router because a contractor is one, and separate from it because this
@@ -785,6 +793,15 @@ app.use('/api/assets', assetRoutes);
 // reason attached rather than a bare no — that ground reaches a domestic member
 // and not this one.
 app.use('/api/international-workers', internationalWorkerRoutes);
+
+// #1972. The router owns `/rules`, `/registrations`, `/particulars`,
+// `/closures`, `/expiring` and `/position`. It reports a lapsed certificate as
+// operating unregistered rather than as a renewal overdue, and it returns the
+// weekly holiday as two verdicts rather than one — the establishment's notified
+// closing day and the employee's entitlement to a whole day off are separate
+// obligations, and a single answer answers whichever one the reader was not
+// asking about.
+app.use('/api/establishments', shopsEstablishmentsRoutes);
 app.use('/api/vendors', vendorRoutes);
 
 // #1827. The router owns `/rules`, `/projects`, `/beneficiaries` and
