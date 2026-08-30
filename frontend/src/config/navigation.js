@@ -254,6 +254,15 @@ export const APP_ROUTES = [
     icon: 'rocket',
   },
   {
+    // Offboarding is the lifecycle counterpart to onboarding — the natural
+    // companion for an HR manager reviewing the People section.
+    path: '/offboarding',
+    component: lazy(() => import('../components/EmployeeOffboardingTracker')),
+    label: 'Offboarding tracker',
+    group: 'people',
+    icon: 'exit',
+  },
+  {
     // In People rather than Compliance: engaging an apprentice and keeping the
     // roll is HR work, and it sits next to onboarding because that is what it
     // is. That an unregistered contract also produces a statutory exposure is
