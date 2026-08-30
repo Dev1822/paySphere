@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Employee Referral & Talent Acquisition Bonus Dashboard - PaySphere</title>
+    <link rel="stylesheet" href="styles/referral_talent_acquisition_bonus.css" />
+    <script defer src="referral_talent_acquisition_bonus_engine.js"></script>
+</head>
+
+<body>
+    <!-- ======================================================================== -->
+    <!-- Enterprise Employee Referral & Talent Acquisition Bonus Tracking Suite    -->
+    <!-- PaySphere Global HR & Payroll Platform                                    -->
+    <!-- Version: 2.4.0 | Author: PaySphere Talent Engineering                    -->
+    <!-- Description: Employee referral program management, referral bonus         -->
+    <!-- tracking, hiring pipeline analytics, time-to-fill optimization, cost-     -->
+    <!-- per-hire benchmarking, and recruitment ROI intelligence.                  -->
+    <!-- Compliance: OFCCP, EEOC Title VII, GDPR Art. 88 (Employment Data),       -->
+    <!-- State wage deduction laws (for bonus payroll processing)                  -->
+    <!-- ======================================================================== -->
+
+    <!-- Top Navigation Bar -->
+    <header class="dashboard-header">
+        <div class="header-left">
+            <img src="logo.png" alt="PaySphere Logo" class="logo" />
+            <h1 class="dashboard-title">Referral & Talent Acquisition Bonuses</h1>
+        </div>
+        <div class="header-right">
+            <span class="badge badge-live">● LIVE</span>
+            <span class="badge badge-compliance">OFCCP Compliant</span>
+            <span class="last-sync" id="lastSyncTime">Last synced: --</span>
+            <button class="btn btn-refresh" id="refreshBtn">⟳ Refresh</button>
+            <div class="user-avatar" id="userAvatar">TA</div>
+        </div>
+    </header>
+
+    <main class="dashboard-main">
+        <!-- Filter & Controls Panel -->
+        <section class="controls-panel glass-card">
+            <h2 class="section-title">Talent Acquisition Filters</h2>
+            <div class="filter-grid">
+                <div class="filter-group">
+                    <label for="departmentSelect">Department</label>
+                    <select id="departmentSelect" class="glass-input">
+                        <option value="all">All Departments</option>
+                        <option value="engineering">Engineering</option>
+                        <option value="product">Product Management</option>
+                        <option value="design">Design & UX</option>
+                        <option value="sales">Sales & Revenue</option>
+                        <option value="marketing">Marketing</option>
+                        <option value="finance">Finance & Accounting</option>
+                        <option value="hr">Human Resources</option>
+                        <option value="operations">Operations</option>
+                        <option value="legal">Legal & Compliance</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="bonusStatus">Bonus Status</label>
+                    <select id="bonusStatus" class="glass-input">
+                        <option value="all">All Statuses</option>
+                        <option value="pending">Pending Approval</option>
+                        <option value="approved">Approved</option>
+                        <option value="paid">Paid</option>
+                        <option value="clawback">Clawback Eligible</option>
+                        <option value="forfeited">Forfeited</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="referrerType">Referrer Type</label>
+                    <select id="referrerType" class="glass-input">
+                        <option value="all">All Types</option>
+                        <option value="employee">Current Employee</option>
+                        <option value="alumni">Alumni Referral</option>
+                        <option value="partner">Partner / Vendor</option>
+                        <option value="executive">Executive Referral</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="fiscalYearSelect">Fiscal Year</label>
+                    <select id="fiscalYearSelect" class="glass-input">
+                        <option value="2026">FY 2026</option>
+                        <option value="2025">FY 2025</option>
+                        <option value="2024">FY 2024</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="roleLevelSelect">Role Level</label>
+                    <select id="roleLevelSelect" class="glass-input">
+                        <option value="all">All Levels</option>
+                        <option value="ic1">IC1 - Entry Level</option>
+                        <option value="ic2">IC2 - Mid Level</option>
+                        <option value="ic3">IC3 - Senior</option>
+                        <option value="ic4">IC4 - Staff+</option>
+                        <option value="m1">M1 - Manager</option>
+                        <option value="m2">M2 - Director+</option>
+                    </select>
+                </div>
+                <div class="filter-group filter-actions">
+                    <button class="btn btn-primary" id="applyFiltersBtn">Apply Filters</button>
+                    <button class="btn btn-secondary" id="resetFiltersBtn">Reset</button>
+                    <button class="btn btn-export" id="exportCsvBtn">↓ Export CSV</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- KPI Row -->
+        <section class="kpi-row">
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">Active Referrals</div>
+                <div class="kpi-value" id="activeReferrals">347</div>
+                <div class="kpi-change positive">▲ 23% vs last quarter</div>
+            </div>
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">Referral Hire Rate</div>
+                <div class="kpi-value" id="referralHireRate">34.2%</div>
+                <div class="kpi-change positive">▲ 5.1pp YoY improvement</div>
+            </div>
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">Bonus Paid (YTD)</div>
+                <div class="kpi-value" id="bonusPaidYTD">$482K</div>
+                <div class="kpi-change neutral">Within annual budget</div>
+            </div>
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">Avg Time-to-Fill (Referrals)</div>
+                <div class="kpi-value" id="avgTimeToFill">18 days</div>
+                <div class="kpi-change positive">▼ 12 days vs agency hires</div>
+            </div>
+        </section>
+
+        <!-- Main Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Referral Pipeline Panel -->
+            <section class="panel glass-card" id="referralPipeline">
+                <h3 class="panel-title">Referral Pipeline & Stage Conversion</h3>
+                <div class="pipeline-stages" id="pipelineStages">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Pipeline stages: Applied → Screened → Interviewed → Offered → Hired</span>
+                </div>
+            </section>
+
+            <!-- Bonus Tracker Panel -->
+            <section class="panel glass-card" id="bonusTracker">
+                <h3 class="panel-title">Referral Bonus Tracking & Payment Status</h3>
+                <div class="bonus-table-wrap">
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th>Referral ID</th>
+                                <th>Referrer</th>
+                                <th>Candidate</th>
+                                <th>Role</th>
+                                <th>Bonus Amount</th>
+                                <th>Split</th>
+                                <th>Status</th>
+                                <th>Pay Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bonusTableBody">
+                            <!-- Populated by JS engine -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Bonus split: 50% at hire / 50% at 6-month retention milestone</span>
+                </div>
+            </section>
+
+            <!-- Top Referrers Leaderboard -->
+            <section class="panel glass-card" id="referrerLeaderboard">
+                <h3 class="panel-title">Top Referrers Leaderboard</h3>
+                <div class="leaderboard-list" id="leaderboardList">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Ranked by total successful referral hires in current fiscal year</span>
+                </div>
+            </section>
+
+            <!-- Cost-Per-Hire Analysis -->
+            <section class="panel glass-card" id="costPerHire">
+                <h3 class="panel-title">Cost-Per-Hire Analysis: Referrals vs Other Channels</h3>
+                <div class="channel-comparison" id="channelComparison">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Includes agency fees, job board costs, referral bonuses, and internal recruiter time</span>
+                </div>
+            </section>
+
+            <!-- Recruitment ROI Panel -->
+            <section class="panel glass-card panel-wide" id="recruitmentROI">
+                <h3 class="panel-title">Referral Program ROI & Quality Metrics</h3>
+                <div class="roi-metrics" id="roiMetrics">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">ROI = (Agency Savings + Quality Premium) / Referral Program Cost</span>
+                </div>
+            </section>
+
+            <!-- Clawback & Forfeiture Tracker -->
+            <section class="panel glass-card" id="clawbackTracker">
+                <h3 class="panel-title">Bonus Clawback & Forfeiture Tracker</h3>
+                <div class="clawback-list" id="clawbackList">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Clawback window: 12 months from hire date per referral policy</span>
+                </div>
+            </section>
+        </div>
+
+        <!-- Footer -->
+        <footer class="dashboard-footer">
+            <div class="footer-left">
+                <span>PaySphere Talent Acquisition Engine v2.4.0</span>
+                <span class="separator">|</span>
+                <span>OFCCP Compliant</span>
+                <span class="separator">|</span>
+                <span>EEOC Title VII</span>
+                <span class="separator">|</span>
+                <span>GDPR Art. 88</span>
+            </div>
+            <div class="footer-right">
+                <span id="auditTimestamp">Audit Trail: --</span>
+                <span class="separator">|</span>
+                <span id="sessionId">Session: --</span>
+            </div>
+        </footer>
+    </main>
+</body>
+
+</html>

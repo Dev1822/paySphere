@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import Sidebar from '../components/Sidebar';
 import ThemeToggle from '../components/ThemeToggle';
 import api from '../services/api';
+import { formatDateTime, formatCurrency } from '../utils/formatLocale';
 import TimerIcon from '@mui/icons-material/Timer';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
@@ -121,7 +122,7 @@ export default function TimesheetTracker() {
                                                 {entry.isFlagged && <FlagIcon className="text-amber-500" fontSize="small" titleAccess={entry.flagReason} />}
                                                 <div>
                                                     <p className="text-sm font-medium text-gray-900 dark:text-white">{entry.description}</p>
-                                                    <p className="text-xs text-gray-500 dark:text-slate-400">{new Date(entry.startTime).toLocaleString()}</p>
+                                                    <p className="text-xs text-gray-500 dark:text-slate-400">{formatDateTime(entry.startTime)}</p>
                                                 </div>
                                             </div>
                                         </td>
@@ -129,7 +130,7 @@ export default function TimesheetTracker() {
                                             {Math.floor(entry.durationMinutes / 60)}h {entry.durationMinutes % 60}m
                                         </td>
                                         <td className="px-6 py-4 text-right text-sm font-mono font-bold text-gray-900 dark:text-white">
-                                            ₹{entry.billableAmount.toLocaleString()}
+                                            {formatCurrency(entry.billableAmount || 0, 'INR')}
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${entry.status === 'Approved' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :

@@ -18,6 +18,7 @@
  */
 
 const mongoose = require('mongoose');
+const cryptoSealPlugin = require('../middlewares/cryptoSeal.plugin');
 
 const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 
@@ -150,6 +151,8 @@ employeeTaxDeclarationSchema.methods.totalDeductions =
       Math.min(d.section80TTA || 0, 10000)
     );
   };
+
+employeeTaxDeclarationSchema.plugin(cryptoSealPlugin);
 
 const EmployeeTaxDeclaration = mongoose.model(
   'EmployeeTaxDeclaration',

@@ -9,8 +9,9 @@ import PeopleIcon from '@mui/icons-material/People';
 import SchoolIcon from '@mui/icons-material/School';
 import styles from './Sidebar.module.css';
 import { useEffect, useMemo, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/useAppStore';
+import { useOnboardingStore } from '../store/useOnboardingStore';
 import { useTranslation } from 'react-i18next';
 import ThemeToggle from './ThemeToggle';
 import { navigationFor } from '../config/navigation';
@@ -262,6 +263,8 @@ const Sidebar = ({
 }) => {
   const { t } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
+  const resetTour = useOnboardingStore((state) => state.resetTour);
   const sidebarRef = useRef(null);
 
   // `role` is what the login response calls the account type — the server's
@@ -436,14 +439,15 @@ const Sidebar = ({
             {t('settings.profile', 'Profile settings')}
           </Link>
 
-          <button
-            onClick={() => {
-              window.dispatchEvent(new Event('paysphere:restart-tour'));
-              onClose();
-            }}
-            className="w-full flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition"
+         <button
+         onClick={() => {
+         resetTour(navigate);
+          onClose();
+          }}
+          className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-800 transition font-medium"
           >
-            <span>✨ Take Product Tour</span>
+          <ICONS.help />
+           Onboarding Tour
           </button>
 
           <button

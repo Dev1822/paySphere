@@ -35,8 +35,24 @@ api.interceptors.request.use(
     }
 
     const csrfToken = getCsrfTokenFromCookie();
-    if (csrfToken && ['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase())) {
+    if (
+      csrfToken &&
+      ['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase())
+    ) {
       config.headers['X-CSRF-Token'] = csrfToken;
+    }
+
+    if (['post', 'put', 'patch'].includes(config.method?.toLowerCase())) {
+      if (
+        !config.headers['Idempotency-Key'] &&
+        !config.headers['idempotency-key']
+      ) {
+        config.headers['Idempotency-Key'] =
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : Math.random().toString(36).substring(2, 15) +
+              Date.now().toString(36);
+      }
     }
 
     return config;
@@ -103,20 +119,26 @@ api.interceptors.response.use(
     }
 
     if (error.response.status === 401) {
-      const isBackground = originalRequest.isBackground || originalRequest.headers?.['X-Background-Request'] === 'true' || originalRequest.headers?.['x-background-request'] === 'true';
+      const isBackground =
+        originalRequest.isBackground ||
+        originalRequest.headers?.['X-Background-Request'] === 'true' ||
+        originalRequest.headers?.['x-background-request'] === 'true';
 
       if (originalRequest._retry) {
         // Retried request failed with 401 again -> clear session & redirect (or handle background)
         if (isBackground) {
           window.dispatchEvent(
-            new CustomEvent("toast:show", {
+            new CustomEvent('toast:show', {
               detail: {
-                message: "Auto-save failed: Session expired. Please login again to save your work.",
-                severity: "warning",
+                message:
+                  'Auto-save failed: Session expired. Please login again to save your work.',
+                severity: 'warning',
               },
-            })
+            }),
           );
-          return Promise.resolve({ data: { success: false, error: "Session expired" } });
+          return Promise.resolve({
+            data: { success: false, error: 'Session expired' },
+          });
         }
         handleAuthFailure();
         return Promise.reject(error);
@@ -133,14 +155,17 @@ api.interceptors.response.use(
           .catch((err) => {
             if (isBackground) {
               window.dispatchEvent(
-                new CustomEvent("toast:show", {
+                new CustomEvent('toast:show', {
                   detail: {
-                    message: "Auto-save failed: Session expired. Please login again to save your work.",
-                    severity: "warning",
+                    message:
+                      'Auto-save failed: Session expired. Please login again to save your work.',
+                    severity: 'warning',
                   },
-                })
+                }),
               );
-              return Promise.resolve({ data: { success: false, error: "Session expired" } });
+              return Promise.resolve({
+                data: { success: false, error: 'Session expired' },
+              });
             }
             handleAuthFailure();
             return Promise.reject(err);
@@ -167,14 +192,17 @@ api.interceptors.response.use(
         processQueue(err, null);
         if (isBackground) {
           window.dispatchEvent(
-            new CustomEvent("toast:show", {
+            new CustomEvent('toast:show', {
               detail: {
-                message: "Auto-save failed: Session expired. Please login again to save your work.",
-                severity: "warning",
+                message:
+                  'Auto-save failed: Session expired. Please login again to save your work.',
+                severity: 'warning',
               },
-            })
+            }),
           );
-          return Promise.resolve({ data: { success: false, error: "Session expired" } });
+          return Promise.resolve({
+            data: { success: false, error: 'Session expired' },
+          });
         }
         handleAuthFailure();
         return Promise.reject(err);
@@ -204,5 +232,54 @@ api.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+// DEV-ONLY: return mock data when backend is unreachable
+if (import.meta.env.DEV) {
+  import('../utils/mockApi').then(({ installMockInterceptor }) => {
+    installMockInterceptor(api);
+  });
+}
+
+/**
+ * Helper to extract data from an API response, handling both
+ * the new standard ResponseEnvelope ({ success: true, data: ... })
+ * and legacy shapes (res.data, res.data.employees, etc.).
+ */
+export const extractData = (response) => {
+  if (!response || !response.data) return null;
+  const body = response.data;
+
+  // New Envelope format
+  if (body.success === true && body.data !== undefined) {
+    return body.data;
+  }
+
+  // Legacy fallback
+  return body;
+};
+
+/**
+ * Helper to extract the error message from an API error, handling both
+ * the new standard ResponseEnvelope ({ success: false, error: { message } })
+ * and legacy shapes.
+ */
+export const extractErrorMessage = (error) => {
+  if (error?.response?.data) {
+    const body = error.response.data;
+
+    // New Envelope format
+    if (body.success === false && body.error && body.error.message) {
+      return body.error.message;
+    }
+
+    // Legacy fallback
+    if (body.message) {
+      return body.message;
+    }
+
+    return typeof body === 'string' ? body : 'An unexpected error occurred';
+  }
+
+  return error?.message || 'Network Error';
+};
 
 export default api;

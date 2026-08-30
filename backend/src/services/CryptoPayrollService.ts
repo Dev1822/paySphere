@@ -38,7 +38,9 @@ export class CryptoPayrollService {
   }
 
   public disburseOnChain(recipientWallet: string, amountUSD: number, tokenSymbol: string): { success: boolean; txHash: string } {
-    const txHash = `0x${Math.random().toString(36).substr(2, 16)}`;
+    const crypto = require('crypto');
+    // Generate a cryptographically secure 64-character (32-byte) hex string to simulate an EVM-like transaction hash
+    const txHash = `0x${crypto.randomBytes(32).toString('hex')}`;
     return { success: true, txHash };
   }
 }

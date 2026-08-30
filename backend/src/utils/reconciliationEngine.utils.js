@@ -1,8 +1,8 @@
 /**
  * @fileoverview Reconciliation Engine Utilities
  * @description Evaluates card transactions against policies, flags missing receipts 
- * past the grace period, and calculates payroll clawback amounts.
- * Issue: #1566
+ * past the grace period, calculates payroll clawback amounts, and diffs payroll registers.
+ * Issues: #1566, #1761
  */
 
 /**
@@ -121,9 +121,90 @@ function generatePayrollDeductions(clawbackItems) {
     }));
 }
 
+/**
+ * Compares the current payroll register against the previous snapshot.
+ * Identifies missing employees, new additions, and net-pay variances.
+ * 
+ * @param {Array} currentRegister - Array of { employeeId, netPay, hrisStatus }
+ * @param {Array} previousLineItems - Array of { employeeId, netPay } from last snapshot
+ * @param {number} varianceThreshold - Percentage threshold to flag variance (e.g., 0.10 for 10%)
+ * @returns {Array} Array of exception objects
+ */
+function diffRegisters(currentRegister, previousLineItems, varianceThreshold) {
+    const exceptions = [];
+    const prevMap = new Map(previousLineItems.map(item => [item.employeeId.toString(), item]));
+    const currMap = new Map(currentRegister.map(item => [item.employeeId.toString(), item]));
+
+    // 1. Check for Missing Employees (in previous, not in current)
+    for (const [empId, prevItem] of prevMap.entries()) {
+        if (!currMap.has(empId)) {
+            exceptions.push({
+                employeeId: empId,
+                exceptionType: 'Missing Employee',
+                previousNetPay: prevItem.netPay,
+                currentNetPay: 0,
+                varianceAmount: -prevItem.netPay,
+                variancePercent: -100,
+                description: 'Employee received pay last period but is missing from current register.'
+            });
+        }
+    }
+
+    // 2. Check for New Additions and Variances
+    for (const [empId, currItem] of currMap.entries()) {
+        const prevItem = prevMap.get(empId);
+
+        // Ghost Employee Guardrail: Flag if employee is in payroll but marked Terminated/Inactive in HRIS
+        if (currItem.hrisStatus && ['Terminated', 'Inactive', 'On Leave Unpaid'].includes(currItem.hrisStatus)) {
+            exceptions.push({
+                employeeId: empId,
+                exceptionType: 'Ghost Employee',
+                currentNetPay: currItem.netPay,
+                hrisStatus: currItem.hrisStatus,
+                varianceAmount: currItem.netPay,
+                variancePercent: 100,
+                description: `GHOST EMPLOYEE ALERT: Paid $${currItem.netPay} but HRIS status is ${currItem.hrisStatus}.`
+            });
+            continue; // Skip standard variance check for ghosts
+        }
+
+        if (!prevItem) {
+            // New Addition
+            exceptions.push({
+                employeeId: empId,
+                exceptionType: 'New Addition',
+                previousNetPay: 0,
+                currentNetPay: currItem.netPay,
+                varianceAmount: currItem.netPay,
+                variancePercent: 100,
+                description: 'New employee added to payroll register.'
+            });
+        } else {
+            // Variance Check
+            const varianceAmount = currItem.netPay - prevItem.netPay;
+            const variancePercent = prevItem.netPay !== 0 ? Math.abs(varianceAmount / prevItem.netPay) : 1;
+
+            if (Math.abs(variancePercent) >= varianceThreshold) {
+                exceptions.push({
+                    employeeId: empId,
+                    exceptionType: 'Net Pay Variance',
+                    previousNetPay: prevItem.netPay,
+                    currentNetPay: currItem.netPay,
+                    varianceAmount: varianceAmount,
+                    variancePercent: Math.round(variancePercent * 10000) / 100, // e.g., 15.50%
+                    description: `Net pay changed by ${(variancePercent * 100).toFixed(1)}% ($${varianceAmount.toFixed(2)}).`
+                });
+            }
+        }
+    }
+
+    return exceptions;
+}
+
 module.exports = {
     isReceiptOverdue,
     evaluatePolicyViolations,
     calculateBatchClawbacks,
-    generatePayrollDeductions
+    generatePayrollDeductions,
+    diffRegisters
 };

@@ -21,7 +21,7 @@ const logger = require('../utils/logger');
  * @returns {string[]} component codes in safe evaluation order
  */
 function buildEvalOrder(components) {
-  const codes = new Set(components.map(c => c.code));
+  const codes = new Set(components.map((c) => c.code));
   const deps = {};
   for (const comp of components) {
     deps[comp.code] = [];
@@ -39,28 +39,35 @@ function buildEvalOrder(components) {
     for (const dep of deps[code]) inDegree[dep] = (inDegree[dep] || 0) + 1;
   }
 
-  const queue  = [...codes].filter(c => inDegree[c] === 0);
+  const queue = [...codes].filter((c) => inDegree[c] === 0);
   const result = [];
 
   while (queue.length) {
     const node = queue.shift();
     result.push(node);
-    for (const dep of (deps[node] || [])) {
+    for (const dep of deps[node] || []) {
       inDegree[dep]--;
       if (inDegree[dep] === 0) queue.push(dep);
     }
   }
 
   if (result.length !== codes.size) {
-    const cycleNodes = [...codes].filter(c => !result.includes(c));
-    const err = new Error('Circular dependency detected: ' + cycleNodes.join(', '));
+    const cycleNodes = [...codes].filter((c) => !result.includes(c));
+    const err = new Error(
+      'Circular dependency detected: ' + cycleNodes.join(', '),
+    );
     err.status = 422;
     throw err;
   }
 
   const rank = {};
-  result.forEach((c, i) => { rank[c] = i; });
-  return components.slice().sort((a, b) => (rank[a.code] ?? 999) - (rank[b.code] ?? 999)).map(c => c.code);
+  result.forEach((c, i) => {
+    rank[c] = i;
+  });
+  return components
+    .slice()
+    .sort((a, b) => (rank[a.code] ?? 999) - (rank[b.code] ?? 999))
+    .map((c) => c.code);
 }
 
 /**
@@ -77,10 +84,12 @@ function evalFormula(formula, context) {
   }
 
   const argNames = Object.keys(context);
-  const argVals  = argNames.map(k => context[k]);
+  const argVals = argNames.map((k) => context[k]);
 
-  // eslint-disable-next-line no-new-func
-  const fn     = new Function(...argNames, '"use strict"; return (' + formula + ');');
+  const fn = new Function(
+    ...argNames,
+    '"use strict"; return (' + formula + ');',
+  );
   const result = fn(...argVals);
 
   if (typeof result !== 'number' || !isFinite(result)) {
@@ -99,20 +108,24 @@ function evalFormula(formula, context) {
  * @returns {{ lineItems: object, totalEarnings: number, totalDeductions: number }}
  */
 function evaluateAll(components, baseContext) {
-  const order   = buildEvalOrder(components);
+  const order = buildEvalOrder(components);
   const context = { ...baseContext };
   const lineItems = {};
 
   for (const code of order) {
-    const comp  = components.find(c => c.code === code);
+    const comp = components.find((c) => c.code === code);
     if (!comp) continue;
     const value = evalFormula(comp.formula, context);
-    context[code]   = value;
+    context[code] = value;
     lineItems[code] = { name: comp.name, type: comp.type, value };
   }
 
-  const totalEarnings   = Object.values(lineItems).filter(l => l.type === 'earning').reduce((s, l) => s + l.value, 0);
-  const totalDeductions = Object.values(lineItems).filter(l => l.type === 'deduction').reduce((s, l) => s + l.value, 0);
+  const totalEarnings = Object.values(lineItems)
+    .filter((l) => l.type === 'earning')
+    .reduce((s, l) => s + l.value, 0);
+  const totalDeductions = Object.values(lineItems)
+    .filter((l) => l.type === 'deduction')
+    .reduce((s, l) => s + l.value, 0);
 
   return { lineItems, totalEarnings, totalDeductions };
 }

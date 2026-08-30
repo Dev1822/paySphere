@@ -17,13 +17,17 @@ class BaseIntegration {
   /** @param {object} config  Decrypted per-tenant credentials and settings. */
   constructor(config) {
     if (new.target === BaseIntegration) {
-      throw new TypeError('BaseIntegration is abstract — extend it, do not instantiate it directly.');
+      throw new TypeError(
+        'BaseIntegration is abstract — extend it, do not instantiate it directly.',
+      );
     }
     this.config = config;
   }
 
   /** @returns {string} Human-readable provider name for logs and UI. */
-  get name() { return this.constructor.name; }
+  get name() {
+    return this.constructor.name;
+  }
 
   /**
    * Fetch all active employees from the external HRMS.
@@ -39,7 +43,7 @@ class BaseIntegration {
    * @param {object} _payslip
    * @returns {Promise<void>}
    */
-  // eslint-disable-next-line no-unused-vars
+
   async pushPayslip(_payslip) {
     throw new Error(`${this.name}.pushPayslip() is not implemented.`);
   }
@@ -49,7 +53,7 @@ class BaseIntegration {
    * @param {string} _externalEmployeeId
    * @returns {Promise<void>}
    */
-  // eslint-disable-next-line no-unused-vars
+
   async onEmployeeTerminated(_externalEmployeeId) {
     throw new Error(`${this.name}.onEmployeeTerminated() is not implemented.`);
   }

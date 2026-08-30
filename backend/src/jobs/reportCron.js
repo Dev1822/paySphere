@@ -1,9 +1,9 @@
-const cron = require("node-cron");
-const ReportSchedule = require("../models/reportSchedule.model");
-const CronLock = require("../models/cronlock.model");
-const { sendEmail } = require("../utils/email");
-const { buildReport } = require("./reportBuilders");
-const logger = require("../utils/logger");
+const cron = require('node-cron');
+const ReportSchedule = require('../models/reportSchedule.model');
+const CronLock = require('../models/cronlock.model');
+const { sendEmail } = require('../utils/email');
+const { buildReport } = require('./reportBuilders');
+const logger = require('../utils/logger');
 
 /**
  * The scheduled-report runner (#667).
@@ -56,13 +56,13 @@ async function acquireLock(lockId) {
 
     return { acquired: true };
   } catch (error) {
-    if (error.code === 11000) return { acquired: false, reason: "held" };
+    if (error.code === 11000) return { acquired: false, reason: 'held' };
 
-    logger.error("Failed to acquire a report cron lock", {
+    logger.error('Failed to acquire a report cron lock', {
       lockId,
       error: error.message,
     });
-    return { acquired: false, reason: "error" };
+    return { acquired: false, reason: 'error' };
   }
 }
 
@@ -80,7 +80,7 @@ async function releaseLock(lockId) {
   try {
     await CronLock.deleteOne({ _id: lockId });
   } catch (error) {
-    logger.warn("Failed to release a report cron lock", {
+    logger.warn('Failed to release a report cron lock', {
       lockId,
       error: error.message,
     });
@@ -102,20 +102,20 @@ function startOfDay(date) {
 function periodKey(frequency, now) {
   const day = startOfDay(now);
 
-  if (frequency === "monthly") {
-    return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}`;
+  if (frequency === 'monthly') {
+    return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}`;
   }
 
-  if (frequency === "weekly") {
+  if (frequency === 'weekly') {
     // The Monday of this week. Anchoring to a weekday rather than counting
     // sevens means a run that slips a day does not shift every later period.
     const monday = new Date(day);
     const offset = (monday.getDay() + 6) % 7;
     monday.setDate(monday.getDate() - offset);
-    return `W${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+    return `W${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
   }
 
-  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
 }
 
 /**
@@ -164,18 +164,18 @@ async function runSchedule(schedule, now) {
   const report = await buildReport(schedule, now);
 
   const result = await sendEmail({
-    to: schedule.recipients.join(", "),
+    to: schedule.recipients.join(', '),
     subject: `PaySphere ${schedule.reportType} report — ${report.window.label}`,
     text: [
       `Your scheduled ${schedule.frequency} ${schedule.reportType} report is attached.`,
-      "",
+      '',
       `Period: ${report.window.start.toISOString().slice(0, 10)} to ${report.window.end
         .toISOString()
         .slice(0, 10)}`,
       `Rows: ${report.rows}`,
-      "",
-      "— PaySphere",
-    ].join("\n"),
+      '',
+      '— PaySphere',
+    ].join('\n'),
     attachments: [{ filename: report.filename, content: report.content }],
   });
 
@@ -184,7 +184,7 @@ async function runSchedule(schedule, now) {
   // Treating a resolved promise as a delivery is how the stamp got ahead of the
   // work in the first place.
   if (!result?.success) {
-    return { delivered: false, reason: result?.error || "delivery failed" };
+    return { delivered: false, reason: result?.error || 'delivery failed' };
   }
 
   schedule.lastRunAt = now;
@@ -205,11 +205,11 @@ async function runScheduledReports({ now = new Date() } = {}) {
   let delivered = 0;
   let failed = 0;
 
-  const lockId = `report_schedules_${periodKey("daily", now)}`;
+  const lockId = `report_schedules_${periodKey('daily', now)}`;
 
   const lock = await acquireLock(lockId);
   if (!lock.acquired) {
-    logger.info("Scheduled reports skipped: the lock is held elsewhere", {
+    logger.info('Scheduled reports skipped: the lock is held elsewhere', {
       lockId,
     });
     return { ran: false, reason: lock.reason, due, delivered, failed };
@@ -230,7 +230,7 @@ async function runScheduledReports({ now = new Date() } = {}) {
 
         if (result.delivered) {
           delivered += 1;
-          logger.info("Scheduled report delivered", {
+          logger.info('Scheduled report delivered', {
             scheduleId: String(schedule._id),
             reportType: schedule.reportType,
             frequency: schedule.frequency,
@@ -239,7 +239,7 @@ async function runScheduledReports({ now = new Date() } = {}) {
           });
         } else {
           failed += 1;
-          logger.error("Scheduled report was not delivered", {
+          logger.error('Scheduled report was not delivered', {
             scheduleId: String(schedule._id),
             reportType: schedule.reportType,
             reason: result.reason,
@@ -247,7 +247,7 @@ async function runScheduledReports({ now = new Date() } = {}) {
         }
       } catch (error) {
         failed += 1;
-        logger.error("Scheduled report failed", {
+        logger.error('Scheduled report failed', {
           scheduleId: String(schedule._id),
           reportType: schedule.reportType,
           error: error.message,
@@ -255,16 +255,18 @@ async function runScheduledReports({ now = new Date() } = {}) {
       }
     }
 
-    logger.info("Scheduled reports complete", { due, delivered, failed });
+    logger.info('Scheduled reports complete', { due, delivered, failed });
 
     return { ran: true, due, delivered, failed };
   } catch (error) {
-    logger.error("Scheduled reports job failed", { error: error.message });
-    return { ran: false, reason: "error", due, delivered, failed };
+    logger.error('Scheduled reports job failed', { error: error.message });
+    return { ran: false, reason: 'error', due, delivered, failed };
   } finally {
     await releaseLock(lockId);
   }
 }
+
+let reportCronTask = null;
 
 /**
  * Register the cron.
@@ -277,17 +279,22 @@ async function runScheduledReports({ now = new Date() } = {}) {
 function startReportCron() {
   // 00:30 daily. Half an hour after midnight so a daily schedule's window,
   // which ends at the close of yesterday, is unambiguously closed.
-  cron.schedule("30 0 * * *", () => {
+  reportCronTask = cron.schedule('30 0 * * *', () => {
     runScheduledReports().catch((error) =>
-      logger.error("Scheduled reports job threw", { error: error.message }),
+      logger.error('Scheduled reports job threw', { error: error.message }),
     );
   });
 
-  logger.info("Report schedule cron registered.");
+  logger.info('Report schedule cron registered.');
+}
+
+function stopReportCron() {
+  if (reportCronTask) reportCronTask.stop();
 }
 
 module.exports = {
   startReportCron,
+  stopReportCron,
   runScheduledReports,
   runSchedule,
   isDue,

@@ -1,5 +1,64 @@
 import React from 'react';
 import { CheckCircle2, ShieldCheck, Heart, Activity, Clock } from 'lucide-react';
+import BenefitsEnrollmentCard from './BenefitsEnrollmentCard';
+
+const ENROLLMENT_CARDS_DATA = [
+  {
+    employeeName: 'Elena Rostova',
+    department: 'Engineering',
+    planName: 'Platinum PPO Healthcare & Vision',
+    planType: 'health_insurance',
+    tier: 'family',
+    status: 'active',
+    monthlyPremium: 770,
+    employerContribution: 650,
+    employeeContribution: 120,
+    dependents: [
+      { name: 'Ivan Rostov', relationship: 'Spouse' },
+      { name: 'Anya Rostova', relationship: 'Child' },
+    ],
+    ytdEmployerSpend: 5850,
+  },
+  {
+    employeeName: 'Marcus Vance',
+    department: 'Product Management',
+    planName: '401(k) Retirement & Match',
+    planType: 'retirement_401k',
+    tier: 'individual',
+    status: 'active',
+    monthlyPremium: 900,
+    employerContribution: 450,
+    employeeContribution: 450,
+    dependents: [],
+    ytdEmployerSpend: 4050,
+  },
+  {
+    employeeName: 'David Chen',
+    department: 'Design',
+    planName: 'Global Dental Premier',
+    planType: 'dental',
+    tier: 'individual',
+    status: 'pending',
+    monthlyPremium: 105,
+    employerContribution: 85,
+    employeeContribution: 20,
+    dependents: [],
+    ytdEmployerSpend: 765,
+  },
+  {
+    employeeName: 'Sarah Jenkins',
+    department: 'Operations',
+    planName: 'Basic Life Insurance',
+    planType: 'life_insurance',
+    tier: 'individual',
+    status: 'waived',
+    monthlyPremium: 0,
+    employerContribution: 0,
+    employeeContribution: 0,
+    dependents: [],
+    ytdEmployerSpend: 0,
+  },
+];
 
 interface EnrollmentEvent {
   id: string;
@@ -86,6 +145,18 @@ export default function BenefitsEnrollmentTimeline() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Active & Pending Enrollment Cards Section */}
+      <div className="mt-12 border-t border-slate-800/80 pt-8">
+        <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-6">
+          <Activity className="w-5 h-5 text-cyan-400" /> Active & Pending Enrollment Records
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6" id="benefits-enrollment-grid">
+          {ENROLLMENT_CARDS_DATA.map((card, idx) => (
+            <BenefitsEnrollmentCard key={idx} {...card} />
+          ))}
+        </div>
       </div>
     </div>
   );

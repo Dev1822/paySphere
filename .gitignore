@@ -1,4 +1,11 @@
 node_modules/
 .turbo/
-
+dist/
+build/
+backend/dist/
+frontend/dist/
 uploads/
+.freebuff/
+
+# Local API benchmark reports
+benchmarks/results/

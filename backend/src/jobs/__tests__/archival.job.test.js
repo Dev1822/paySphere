@@ -74,18 +74,25 @@ describe('Database Archival and Purge Job (#1095)', () => {
     expect(result.success).toBe(true);
     expect(result.archivedCount).toBe(3); // 1 payroll + 1 audit + 1 attendance
     expect(result.uploadedToS3).toBe(false);
-    expect(result.purged).toEqual({ payrolls: 1, auditLogs: 1, attendances: 1 });
+    expect(result.purged).toEqual({
+      payrolls: 0,
+      auditLogs: 0,
+      attendances: 1,
+    });
 
+    expect(result.retained).toEqual({
+      payrolls: 1,
+      auditLogs: 1,
+    });
     // Local zip file should exist
     const archiveDir = path.join(__dirname, '../../../archives');
     const files = fs.readdirSync(archiveDir);
     expect(files.length).toBe(1);
 
     // Mongoose deletes should have been called
-    expect(PayrollUpdate.deleteMany).toHaveBeenCalled();
-    expect(AuditLog.deleteMany).toHaveBeenCalled();
-    expect(Attendance.deleteMany).toHaveBeenCalled();
-  });
+    expect(PayrollUpdate.deleteMany).not.toHaveBeenCalled();
+    expect(AuditLog.deleteMany).not.toHaveBeenCalled();
+    expect(Attendance.deleteMany).toHaveBeenCalled();  });
 
   test('should upload to S3 Glacier and delete local zip when S3 is configured', async () => {
     process.env.ARCHIVAL_S3_BUCKET = 'my-glacier-bucket';
