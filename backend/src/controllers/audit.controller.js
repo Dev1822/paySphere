@@ -1,7 +1,35 @@
 const auditLogRepository = require('../repositories/auditLog.repository');
-const { AUDIT_ACTIONS, AUDIT_RESOURCE_TYPES } = require('../models/auditLog.model');
+const {
+  AUDIT_ACTIONS,
+  AUDIT_RESOURCE_TYPES,
+} = require('../models/auditLog.model');
 const { tenantFilter } = require('../utils/tenantScope');
 const cacheService = require('../services/cache.service');
+const mongoose = require('mongoose');
+const crypto = require('crypto');
+
+function generateHash(payload, previousHash) {
+  const hash = crypto.createHash('sha256');
+  hash.update(JSON.stringify(payload));
+  if (previousHash) {
+    hash.update(previousHash);
+  }
+  return hash.digest('hex');
+}
+
+function extractPayload(doc) {
+  const obj = doc.toObject();
+  delete obj.cryptoSeals;
+  delete obj.updatedAt;
+  delete obj.__v;
+  const sortedObj = {};
+  Object.keys(obj)
+    .sort()
+    .forEach((key) => {
+      sortedObj[key] = obj[key];
+    });
+  return sortedObj;
+}
 
 /**
  * Reading the audit trail (#664).
@@ -115,19 +143,29 @@ function buildQuery(req) {
 
   if (req.query.resourceType) {
     if (!AUDIT_RESOURCE_TYPES.includes(req.query.resourceType)) {
-      return { ok: false, message: `Unknown resourceType: ${req.query.resourceType}` };
+      return {
+        ok: false,
+        message: `Unknown resourceType: ${req.query.resourceType}`,
+      };
     }
     query.resourceType = req.query.resourceType;
   }
 
   if (req.query.result) {
     if (!['success', 'failure', 'partial'].includes(req.query.result)) {
-      return { ok: false, message: `Invalid result filter: ${req.query.result}` };
+      return {
+        ok: false,
+        message: `Invalid result filter: ${req.query.result}`,
+      };
     }
     query.result = req.query.result;
   }
 
-  if (req.query.search && typeof req.query.search === 'string' && req.query.search.trim() !== '') {
+  if (
+    req.query.search &&
+    typeof req.query.search === 'string' &&
+    req.query.search.trim() !== ''
+  ) {
     const searchRegex = new RegExp(req.query.search.trim(), 'i');
     query.$or = [
       { action: searchRegex },
@@ -200,7 +238,10 @@ exports.exportAuditLogsCSV = async (req, res, next) => {
     const built = buildQuery(req);
     if (!built.ok) return res.error(built.message, null, 'bad_request', 400);
 
-    const logs = await auditLogRepository.findExportLogs(built.query, MAX_EXPORT_ROWS);
+    const logs = await auditLogRepository.findExportLogs(
+      built.query,
+      MAX_EXPORT_ROWS,
+    );
 
     const header = [
       'Timestamp',
@@ -271,3 +312,95 @@ exports.MAX_PAGE_SIZE = MAX_PAGE_SIZE;
 exports.DEFAULT_PAGE_SIZE = DEFAULT_PAGE_SIZE;
 exports.MAX_EXPORT_ROWS = MAX_EXPORT_ROWS;
 exports.parseDateRange = parseDateRange;
+
+exports.verifyCryptographicChain = async (req, res, next) => {
+  try {
+    const { modelName, id } = req.params;
+
+    // Validate model is supported for crypto sealing
+    const supportedModels = ['PayrollUpdate', 'EmployeeTaxDeclaration'];
+    if (!supportedModels.includes(modelName)) {
+      return res.error(
+        `Model ${modelName} not supported for verification`,
+        null,
+        'bad_request',
+        400,
+      );
+    }
+
+    const Model = mongoose.model(modelName);
+    const doc = await Model.findOne({ _id: id, tenantId: req.tenantId });
+
+    if (!doc) {
+      return res.error('Document not found', null, 'not_found', 404);
+    }
+
+    const seals = doc.cryptoSeals || [];
+    if (seals.length === 0) {
+      return res.success({
+        valid: false,
+        message: 'No cryptographic seals found on this document',
+        history: [],
+      });
+    }
+
+    const history = [];
+    let valid = true;
+    let brokenAt = null;
+    let expectedPreviousHash = 'GENESIS';
+
+    for (let i = 0; i < seals.length; i++) {
+      const seal = seals[i];
+      const payloadObj = JSON.parse(seal.payloadSnapshot);
+      const computedHash = generateHash(payloadObj, expectedPreviousHash);
+
+      const isBlockValid =
+        computedHash === seal.hash &&
+        seal.previousHash === expectedPreviousHash;
+
+      history.push({
+        index: i,
+        timestamp: seal.timestamp,
+        hash: seal.hash,
+        previousHash: seal.previousHash,
+        valid: isBlockValid,
+      });
+
+      if (!isBlockValid && valid) {
+        valid = false;
+        brokenAt = i;
+      }
+
+      expectedPreviousHash = seal.hash;
+    }
+
+    // Finally verify current document matches the last seal
+    // This catches direct database tampering after the last valid save
+    if (valid) {
+      const currentPayload = extractPayload(doc);
+      const lastSeal = seals[seals.length - 1];
+      const currentPayloadSnapshot = JSON.stringify(currentPayload);
+
+      if (currentPayloadSnapshot !== lastSeal.payloadSnapshot) {
+        valid = false;
+        brokenAt = seals.length; // Indicates failure after the last block
+        history.push({
+          index: seals.length,
+          timestamp: new Date(),
+          hash: 'TAMPERED_DB_STATE',
+          previousHash: expectedPreviousHash,
+          valid: false,
+          note: 'Current database document payload does not match the last cryptographic seal.',
+        });
+      }
+    }
+
+    return res.success({
+      valid,
+      brokenAt,
+      history,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

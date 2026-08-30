@@ -24,7 +24,9 @@ describe('SettingsPanel Component', () => {
 
     const securityTab = screen.getByText('Security & MFA');
     fireEvent.click(securityTab);
-    expect(screen.getByText('Enforce Multi-Factor Authentication (MFA)')).toBeDefined();
+    expect(
+      screen.getByText('Enforce Multi-Factor Authentication (MFA)'),
+    ).toBeDefined();
 
     const attendanceTab = screen.getByText('Attendance & TOIL');
     fireEvent.click(attendanceTab);
@@ -35,10 +37,12 @@ describe('SettingsPanel Component', () => {
     const onSave = vi.fn();
     render(<SettingsPanel onSave={onSave} />);
 
-    const nameInput = screen.getByDisplayValue('PaySphere Enterprise');
-    fireEvent.change(nameInput, { target: { name: 'companyName', value: 'Global Horizon Tech' } });
+    const nameInput = screen.getAllByDisplayValue('PaySphere Enterprise')[0];
+    fireEvent.change(nameInput, {
+      target: { name: 'companyName', value: 'Global Horizon Tech' },
+    });
 
-    const saveBtn = screen.getByText('Save Configuration');
+    const saveBtn = screen.getAllByText('Save Configuration')[0];
     fireEvent.click(saveBtn);
 
     expect(onSave).toHaveBeenCalledWith(

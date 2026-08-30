@@ -63,6 +63,25 @@ export const formatDateTime = (value, options) => {
 };
 
 /**
+ * Formats a time value (hours and minutes) using the user's locale.
+ *
+ * @param {string|number|Date} value
+ * @param {Intl.DateTimeFormatOptions} [options]
+ * @returns {string} Formatted time string, or '—' for invalid input.
+ */
+export const formatTime = (value, options) => {
+  if (value == null || value === '') return '—';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  const defaultOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+  };
+  return new Intl.DateTimeFormat(getLocale(), options ?? defaultOptions).format(date);
+};
+
+/**
  * Formats a currency amount using the user's locale.
  *
  * @param {number|string} amount
@@ -95,6 +114,7 @@ export const formatCurrency = (amount, currencyCode = 'INR', options) => {
  * @returns {string}
  */
 export const formatNumber = (value, options) => {
+  if (value == null || value === '') return '—';
   const num = Number(value);
   if (!Number.isFinite(num)) return '—';
   return new Intl.NumberFormat(getLocale(), options).format(num);

@@ -43,7 +43,22 @@ const describeError = (error, fallback) => {
   if (response.status === 403) {
     return "You do not have permission to approve payroll. Ask an account owner to grant you the 'Approve payroll' permission.";
   }
+  if (response.status === 409) {
+    if (
+      Array.isArray(response.data?.staleEmployeeVersions) &&
+      response.data.staleEmployeeVersions.length > 0
+    ) {
+      return (
+        response.data.message ||
+        'Employee data changed after the payroll was calculated. Review and recalculate the affected payroll before approving it.'
+      );
+    }
 
+    return (
+      response.data?.message ||
+      'This payroll was changed by another user. Reload the approvals list and review it before trying again.'
+    );
+  }
   const data = response.data || {};
   const parts = [];
 
@@ -162,8 +177,16 @@ const Approvals = () => {
 
     setBusy(true);
     try {
-      const res = await api.post('/api/payroll/approve', { payrollIds: ids });
-      const {
+      const versions = Object.fromEntries(
+        pending
+          .filter((payroll) => ids.includes(payroll._id))
+          .map((payroll) => [payroll._id, payroll.__v]),
+      );
+
+      const res = await api.post('/api/payroll/approve', {
+        payrollIds: ids,
+        versions,
+      });      const {
         approvedCount = 0,
         notFound = [],
         invalidTransition = [],

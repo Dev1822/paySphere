@@ -228,6 +228,7 @@
     "language": "Language",
     "english": "English",
     "spanish": "Español",
+    "french": "French",
     "lightMode": "Light Mode",
     "darkMode": "Dark Mode",
     "systemDefault": "System Default"
@@ -311,5 +312,23 @@
     "viewAll": "View All",
     "noEmployeesYet": "No employees added yet.",
     "impersonate": "Impersonate"
+  },
+  "portal": {
+    "title": "Employee Self-Service Portal",
+    "badge": "Employee Portal",
+    "profileSettings": "Profile Settings",
+    "welcomeBack": "Welcome back",
+    "baseMonthlySalary": "Base Monthly Salary",
+    "overtimeRate": "Overtime Rate",
+    "perHour": "hr",
+    "payslipHistory": "Payslip History",
+    "noPayslips": "No payslips finalized for you yet.",
+    "period": "Period",
+    "baseSalary": "Base Salary",
+    "overtimePay": "Overtime Pay",
+    "leaveDeductions": "Leave Deductions",
+    "netPayout": "Net Payout",
+    "status": "Status",
+    "employee": "Employee"
   }
 }

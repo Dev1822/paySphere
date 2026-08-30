@@ -142,7 +142,8 @@ const CommandPalette = () => {
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [search, setSearch] = useState('');
 
-  const token = useAppStore((state) => state.token) || localStorage.getItem('token');
+  const token =
+    useAppStore((state) => state.token) || localStorage.getItem('token');
 
   // Open on Cmd/Ctrl+K and index employees fresh each time
   useEffect(() => {
@@ -285,7 +286,7 @@ const CommandPalette = () => {
             <Command.Input
               value={search}
               onValueChange={setSearch}
-              // eslint-disable-next-line jsx-a11y/no-autofocus
+
               autoFocus
               placeholder="Type a command or search employees…"
               aria-label="Search commands and employees"
@@ -353,12 +354,8 @@ const CommandPalette = () => {
               {employees.map((emp) => {
                 const matches =
                   !search.trim() ||
-                  emp.fullName
-                    .toLowerCase()
-                    .includes(search.toLowerCase()) ||
-                  (emp.role || '')
-                    .toLowerCase()
-                    .includes(search.toLowerCase());
+                  emp.fullName.toLowerCase().includes(search.toLowerCase()) ||
+                  (emp.role || '').toLowerCase().includes(search.toLowerCase());
                 if (!matches) return null;
 
                 return (

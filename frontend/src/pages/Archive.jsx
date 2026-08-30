@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import EmptyState from '../components/common/EmptyState';
 import { formatCurrency } from '../utils/currency';
+import { formatDate } from '../utils/formatLocale';
 import DashboardSkeleton from '../components/common/skeleton/DashboardSkeleton';
 import Sidebar from '../components/Sidebar';
 import { useAppStore } from '../store/useAppStore';
@@ -193,7 +194,7 @@ export default function Archive() {
                       Deleted On:
                     </span>
                     <span className="text-red-500 font-medium">
-                      {new Date(emp.deletedAt).toLocaleDateString()}
+                      {formatDate(emp.deletedAt)}
                     </span>
                   </div>
                 )}

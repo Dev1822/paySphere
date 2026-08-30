@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar';
 import ThemeToggle from '../components/ThemeToggle';
 import api from '../services/api';
 import { useAppStore } from '../store/useAppStore';
+import { formatDate, formatCurrency } from '../utils/formatLocale';
 
 const CATEGORIES = ['Travel', 'Meals', 'Lodging', 'Office Supplies', 'Software', 'Client Entertainment', 'Other'];
 
@@ -121,7 +122,7 @@ export default function CustomExpenseReports() {
       c._id,
       c.category,
       c.amount,
-      c.expenseDate ? new Date(c.expenseDate).toLocaleDateString() : '',
+      c.expenseDate ? formatDate(c.expenseDate) : '',
       `"${(c.description || '').replace(/"/g, '""')}"`,
       c.status,
     ]);
@@ -231,12 +232,12 @@ export default function CustomExpenseReports() {
                       <div>
                         <h3 className="font-bold text-lg text-gray-900 dark:text-white">{report.title}</h3>
                         <p className="text-xs text-gray-500 dark:text-slate-400">
-                          Submitted on {new Date(report.createdAt).toLocaleDateString()}
+                          Submitted on {formatDate(report.createdAt)}
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="font-bold text-base text-gray-900 dark:text-white">
-                          ₹{report.totalAmount?.toLocaleString()}
+                          {formatCurrency(report.totalAmount || 0)}
                         </span>
                         <span className={`px-3 py-1 text-xs font-bold rounded-full uppercase ${getStatusBadge(report.status)}`}>
                           {report.status}
@@ -253,7 +254,7 @@ export default function CustomExpenseReports() {
                       <span>Timeline: Submitted ➔ Approval ➔ Reimbursement</span>
                       {report.reimbursedAt && (
                         <span className="text-green-600 font-semibold">
-                          Reimbursed on {new Date(report.reimbursedAt).toLocaleDateString()}
+                          Reimbursed on {formatDate(report.reimbursedAt)}
                         </span>
                       )}
                       {report.rejectionReason && (

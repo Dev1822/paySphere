@@ -39,8 +39,14 @@ jest.mock('../../utils/lockManager', () => ({
   releaseLock: mockReleaseLock,
 }));
 
-const payrollWorker = require('../payroll.worker');
+const mockPayrollRun = {
+  findOne: jest.fn().mockResolvedValue(null),
+  create: jest.fn().mockResolvedValue({ _id: 'run123', status: 'processing' }),
+  updateOne: jest.fn().mockResolvedValue({}),
+};
+jest.mock('../../models/payrollRun.model', () => mockPayrollRun);
 
+const payrollWorker = require('../payroll.worker');
 describe('Payroll Worker Lock Handling', () => {
   let mockJob;
 

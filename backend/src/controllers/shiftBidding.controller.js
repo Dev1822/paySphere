@@ -15,6 +15,7 @@ const {
 } = require('../utils/shiftConflict.utils');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
+const redisClient = require('../config/redis');
 
 /**
  * POST /api/shifts/marketplace/open
@@ -53,22 +54,50 @@ exports.postOpenShift = async (req, res, next) => {
     });
 
     res.status(201).json({ message: 'Shift posted to marketplace', openShift });
-  } catch (error) { next(error); }
+  } catch (error) {
+    next(error);
+  }
 };
 
 /**
  * POST /api/shifts/marketplace/:id/bid
- * Employee places a bid on an open shift.
+ * Employee instantly claims an open dynamically priced shift.
+ * Uses Redis locks to prevent race conditions.
  */
 exports.placeBid = async (req, res, next) => {
+  const lockKey = `shift_lock:${req.params.id}`;
+  let lockAcquired = false;
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const openShift = await OpenShift.findById(req.params.id);
-    if (!openShift || openShift.status !== 'Open') {
-      return res.status(400).json({ message: 'Shift is no longer open for bidding.' });
+    // Attempt to acquire Redis lock
+    if (redisClient.status === 'ready') {
+      const lock = await redisClient.setnx(lockKey, req.userId);
+      if (lock === 1) {
+        lockAcquired = true;
+        // Expire lock after 10 seconds to prevent deadlocks
+        await redisClient.expire(lockKey, 10);
+      } else {
+        await session.abortTransaction();
+        return res.status(409).json({ message: 'Already Claimed' });
+      }
     }
 
-    const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
-    if (!employee) return res.status(404).json({ message: 'Employee profile not found.' });
+    const openShift = await OpenShift.findById(req.params.id).session(session);
+    if (!openShift || openShift.status !== 'Open') {
+      await session.abortTransaction();
+      return res.status(409).json({ message: 'Already Claimed' });
+    }
+
+    const employee = await Employee.findOne({
+      userId: req.userId,
+      tenantId: req.tenantId,
+    }).session(session);
+    if (!employee) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: 'Employee profile not found.' });
+    }
 
     const conflictCheck = await checkShiftConflicts(
       req.tenantId,
@@ -79,6 +108,7 @@ exports.placeBid = async (req, res, next) => {
     );
 
     if (conflictCheck.hasConflict) {
+      await session.abortTransaction();
       return res.status(400).json({
         message: 'Cannot bid: Labor rest or schedule conflict detected.',
         conflicts: conflictCheck.reasons,
@@ -87,18 +117,67 @@ exports.placeBid = async (req, res, next) => {
 
     const priorityScore = calculatePriorityScore(employee, openShift);
 
-    const bid = await ShiftBid.create({
-      tenantId: req.tenantId,
-      openShiftId: openShift._id,
-      employeeId: employee._id,
-      priorityScore,
-      bidMessage: req.body.message || '',
+    // Instant award for dynamically priced shifts
+    const bid = await ShiftBid.create(
+      [
+        {
+          tenantId: req.tenantId,
+          openShiftId: openShift._id,
+          employeeId: employee._id,
+          status: 'Accepted',
+          priorityScore,
+          bidMessage: req.body.message || '',
+        },
+      ],
+      { session },
+    );
+
+    await ShiftRoster.create(
+      [
+        {
+          tenantId: req.tenantId,
+          employeeId: employee._id,
+          shiftTemplateId: openShift.shiftTemplateId,
+          date: openShift.date,
+          status: 'Scheduled',
+        },
+      ],
+      { session },
+    );
+
+    openShift.status = 'Assigned';
+    openShift.assignedTo = employee._id;
+    await openShift.save({ session });
+
+    await session.commitTransaction();
+
+    eventBus.emit('AUDIT_LOG', {
+      userId: req.userId,
+      action: 'SHIFT_MARKETPLACE_CLAIMED',
+      resourceType: 'OpenShift',
+      resourceIds: [openShift._id],
+      details: {
+        assignedTo: employee._id,
+        premiumMultiplier: openShift.premiumMultiplier,
+      },
+      req,
     });
 
-    res.status(201).json({ message: 'Bid placed successfully', bid });
+    res
+      .status(201)
+      .json({ message: 'Shift claimed successfully!', bid: bid[0] });
   } catch (error) {
-    if (error.code === 11000) return res.status(409).json({ message: 'You have already bid on this shift.' });
+    await session.abortTransaction();
+    if (error.code === 11000)
+      return res
+        .status(409)
+        .json({ message: 'You have already claimed this shift.' });
     next(error);
+  } finally {
+    session.endSession();
+    if (lockAcquired) {
+      await redisClient.del(lockKey);
+    }
   }
 };
 
@@ -117,7 +196,9 @@ exports.getMarketplace = async (req, res, next) => {
       .sort({ date: 1, startTime: 1 });
 
     res.status(200).json({ shifts });
-  } catch (error) { next(error); }
+  } catch (error) {
+    next(error);
+  }
 };
 
 /**
@@ -128,7 +209,9 @@ exports.checkShiftCompliance = async (req, res, next) => {
   try {
     const { employeeId, date, startTime, endTime } = req.query;
     if (!employeeId || !date || !startTime || !endTime) {
-      return res.status(400).json({ message: 'employeeId, date, startTime, and endTime are required' });
+      return res.status(400).json({
+        message: 'employeeId, date, startTime, and endTime are required',
+      });
     }
 
     const conflictCheck = await checkShiftConflicts(
@@ -144,7 +227,9 @@ exports.checkShiftCompliance = async (req, res, next) => {
       isCompliant: !conflictCheck.hasConflict,
       violations: conflictCheck.reasons,
     });
-  } catch (error) { next(error); }
+  } catch (error) {
+    next(error);
+  }
 };
 
 /**
@@ -199,7 +284,11 @@ exports.assignShift = async (req, res, next) => {
     await winningBid.save({ session });
 
     await ShiftBid.updateMany(
-      { openShiftId: openShift._id, _id: { $ne: winningBid._id }, status: 'Pending' },
+      {
+        openShiftId: openShift._id,
+        _id: { $ne: winningBid._id },
+        status: 'Pending',
+      },
       { $set: { status: 'Rejected' } },
       { session },
     );
