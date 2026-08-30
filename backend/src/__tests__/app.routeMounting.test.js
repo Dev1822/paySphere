@@ -108,6 +108,7 @@ const MOUNTED_ROUTES = [
   ['/api/young-persons', 'get', '/api/young-persons/rules'],
 
   ['/api/labour-welfare-fund', 'get', '/api/labour-welfare-fund/rules'],
+  ['/api/standing-orders', 'get', '/api/standing-orders/rules'],
   ['/api/notifications', 'get', '/api/notifications'],
   [
     '/api/monthly-updates',
@@ -222,6 +223,7 @@ const ROUTER_MOUNTS = {
   clientInvoice: '/api/clients',
   compliance: '/api/compliance',
   aggregatorContribution: '/api/aggregator-contribution',
+  standingOrders: '/api/standing-orders',
   epfRemittance: '/api/epf-remittance',
 
   contract: '/api/contracts',
