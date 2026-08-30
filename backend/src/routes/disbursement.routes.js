@@ -1,3 +1,56 @@
+const express = require('express');
+const auth = require('../middlewares/auth.middleware');
+const { requirePermission } = require('../middlewares/rbac.middleware');
+const { writeRateLimiter } = require('../middlewares/rateLimiter.middleware');
+const { PERMISSIONS } = require('../config/permissions');
+const {
+  configureOriginator,
+  mapEmployeeBank,
+  generateNachaFile,
+  getDashboard,
+  downloadFile,
+  createBatch,
+  getBatches,
+  getBatch,
+  validateBatchLines,
+  getBatchFile,
+  releaseBatch,
+  recordReturns,
+  getBankProfiles,
+} = require('../controllers/disbursement.controller');
+
+const router = express.Router();
+
+router.post(
+  '/originator',
+  auth,
+  requirePermission('WRITE_PAYROLL'),
+  writeRateLimiter,
+  configureOriginator,
+);
+router.post(
+  '/map-bank',
+  auth,
+  requirePermission('WRITE_EMPLOYEE'),
+  writeRateLimiter,
+  mapEmployeeBank,
+);
+router.post(
+  '/generate',
+  auth,
+  requirePermission('WRITE_PAYROLL'),
+  writeRateLimiter,
+  generateNachaFile,
+);
+
+router.get('/dashboard', auth, requirePermission('READ_PAYROLL'), getDashboard);
+router.get(
+  '/download/:fileId',
+  auth,
+  requirePermission('READ_PAYROLL'),
+  downloadFile,
+);
+
 /**
  * Salary disbursement routes — mounted at /api/disbursements (#1075).
  *
@@ -18,25 +71,6 @@
  * carries full bank account numbers, so it is not a read in the sense the read
  * permission means.
  */
-
-const express = require('express');
-
-const auth = require('../middlewares/auth.middleware');
-const { requirePermission } = require('../middlewares/rbac.middleware');
-const { writeRateLimiter } = require('../middlewares/rateLimiter.middleware');
-const { PERMISSIONS } = require('../config/permissions');
-const {
-  createBatch,
-  getBatches,
-  getBatch,
-  validateBatchLines,
-  getBatchFile,
-  releaseBatch,
-  recordReturns,
-  getBankProfiles,
-} = require('../controllers/disbursement.controller');
-
-const router = express.Router();
 
 // Declared above `/batches/:id` so the literal segment is matched first — the
 // other way round, `getBatch` would receive `id: 'profiles'`.

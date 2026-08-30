@@ -97,6 +97,12 @@ describe('PYQ Controller Tests', () => {
       );
       expect(res.status).toHaveBeenCalledWith(201);
     });
+
+    test('returns 400 when required fields are missing', async () => {
+      const res = buildRes();
+      await createPYQ(buildReq({ subject: 'Maths' }), res, jest.fn());
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
   });
 
   describe('bulkUploadPYQs', () => {
@@ -125,6 +131,27 @@ describe('PYQ Controller Tests', () => {
         ])
       );
       expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    test('returns 400 for empty payload', async () => {
+      const res = buildRes();
+      await bulkUploadPYQs(buildReq({ pyqs: [] }), res, jest.fn());
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+  });
+
+  describe('getPYQs', () => {
+    test('retrieves pyqs with query filters', async () => {
+      const res = buildRes();
+      const list = [{ subject: 'Maths', year: 2024 }];
+      const sortChain = jest.fn().mockResolvedValue(list);
+      PYQ.find.mockReturnValue({ sort: sortChain });
+
+      await getPYQs(buildReq({}, { subject: 'Maths', year: '2024', exam: 'JEE' }), res, jest.fn());
+
+      expect(PYQ.find).toHaveBeenCalled();
+      expect(sortChain).toHaveBeenCalledWith({ year: -1, chapter: 1 });
+      expect(res.status).toHaveBeenCalledWith(200);
     });
   });
 
@@ -171,6 +198,44 @@ describe('PYQ Controller Tests', () => {
         { new: true, upsert: true }
       );
       expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    test('returns 400 when subject, exam, or forecastYear missing', async () => {
+      const res = buildRes();
+      await generateTrendForecast(buildReq({ subject: 'Maths' }), res, jest.fn());
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+  });
+
+  describe('getLatestTrendForecast', () => {
+    test('returns latest forecast for subject and exam', async () => {
+      const res = buildRes();
+      const mockRecord = { subject: 'Physics', exam: 'JEE', forecastYear: 2026 };
+      PYQTrend.findOne.mockReturnValue({
+        sort: jest.fn().mockResolvedValue(mockRecord),
+      });
+
+      await getLatestTrendForecast(buildReq({}, { subject: 'Physics', exam: 'JEE' }), res, jest.fn());
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(mockRecord);
+    });
+
+    test('returns 404 when no forecast exists', async () => {
+      const res = buildRes();
+      PYQTrend.findOne.mockReturnValue({
+        sort: jest.fn().mockResolvedValue(null),
+      });
+
+      await getLatestTrendForecast(buildReq({}, { subject: 'Physics', exam: 'JEE' }), res, jest.fn());
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    test('returns 400 when query params missing', async () => {
+      const res = buildRes();
+      await getLatestTrendForecast(buildReq({}, {}), res, jest.fn());
+      expect(res.status).toHaveBeenCalledWith(400);
     });
   });
 });

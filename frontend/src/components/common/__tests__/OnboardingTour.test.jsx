@@ -7,14 +7,15 @@ import OnboardingTour from '../OnboardingTour';
 
 const renderOnboardingTour = (root, preloadedState = {}) => {
   useAppStore.setState({
-    token: preloadedState.token || 'mock-token',
+    token:
+      preloadedState.token !== undefined ? preloadedState.token : 'mock-token',
   });
 
   act(() => {
     root.render(
       <MemoryRouter>
         <OnboardingTour />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
   });
 };
@@ -40,7 +41,7 @@ describe('OnboardingTour', () => {
 
   it('does not render when user is not authenticated', () => {
     renderOnboardingTour(root, { token: null });
-    expect(document.querySelector('div')).toBeNull();
+    expect(document.querySelector('.fixed.inset-0')).toBeNull();
   });
 
   it('renders and auto-starts for first-time login when paysphere_tour_completed is absent', () => {
@@ -55,7 +56,7 @@ describe('OnboardingTour', () => {
     renderOnboardingTour(root, { token: 'mock-token' });
 
     const skipButton = Array.from(document.querySelectorAll('button')).find(
-      (btn) => btn.textContent === 'Skip Tour'
+      (btn) => btn.textContent === 'Skip Tour',
     );
     expect(skipButton).not.toBeNull();
 
@@ -69,8 +70,8 @@ describe('OnboardingTour', () => {
   it('progresses to the next step when Next Step is clicked', () => {
     renderOnboardingTour(root, { token: 'mock-token' });
 
-    const nextButton = Array.from(document.querySelectorAll('button')).find((btn) =>
-      btn.textContent.includes('Next Step')
+    const nextButton = Array.from(document.querySelectorAll('button')).find(
+      (btn) => btn.textContent.includes('Next Step'),
     );
 
     act(() => {

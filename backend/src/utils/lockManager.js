@@ -1,89 +1,88 @@
-const { redisClient } = require('../services/cache.service');
+const cacheService = require('../services/cache.service');
 const CronLock = require('../models/cronlock.model');
 const logger = require('./logger');
 
 /**
- * Attempts to acquire a distributed lock.
- * Uses Redis first if active, otherwise falls back to MongoDB CronLock collections.
+ * Acquire a lock for a key.
+ * Uses Redis cacheService if available, otherwise falls back to MongoDB.
  * 
- * @param {string} lockKey - Unique identifier for the lock
+ * @param {string} key - Lock key, e.g., 'payroll_lock:tenantId:year:month'
  * @param {number} ttlMs - Time-to-live in milliseconds
- * @returns {Promise<boolean>} True if lock acquired, false if already locked
+ * @returns {Promise<boolean>} - Returns true if lock was acquired, false otherwise.
  */
-async function acquireLock(lockKey, ttlMs = 300000) { // Default 5 minutes TTL
-  try {
-    // 1. Attempt using Redis NX (set if not exists)
-    if (redisClient && redisClient.isOpen) {
-      const result = await redisClient.set(lockKey, '1', {
+async function acquireLock(key, ttlMs = 300000) {
+  const client = cacheService.redisClient;
+  const isRedisReady = client && client.isOpen;
+
+  if (isRedisReady) {
+    try {
+      const result = await client.set(key, '1', {
         NX: true,
         PX: ttlMs,
       });
-      if (result === 'OK') {
-        logger.info(`Lock acquired in Redis: ${lockKey}`);
-        return true;
-      }
-      logger.warn(`Redis lock already held: ${lockKey}`);
-      return false;
+      return result === 'OK';
+    } catch (err) {
+      logger.error('Redis lock acquisition failed, falling back to DB', { error: err.message });
     }
-  } catch (error) {
-    logger.warn('Failed to acquire lock via Redis. Falling back to MongoDB.', { error: error.message });
   }
 
-  // 2. Fallback to MongoDB unique _id constraint lock
+  // Fallback: MongoDB-based lock
   try {
-    const expiresAt = new Date(Date.now() + ttlMs);
-    await CronLock.create({
-      _id: lockKey,
-      lockedAt: new Date(),
-      expiresAt,
-    });
-    logger.info(`Lock acquired in MongoDB: ${lockKey}`);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + ttlMs);
+    
+    // Atomic compare-and-swap: update if expired, or insert if not exists
+    await CronLock.findOneAndUpdate(
+      {
+        _id: key,
+        $or: [
+          { expiresAt: { $exists: false } },
+          { expiresAt: { $lt: now } }
+        ]
+      },
+      {
+        $setOnInsert: { _id: key },
+        $set: { lockedAt: now, expiresAt }
+      },
+      { upsert: true, new: true }
+    );
     return true;
-  } catch (error) {
-    if (error.code === 11000) {
-      // Duplicate key error: lock already exists and is active
-      // Check if it has expired (Mongoose expireAfterSeconds: 0 cleanup is eventual)
-      const existing = await CronLock.findById(lockKey);
-      if (existing && existing.expiresAt < new Date()) {
-        // Safe to override expired lock
-        await CronLock.findByIdAndUpdate(lockKey, {
-          lockedAt: new Date(),
-          expiresAt: new Date(Date.now() + ttlMs),
-        });
-        logger.info(`Override expired MongoDB lock: ${lockKey}`);
-        return true;
-      }
-      logger.warn(`MongoDB lock already held: ${lockKey}`);
+  } catch (err) {
+    if (err.code === 11000) {
+      // Lock exists and is not expired
       return false;
     }
-    logger.error('Failed to acquire lock via MongoDB:', error.message);
-    return false;
+    logger.error('DB lock acquisition failed', { error: err.message });
+    throw err;
   }
 }
 
 /**
- * Releases a previously acquired distributed lock.
+ * Release a lock for a key.
  * 
- * @param {string} lockKey - Unique identifier for the lock
- * @returns {Promise<void>}
+ * @param {string} key - Lock key
+ * @returns {Promise<boolean>}
  */
-async function releaseLock(lockKey) {
-  try {
-    // Release in Redis
-    if (redisClient && redisClient.isOpen) {
-      await redisClient.del(lockKey);
-      logger.info(`Lock released in Redis: ${lockKey}`);
+async function releaseLock(key) {
+  const client = cacheService.redisClient;
+  const isRedisReady = client && client.isOpen;
+
+  if (isRedisReady) {
+    try {
+      await client.del(key);
+      return true;
+    } catch (err) {
+      logger.error('Redis lock release failed, falling back to DB release', { error: err.message });
     }
-  } catch (error) {
-    logger.warn('Failed to release lock in Redis:', error.message);
   }
 
+  // Fallback: MongoDB release
   try {
-    // Release in MongoDB
-    await CronLock.deleteOne({ _id: lockKey });
-    logger.info(`Lock released in MongoDB: ${lockKey}`);
-  } catch (error) {
-    logger.error('Failed to release lock in MongoDB:', error.message);
+    const res = await CronLock.deleteOne({ _id: key });
+    return res.deletedCount > 0;
+  } catch (err) {
+    logger.error('DB lock release failed', { error: err.message });
+    return false;
   }
 }
 

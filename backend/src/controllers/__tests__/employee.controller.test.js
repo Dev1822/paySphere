@@ -346,6 +346,7 @@ describe("Employee Controller - updateEmployee", () => {
   beforeEach(() => {
     employeeDoc = {
       _id: "emp1",
+      __v: 2,
       createdBy: { toString: () => "user123" },
       tenantId: { toString: () => TENANT },
       fullName: "Old Name",
@@ -353,7 +354,6 @@ describe("Employee Controller - updateEmployee", () => {
       overtimeRate: 100,
       save: jest.fn().mockResolvedValue(true),
     };
-
     req = {
       params: { id: "507f1f77bcf86cd799439011" },
       userId: "user123",
@@ -388,8 +388,10 @@ describe("Employee Controller - updateEmployee", () => {
   });
 
   test("should accept a valid finite monthlySalary", async () => {
-    req.body = { monthlySalary: 35000 };
-
+    req.body = {
+      monthlySalary: 35000,
+      version: 2,
+    };
     await updateEmployee(req, res, next);
 
     expect(employeeDoc.monthlySalary).toBe(35000);
@@ -397,7 +399,28 @@ describe("Employee Controller - updateEmployee", () => {
     expect(res.status).toHaveBeenCalledWith(200);
   });
 });
+  test("should reject a stale employee version with 409", async () => {
+    req.body = {
+      monthlySalary: 35000,
+      version: 1,
+    };
 
+    await updateEmployee(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(employeeDoc.save).not.toHaveBeenCalled();
+  });
+
+  test("should reject an update when the version is missing", async () => {
+    req.body = {
+      monthlySalary: 35000,
+    };
+
+    await updateEmployee(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(employeeDoc.save).not.toHaveBeenCalled();
+  });
 describe("Employee Controller - updateEmployee name propagation to PayrollUpdate (#253)", () => {
   let req, res, next, employeeDoc;
 

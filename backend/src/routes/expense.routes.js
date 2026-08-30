@@ -33,6 +33,7 @@ const {
   exportExpenseReport,
   updateReportStatus,
   getFraudClaims,
+  adjudicateClaimStatus,
 } = require('../controllers/expense.controller');
 
 const router = express.Router();
@@ -43,12 +44,7 @@ const router = express.Router();
 // `/:id/status`. Policy read uses READ_EMPLOYEE since all employees need to
 // see limits; policy write uses WRITE_PAYROLL since it controls reimbursement.
 
-router.get(
-  '/policy',
-  auth,
-  requirePermission('READ_EMPLOYEE'),
-  getPolicy,
-);
+router.get('/policy', auth, requirePermission('READ_EMPLOYEE'), getPolicy);
 
 router.post(
   '/policy',
@@ -65,18 +61,9 @@ router.post(
 // because employees submit their own claims through this endpoint; ownership
 // is enforced inside the controller via req.userId.
 
-router.post(
-  '/claims',
-  auth,
-  writeRateLimiter,
-  submitClaim,
-);
+router.post('/claims', auth, writeRateLimiter, submitClaim);
 
-router.get(
-  '/claims/my',
-  auth,
-  getMyClaims,
-);
+router.get('/claims/my', auth, getMyClaims);
 
 router.get(
   '/claims/fraud',
@@ -85,26 +72,21 @@ router.get(
   getFraudClaims,
 );
 
+router.put(
+  '/claims/:id/adjudicate',
+  auth,
+  requirePermission(PERMISSIONS.APPROVE_EXPENSE),
+  writeRateLimiter,
+  adjudicateClaimStatus,
+);
+
 // --- Custom Expense Reports (#1285) ----------------------------------------
 
-router.post(
-  '/reports/custom',
-  auth,
-  writeRateLimiter,
-  createCustomReport,
-);
+router.post('/reports/custom', auth, writeRateLimiter, createCustomReport);
 
-router.get(
-  '/reports/my',
-  auth,
-  getMyReports,
-);
+router.get('/reports/my', auth, getMyReports);
 
-router.get(
-  '/reports/export',
-  auth,
-  exportExpenseReport,
-);
+router.get('/reports/export', auth, exportExpenseReport);
 
 router.patch(
   '/reports/:id/status',

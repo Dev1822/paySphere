@@ -212,8 +212,9 @@ describe('route-level code splitting', () => {
 
   it('does not accidentally eager-import page modules in the registry', () => {
     const eagerPageImports = registrySource
-      .split('\n')
-      .filter((line) => /^import .* from ['"]\.\.\/pages\//.test(line.trim()));
+      .split(/\r?\n/)
+      .filter((line) => /^import .* from ['"]\.\.\/pages\//.test(line.trim()))
+      .map((line) => line.trim());
 
     expect(eagerPageImports).toEqual([
       "import Landing from '../pages/Landing';",

@@ -47,14 +47,15 @@ vi.mock('../../../services/api', () => ({
 
 const renderNotificationCenter = (root, preloadedState = {}) => {
   useAppStore.setState({
-    token: preloadedState.token || 'mock-token',
+    token:
+      preloadedState.token !== undefined ? preloadedState.token : 'mock-token',
   });
 
   act(() => {
     root.render(
       <MemoryRouter>
         <NotificationCenter />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
   });
 };
@@ -79,13 +80,17 @@ describe('NotificationCenter Component', () => {
 
   it('does not render when unauthenticated', () => {
     renderNotificationCenter(root, { token: null });
-    expect(document.querySelector('button[aria-label="Notifications"]')).toBeNull();
+    expect(
+      document.querySelector('button[aria-label="Notifications"]'),
+    ).toBeNull();
   });
 
   it('renders bell button with unread count badge when authenticated', async () => {
     renderNotificationCenter(root, { token: 'valid-token' });
 
-    const bellBtn = document.querySelector('button[aria-label="Notifications"]');
+    const bellBtn = document.querySelector(
+      'button[aria-label="Notifications"]',
+    );
     expect(bellBtn).not.toBeNull();
 
     // Trigger open
@@ -100,7 +105,9 @@ describe('NotificationCenter Component', () => {
   it('opens dropdown menu and displays notification items', async () => {
     renderNotificationCenter(root, { token: 'valid-token' });
 
-    const bellBtn = document.querySelector('button[aria-label="Notifications"]');
+    const bellBtn = document.querySelector(
+      'button[aria-label="Notifications"]',
+    );
 
     await act(async () => {
       bellBtn.click();

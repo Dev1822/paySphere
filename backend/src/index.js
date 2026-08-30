@@ -26,6 +26,7 @@ const {
 const { initializeWebhookService } = require('./services/webhook.service');
 const { startWebhookWorker } = require('./workers/webhook.worker');
 const { startEmailWorker } = require('./workers/email.worker');
+const { startOutboxWorker } = require('./workers/outbox.worker');
 const { isRedisAvailable } = require('./config/redis');
 const { attachGraphQL } = require('./graphql');
 const logger = require('./utils/logger');
@@ -133,6 +134,17 @@ const startServer = async () => {
   if (process.env.REDIS_URL) {
     startWebhookWorker();
     startEmailWorker();
+    startOutboxWorker();
+
+    const {
+      startBulkOperationWorker,
+    } = require('./workers/bulkOperation.worker');
+    startBulkOperationWorker();
+
+    const {
+      startEpfRemittanceWorker,
+    } = require('./workers/epfRemittance.worker');
+    startEpfRemittanceWorker();
   } else if (!isRedisAvailable()) {
     logger.warn(
       'Webhook worker not started: REDIS_URL is not set. Webhook deliveries require Redis.',
@@ -140,8 +152,10 @@ const startServer = async () => {
     logger.warn(
       'Email worker not started: REDIS_URL is not set. Emails will not be sent until Redis is available.',
     );
-  } // Mount /graphql, if the packages for it are installed.
-  //
+    logger.warn(
+      'Outbox worker not started: REDIS_URL is not set. Payroll events will queue in MongoDB until Redis is available.',
+    );
+  } // Mount /graphql, if the packages for it are installed.  //
   // This used to live in app.js as a top-level `await`, which is a syntax error
   // in CommonJS and left the whole file unparseable (#792). `ApolloServer.start()`
   // really is asynchronous, so it belongs here in the startup sequence rather
@@ -153,6 +167,16 @@ const startServer = async () => {
     logger.info(`Server running on port ${PORT}`),
   );
   require('./sockets/payroll.socket').init(server);
+  require('./sockets/shiftMarketplace.socket').init(server);
+
+  // Start the surge pricing service for shift marketplace
+  const surgePricingService = require('./services/SurgePricingService').default;
+  if (surgePricingService) {
+    surgePricingService.start();
+  }
+
+  const { initShutdownHandler } = require('./shutdown');
+  initShutdownHandler(server);
 };
 
 startServer().catch((error) => {

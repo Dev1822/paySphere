@@ -99,7 +99,7 @@ const sendErrorProd = (err, res) => {
  * Global Error Handling Middleware
  * Must have exactly 4 parameters for Express to recognize it as an error handler
  */
-// eslint-disable-next-line no-unused-vars
+
 const globalErrorHandler = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';

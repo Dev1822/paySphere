@@ -491,7 +491,7 @@ export default function MonthlyUpdates() {
           <main className="desktop-p" style={{ flex:1, padding:"30px 20px 100px", display:"flex", flexDirection:"column", alignItems:"center" }}>
 
           {/* Title */}
-          <div style={{ textAlign:"center", marginBottom:30, width:"100%", maxWidth:760 }}>
+          <div data-tour="generate-payroll-section" style={{ textAlign:"center", marginBottom:30, width:"100%", maxWidth:760 }}>
             <h1 style={{
               fontFamily:"'DM Serif Display',serif",
               fontSize:32, fontWeight:400, color: isDark ? "white" : "#111827",

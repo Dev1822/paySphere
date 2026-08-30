@@ -23,7 +23,7 @@ const webhookEndpointSchema = new mongoose.Schema(
       trim: true,
       match: /^https?:\/\/.+/i, // Must be a valid HTTP/HTTPS URL
     },
-    secret: {
+    signingSecret: {
       type: String,
       required: true,
       minlength: 16, // Minimum 16 chars for HMAC security

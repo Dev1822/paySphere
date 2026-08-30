@@ -19,6 +19,12 @@ By participating in this project, you are expected to uphold our Code of Conduct
 
 ### 2. Set Up the Project Locally
 
+PaySphere uses **pnpm** as its package manager. Before proceeding, make sure you install it globally:
+
+```bash
+npm install -g pnpm
+```
+
 PaySphere is divided into a Node.js/Express backend and a React (Vite) frontend.
 
 #### Backend Setup
@@ -29,7 +35,7 @@ PaySphere is divided into a Node.js/Express backend and a React (Vite) frontend.
    ```
 2. Install dependencies:
    ```bash
-   npm install
+   pnpm install
    ```
 3. Create a `.env` file in the `backend/` directory based on the following template:
    ```env
@@ -41,7 +47,7 @@ PaySphere is divided into a Node.js/Express backend and a React (Vite) frontend.
 4. Start the backend development server:
 
    ```bash
-   npm run dev
+   pnpm run dev
    ```
 
    The backend API will run on `http://localhost:5000` (or the port specified in your code).
@@ -51,7 +57,7 @@ PaySphere is divided into a Node.js/Express backend and a React (Vite) frontend.
    permission definitions in `src/config/permissions.js`, re-seed by hand:
 
    ```bash
-   npm run seed
+   pnpm run seed
    ```
 
    Seeding is idempotent — running it repeatedly is safe. It also assigns the
@@ -65,7 +71,7 @@ PaySphere is divided into a Node.js/Express backend and a React (Vite) frontend.
    ```
 2. Install dependencies:
    ```bash
-   npm install
+   pnpm install
    ```
 3. Create a `.env` file in the `frontend/` directory based on the following template:
    ```env
@@ -74,7 +80,7 @@ PaySphere is divided into a Node.js/Express backend and a React (Vite) frontend.
    ```
 4. Start the frontend development server:
    ```bash
-   npm run dev
+   pnpm run dev
    ```
    The frontend will be accessible, typically at `http://localhost:5173`.
 
@@ -93,10 +99,10 @@ PaySphere is divided into a Node.js/Express backend and a React (Vite) frontend.
 PaySphere enforces strict code quality standards using ESLint and Prettier. To prevent CI failures and maintain a clean commit history, we use **Husky** and **lint-staged** to automatically lint and format your code before every commit.
 
 **Initial Setup (Required for all contributors):**
-After cloning the repository and running `npm install`, you **must** run the following command once to set up the Git hooks:
+After cloning the repository and running `pnpm install`, you **must** run the following command once to set up the Git hooks:
 
 ```bash
-npm run prepare
+pnpm run prepare
 ```
 
 This command initializes Husky and installs the pre-commit hook in your local `.git/hooks` directory.
@@ -113,7 +119,7 @@ This command initializes Husky and installs the pre-commit hook in your local `.
 If you want to format the entire codebase manually, you can run:
 
 ```bash
-npm run format
+pnpm run format
 ```
 
 **Bypassing the Hook (Not Recommended):**

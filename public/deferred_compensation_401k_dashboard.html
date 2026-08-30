@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Deferred Compensation & 401(k) Administration Dashboard - PaySphere</title>
+    <link rel="stylesheet" href="styles/deferred_compensation_401k.css" />
+    <script defer src="deferred_compensation_401k_engine.js"></script>
+</head>
+
+<body>
+    <!-- ======================================================================== -->
+    <!-- Enterprise Deferred Compensation & 401(k) Administration Dashboard       -->
+    <!-- PaySphere Global HR & Payroll Platform                                    -->
+    <!-- Version: 2.8.0 | Author: PaySphere Retirement Services Engineering       -->
+    <!-- Description: 401(k) plan administration, employer match modeling,         -->
+    <!-- vesting schedule tracking, contribution compliance, and deferred comp     -->
+    <!-- plan management for multi-entity organizations.                           -->
+    <!-- Compliance: ERISA §401(a), IRS §402(g) catch-up limits, ADP/ACP tests,   -->
+    <!-- SECURE Act 2.0 provisions, DOL Fiduciary Rule 2024                        -->
+    <!-- ======================================================================== -->
+
+    <!-- Top Navigation Bar -->
+    <header class="dashboard-header">
+        <div class="header-left">
+            <img src="logo.png" alt="PaySphere Logo" class="logo" />
+            <h1 class="dashboard-title">401(k) & Deferred Compensation Admin</h1>
+        </div>
+        <div class="header-right">
+            <span class="badge badge-live">● LIVE</span>
+            <span class="badge badge-compliance">ERISA Compliant</span>
+            <span class="last-sync" id="lastSyncTime">Last synced: --</span>
+            <button class="btn btn-refresh" id="refreshBtn" title="Refresh plan data">⟳ Refresh</button>
+            <div class="user-avatar" id="userAvatar">RA</div>
+        </div>
+    </header>
+
+    <main class="dashboard-main">
+        <!-- Filter & Controls Panel -->
+        <section class="controls-panel glass-card">
+            <h2 class="section-title">Plan Administration Filters</h2>
+            <div class="filter-grid">
+                <div class="filter-group">
+                    <label for="planSelect">Retirement Plan</label>
+                    <select id="planSelect" class="glass-input">
+                        <option value="all">All Plans</option>
+                        <option value="401k_standard">401(k) Standard</option>
+                        <option value="401k_safe_harbor">401(k) Safe Harbor</option>
+                        <option value="403b_nonprofit">403(b) Nonprofit</option>
+                        <option value="457_government">457(b) Government</option>
+                        <option value="deferred_comp_eligible">Deferred Comp (§409A)</option>
+                        <option value="profit_sharing">Profit Sharing</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="entitySelect">Legal Entity</label>
+                    <select id="entitySelect" class="glass-input">
+                        <option value="all">All Entities</option>
+                        <option value="parent_hq">PaySphere Inc. (HQ)</option>
+                        <option value="subsidiary_uk">PaySphere UK Ltd</option>
+                        <option value="subsidiary_in">PaySphere India Pvt</option>
+                        <option value="subsidiary_sg">PaySphere Singapore Pte</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="vestingStatus">Vesting Status</label>
+                    <select id="vestingStatus" class="glass-input">
+                        <option value="all">All Statuses</option>
+                        <option value="fully_vested">Fully Vested</option>
+                        <option value="partial">Partially Vested</option>
+                        <option value="cliff_pending">Cliff Pending</option>
+                        <option value="forfeited">Forfeited</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="planYearSelect">Plan Year</label>
+                    <select id="planYearSelect" class="glass-input">
+                        <option value="2026">2026</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filingStatus">IRS Filing Status</label>
+                    <select id="filingStatus" class="glass-input">
+                        <option value="all">All</option>
+                        <option value="compliant">Compliant</option>
+                        <option value="pending_review">Pending Review</option>
+                        <option value="non_compliant">Non-Compliant</option>
+                    </select>
+                </div>
+                <div class="filter-group filter-actions">
+                    <button class="btn btn-primary" id="applyFiltersBtn">Apply Filters</button>
+                    <button class="btn btn-secondary" id="resetFiltersBtn">Reset</button>
+                    <button class="btn btn-export" id="exportCsvBtn">↓ Export CSV</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- KPI Row -->
+        <section class="kpi-row">
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">Total Plan Assets</div>
+                <div class="kpi-value" id="totalPlanAssets">$48.2M</div>
+                <div class="kpi-change positive">▲ 12.4% YTD</div>
+            </div>
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">Active Participants</div>
+                <div class="kpi-value" id="activeParticipants">2,847</div>
+                <div class="kpi-change positive">▲ 156 new enrollments</div>
+            </div>
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">Avg Contribution Rate</div>
+                <div class="kpi-value" id="avgContributionRate">8.7%</div>
+                <div class="kpi-change positive">▲ 0.6pp from last year</div>
+            </div>
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">Employer Match Cost (YTD)</div>
+                <div class="kpi-value" id="employerMatchCost">$3.1M</div>
+                <div class="kpi-change neutral">Within budget</div>
+            </div>
+        </section>
+
+        <!-- Main Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- 401(k) Contribution Compliance Panel -->
+            <section class="panel glass-card" id="contributionCompliance">
+                <h3 class="panel-title">IRS Contribution Limits & Compliance</h3>
+                <div class="compliance-table-wrap">
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th>Limit Type</th>
+                                <th>IRS Max</th>
+                                <th>Current Used</th>
+                                <th>Remaining</th>
+                                <th>Utilization</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="complianceTableBody">
+                            <!-- Populated by JS engine -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">IRS §402(g) & §415(c) Limits — Tax Year 2026</span>
+                </div>
+            </section>
+
+            <!-- ADP/ACP Non-Discrimination Test Panel -->
+            <section class="panel glass-card" id="nonDiscriminationTest">
+                <h3 class="panel-title">ADP/ACP Non-Discrimination Testing</h3>
+                <div class="test-results" id="testResults">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">ERISA §401(a)(4) — Annual ADP/ACP Testing</span>
+                </div>
+            </section>
+
+            <!-- Vesting Schedule Tracker -->
+            <section class="panel glass-card" id="vestingTracker">
+                <h3 class="panel-title">Employer Match Vesting Schedules</h3>
+                <div class="vesting-schedules" id="vestingSchedules">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">ERISA §203 — Cliff & Graded Vesting Rules</span>
+                </div>
+            </section>
+
+            <!-- Employer Match Modeling -->
+            <section class="panel glass-card" id="matchModeling">
+                <h3 class="panel-title">Employer Match Formula Modeling</h3>
+                <div class="match-formulas" id="matchFormulas">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Modeling: Multiple match formulas with cost projection</span>
+                </div>
+            </section>
+
+            <!-- Participant Enrollment & Demographics -->
+            <section class="panel glass-card panel-wide" id="participantOverview">
+                <h3 class="panel-title">Participant Enrollment & Contribution Distribution</h3>
+                <div class="participant-table-wrap">
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th>Employee ID</th>
+                                <th>Name</th>
+                                <th>Department</th>
+                                <th>Plan</th>
+                                <th>Employee Contrib%</th>
+                                <th>Employer Match%</th>
+                                <th>Vested Balance</th>
+                                <th>Vesting %</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="participantTableBody">
+                            <!-- Populated by JS engine -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Plan Data as of latest payroll cycle close</span>
+                </div>
+            </section>
+
+            <!-- SECURE Act 2.0 Provisions Panel -->
+            <section class="panel glass-card" id="secureActPanel">
+                <h3 class="panel-title">SECURE Act 2.0 Provisions Tracker</h3>
+                <div class="secure-act-provisions" id="secureActProvisions">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">SECURE 2.0 Act of 2022 — Effective Provisions 2024-2026</span>
+                </div>
+            </section>
+
+            <!-- Audit Trail Footer -->
+            <footer class="dashboard-footer">
+                <div class="footer-left">
+                    <span>PaySphere Deferred Compensation Engine v2.8.0</span>
+                    <span class="separator">|</span>
+                    <span>ERISA Compliant</span>
+                    <span class="separator">|</span>
+                    <span>IRS §401(k) Certified</span>
+                    <span class="separator">|</span>
+                    <span>SECURE Act 2.0 Ready</span>
+                </div>
+                <div class="footer-right">
+                    <span id="auditTimestamp">Audit Trail: --</span>
+                    <span class="separator">|</span>
+                    <span id="sessionId">Session: --</span>
+                </div>
+            </footer>
+        </div>
+    </main>
+</body>
+
+</html>

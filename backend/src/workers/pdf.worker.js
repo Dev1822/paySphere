@@ -1,7 +1,7 @@
-const { workerData, parentPort } = require("worker_threads");
-const PDFDocument = require("pdfkit");
-const { formatCurrency } = require("../utils/currency");
-const logger = require("../utils/logger");
+const { workerData, parentPort } = require('worker_threads');
+const PDFDocument = require('pdfkit');
+const { formatCurrency } = require('../utils/currency');
+const logger = require('../utils/logger');
 const { translate, normalizeLanguage } = require('../utils/i18n');
 
 /**
@@ -14,32 +14,32 @@ const { translate, normalizeLanguage } = require('../utils/i18n');
  */
 const REPORT_THEMES = {
   light: {
-    background: "#ffffff",
-    heading: "#1e3a5f",
-    subheading: "#666666",
-    sectionTitle: "#333333",
-    label: "#555555",
-    value: "#1e3a5f",
-    divider: "#cccccc",
-    tableHeaderBg: "#e8edf3",
-    tableHeaderText: "#333333",
-    rowAltBg: "#f9fafb",
-    rowText: "#444444",
-    footer: "#aaaaaa",
+    background: '#ffffff',
+    heading: '#1e3a5f',
+    subheading: '#666666',
+    sectionTitle: '#333333',
+    label: '#555555',
+    value: '#1e3a5f',
+    divider: '#cccccc',
+    tableHeaderBg: '#e8edf3',
+    tableHeaderText: '#333333',
+    rowAltBg: '#f9fafb',
+    rowText: '#444444',
+    footer: '#aaaaaa',
   },
   dark: {
-    background: "#0f172a",
-    heading: "#93c5fd",
-    subheading: "#94a3b8",
-    sectionTitle: "#e2e8f0",
-    label: "#cbd5e1",
-    value: "#93c5fd",
-    divider: "#334155",
-    tableHeaderBg: "#1e293b",
-    tableHeaderText: "#e2e8f0",
-    rowAltBg: "#111827",
-    rowText: "#cbd5e1",
-    footer: "#64748b",
+    background: '#0f172a',
+    heading: '#93c5fd',
+    subheading: '#94a3b8',
+    sectionTitle: '#e2e8f0',
+    label: '#cbd5e1',
+    value: '#93c5fd',
+    divider: '#334155',
+    tableHeaderBg: '#1e293b',
+    tableHeaderText: '#e2e8f0',
+    rowAltBg: '#111827',
+    rowText: '#cbd5e1',
+    footer: '#64748b',
   },
 };
 
@@ -69,7 +69,7 @@ async function handleForm16Generation(payload) {
     // Header
     doc.font('Helvetica-Bold').fontSize(10);
     headers.forEach((h, i) => {
-      doc.text(h, 50 + (i * colWidth), y, { width: colWidth, align: 'left' });
+      doc.text(h, 50 + i * colWidth, y, { width: colWidth, align: 'left' });
     });
     y += 20;
     doc.moveTo(50, y).lineTo(550, y).stroke('#000');
@@ -77,13 +77,16 @@ async function handleForm16Generation(payload) {
 
     // Rows
     doc.font('Helvetica').fontSize(9);
-    rows.forEach(row => {
+    rows.forEach((row) => {
       if (y > 750) {
         doc.addPage();
         y = 50;
       }
       row.forEach((cell, i) => {
-        doc.text(String(cell), 50 + (i * colWidth), y, { width: colWidth, align: i === 1 ? 'right' : 'left' });
+        doc.text(String(cell), 50 + i * colWidth, y, {
+          width: colWidth,
+          align: i === 1 ? 'right' : 'left',
+        });
       });
       y += 15;
     });
@@ -91,10 +94,16 @@ async function handleForm16Generation(payload) {
   };
 
   // --- PART A ---
-  doc.fontSize(16).font('Helvetica-Bold').text('FORM NO. 16', { align: 'center' });
+  doc
+    .fontSize(16)
+    .font('Helvetica-Bold')
+    .text('FORM NO. 16', { align: 'center' });
   doc.fontSize(10).font('Helvetica').text('[See Rule 31]', { align: 'center' });
   doc.moveDown(0.5);
-  doc.text('Certificate under section 203 of the Income-tax Act, 1961 for tax deducted at source', { align: 'center' });
+  doc.text(
+    'Certificate under section 203 of the Income-tax Act, 1961 for tax deducted at source',
+    { align: 'center' },
+  );
   doc.moveDown(1);
 
   doc.fontSize(12).font('Helvetica-Bold').text(`PART A`);
@@ -108,7 +117,9 @@ async function handleForm16Generation(payload) {
   doc.text(`Name and address of the employee: ${employee.employeeName}`);
   doc.text(`PAN of the employee: ${employee.pan}`);
   doc.moveDown(0.5);
-  doc.text(`Assessment Year: ${fyStartYear + 1}-${String(fyStartYear + 2).slice(-2)}`);
+  doc.text(
+    `Assessment Year: ${fyStartYear + 1}-${String(fyStartYear + 2).slice(-2)}`,
+  );
   doc.text(`Financial Year: ${fyStartYear}-${fyStartYear + 1}`);
 
   doc.moveDown(2);
@@ -117,7 +128,10 @@ async function handleForm16Generation(payload) {
   doc.addPage();
   doc.fontSize(12).font('Helvetica-Bold').text('PART B (Annexure II)');
   doc.moveDown(0.5);
-  doc.fontSize(10).font('Helvetica').text('Details of salary and tax deducted at source');
+  doc
+    .fontSize(10)
+    .font('Helvetica')
+    .text('Details of salary and tax deducted at source');
   doc.moveDown(1);
 
   const headers = ['Description', 'Amount (₹)'];
@@ -135,7 +149,12 @@ async function handleForm16Generation(payload) {
   drawTable(doc.y, headers, rows);
 
   doc.moveDown(3);
-  doc.fontSize(10).font('Helvetica').text('This is to certify that the information given above is correct.', { align: 'center' });
+  doc
+    .fontSize(10)
+    .font('Helvetica')
+    .text('This is to certify that the information given above is correct.', {
+      align: 'center',
+    });
   doc.moveDown(2);
   doc.text('___________________________', 400, doc.y);
   doc.text('Authorized Signatory', 420, doc.y + 5);
@@ -147,13 +166,27 @@ async function handleForm16Generation(payload) {
  * Generates company-wide payroll summary report PDF
  */
 async function handleCompanyReportGeneration(payload) {
-  const { payrolls, employeeMap, companyName, companyLogo, monthName, year, totalBase, totalOvertime, totalBonus, totalDeductions, totalPayout, currency = "INR", theme } = payload;
+  const {
+    payrolls,
+    employeeMap,
+    companyName,
+    companyLogo,
+    monthName,
+    year,
+    totalBase,
+    totalOvertime,
+    totalBonus,
+    totalDeductions,
+    totalPayout,
+    currency = 'INR',
+    theme,
+  } = payload;
   const palette = resolveTheme(theme);
 
-  const doc = new PDFDocument({ size: "A4", margin: 40, bufferPages: true });
+  const doc = new PDFDocument({ size: 'A4', margin: 40, bufferPages: true });
   const buffers = [];
-  doc.on("data", buffers.push.bind(buffers));
-  doc.on("end", () => {
+  doc.on('data', buffers.push.bind(buffers));
+  doc.on('end', () => {
     const pdfData = Buffer.concat(buffers);
     parentPort.postMessage({ success: true, pdfData });
   });
@@ -164,49 +197,74 @@ async function handleCompanyReportGeneration(payload) {
   const paintPageBackground = () => {
     doc.rect(0, 0, doc.page.width, doc.page.height).fill(palette.background);
   };
-  if (palette.background !== "#ffffff") {
+  if (palette.background !== '#ffffff') {
     paintPageBackground();
-    doc.on("pageAdded", paintPageBackground);
+    doc.on('pageAdded', paintPageBackground);
   }
 
   // --- Company Header ---
   if (companyLogo) {
     try {
-      const logoBuffer = Buffer.from(companyLogo.replace(/^data:image\/\w+;base64,/, ""), 'base64');
+      const logoBuffer = Buffer.from(
+        companyLogo.replace(/^data:image\/\w+;base64,/, ''),
+        'base64',
+      );
       doc.image(logoBuffer, 40, 30, { fit: [50, 50] });
-    } catch (error) { logger.error("PDF logo rendering failed in handleCompanyReportGeneration", { error: error.message || error }); }
+    } catch (error) {
+      logger.error(
+        'PDF logo rendering failed in handleCompanyReportGeneration',
+        { error: error.message || error },
+      );
+    }
   }
-  doc.fontSize(22).font("Helvetica-Bold").fillColor(palette.heading).text(companyName, { align: "center" });
-  doc.fontSize(12).font("Helvetica").fillColor(palette.subheading).text(`Payroll Summary Report — ${monthName} ${year}`, { align: "center" });
+  doc
+    .fontSize(22)
+    .font('Helvetica-Bold')
+    .fillColor(palette.heading)
+    .text(companyName, { align: 'center' });
+  doc
+    .fontSize(12)
+    .font('Helvetica')
+    .fillColor(palette.subheading)
+    .text(`Payroll Summary Report — ${monthName} ${year}`, { align: 'center' });
   doc.moveDown(0.5);
 
   // Divider line
-  doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor(palette.divider).lineWidth(1).stroke();
+  doc
+    .moveTo(40, doc.y)
+    .lineTo(555, doc.y)
+    .strokeColor(palette.divider)
+    .lineWidth(1)
+    .stroke();
   doc.moveDown(1);
 
   // --- Summary Section ---
-  doc.fontSize(14).font("Helvetica-Bold").fillColor(palette.sectionTitle).text("Financial Summary");
+  doc
+    .fontSize(14)
+    .font('Helvetica-Bold')
+    .fillColor(palette.sectionTitle)
+    .text('Financial Summary');
   doc.moveDown(0.3);
 
   const summaryData = [
-    ["Total Employees", String(payrolls.length)],
-    ["Total Base Salary", formatCurrency(totalBase, currency)],
-    ["Total Overtime Pay", formatCurrency(totalOvertime, currency)],
-    ["Total Bonuses", formatCurrency(totalBonus, currency)],
-    ["Total Deductions", formatCurrency(totalDeductions, currency)],
-    ["Net Payout", formatCurrency(totalPayout, currency)],
+    ['Total Employees', String(payrolls.length)],
+    ['Total Base Salary', formatCurrency(totalBase, currency)],
+    ['Total Overtime Pay', formatCurrency(totalOvertime, currency)],
+    ['Total Bonuses', formatCurrency(totalBonus, currency)],
+    ['Total Deductions', formatCurrency(totalDeductions, currency)],
+    ['Net Payout', formatCurrency(totalPayout, currency)],
   ];
 
   summaryData.forEach(([label, value]) => {
     doc
       .fontSize(10)
-      .font("Helvetica")
+      .font('Helvetica')
       .fillColor(palette.label)
       .text(label, 60, doc.y, { continued: true, width: 200 });
     doc
-      .font("Helvetica-Bold")
+      .font('Helvetica-Bold')
       .fillColor(palette.value)
-      .text(`  ${value}`, { align: "right" });
+      .text(`  ${value}`, { align: 'right' });
     doc.moveDown(0.2);
   });
 
@@ -215,9 +273,9 @@ async function handleCompanyReportGeneration(payload) {
   // --- Employee Payroll Table ---
   doc
     .fontSize(14)
-    .font("Helvetica-Bold")
+    .font('Helvetica-Bold')
     .fillColor(palette.sectionTitle)
-    .text("Employee Payroll Details");
+    .text('Employee Payroll Details');
 
   doc.moveDown(0.5);
 
@@ -225,26 +283,24 @@ async function handleCompanyReportGeneration(payload) {
   const tableTop = doc.y;
   const colWidths = [110, 65, 55, 60, 55, 55, 65];
   const colLabels = [
-    "Employee",
-    "Base",
-    "Leave",
-    "Overtime",
-    "Bonus",
-    "Deduct",
-    "Net Pay",
+    'Employee',
+    'Base',
+    'Leave',
+    'Overtime',
+    'Bonus',
+    'Deduct',
+    'Net Pay',
   ];
   const startX = 40;
 
   // Header background
-  doc
-    .rect(startX, tableTop - 4, 515, 18)
-    .fill(palette.tableHeaderBg);
+  doc.rect(startX, tableTop - 4, 515, 18).fill(palette.tableHeaderBg);
 
   let xPos = startX + 5;
   colLabels.forEach((label, i) => {
     doc
       .fontSize(8)
-      .font("Helvetica-Bold")
+      .font('Helvetica-Bold')
       .fillColor(palette.tableHeaderText)
       .text(label, xPos, tableTop, { width: colWidths[i] });
     xPos += colWidths[i];
@@ -260,7 +316,7 @@ async function handleCompanyReportGeneration(payload) {
 
     const rowY = doc.y;
     const emp = employeeMap[String(p.employeeId)];
-    const role = emp?.role ? ` (${emp.role})` : "";
+    const role = emp?.role ? ` (${emp.role})` : '';
 
     // Alternating row background
     if (idx % 2 === 0) {
@@ -281,7 +337,7 @@ async function handleCompanyReportGeneration(payload) {
     rowData.forEach((cell, i) => {
       doc
         .fontSize(8)
-        .font("Helvetica")
+        .font('Helvetica')
         .fillColor(palette.rowText)
         .text(cell, xPos, rowY, { width: colWidths[i] });
       xPos += colWidths[i];
@@ -291,14 +347,37 @@ async function handleCompanyReportGeneration(payload) {
   });
 
   doc.moveDown(0.5);
-  doc.moveTo(startX, doc.y).lineTo(startX + 515, doc.y).strokeColor(palette.divider).lineWidth(0.5).stroke();
+  doc
+    .moveTo(startX, doc.y)
+    .lineTo(startX + 515, doc.y)
+    .strokeColor(palette.divider)
+    .lineWidth(0.5)
+    .stroke();
   doc.moveDown(0.3);
-  doc.fontSize(9).font("Helvetica-Bold").fillColor(palette.value).text(`Total Payout: ${formatCurrency(totalPayout, currency)}`, startX, doc.y, { align: "right" });
+  doc
+    .fontSize(9)
+    .font('Helvetica-Bold')
+    .fillColor(palette.value)
+    .text(
+      `Total Payout: ${formatCurrency(totalPayout, currency)}`,
+      startX,
+      doc.y,
+      { align: 'right' },
+    );
 
   const pageCount = doc.bufferedPageRange().count;
   for (let i = 0; i < pageCount; i++) {
     doc.switchToPage(i);
-    doc.fontSize(8).font("Helvetica").fillColor(palette.footer).text(`Generated by PaySphere • Page ${i + 1} of ${pageCount}`, 40, doc.page.height - 30, { align: "center", width: 515 });
+    doc
+      .fontSize(8)
+      .font('Helvetica')
+      .fillColor(palette.footer)
+      .text(
+        `Generated by PaySphere • Page ${i + 1} of ${pageCount}`,
+        40,
+        doc.page.height - 30,
+        { align: 'center', width: 515 },
+      );
   }
 
   doc.end();
@@ -307,14 +386,20 @@ async function handleCompanyReportGeneration(payload) {
  * Generates individual employee payslip PDF
  */
 async function handlePayslipGeneration(payload) {
-  const { employee, payroll, companyLogo, currency = "INR", language = employee?.language || 'en' } = payload;
+  const {
+    employee,
+    payroll,
+    companyLogo,
+    currency = 'INR',
+    language = employee?.language || 'en',
+  } = payload;
   const locale = normalizeLanguage(language);
   const t = (key, variables) => translate(locale, key, variables);
 
   const doc = new PDFDocument({ margin: 50 });
   const buffers = [];
-  doc.on("data", buffers.push.bind(buffers));
-  doc.on("end", () => {
+  doc.on('data', buffers.push.bind(buffers));
+  doc.on('end', () => {
     const pdfData = Buffer.concat(buffers);
     parentPort.postMessage({ success: true, pdfData });
   });
@@ -322,11 +407,18 @@ async function handlePayslipGeneration(payload) {
   // Build PDF content
   if (companyLogo) {
     try {
-      const logoBuffer = Buffer.from(companyLogo.replace(/^data:image\/\w+;base64,/, ""), 'base64');
+      const logoBuffer = Buffer.from(
+        companyLogo.replace(/^data:image\/\w+;base64,/, ''),
+        'base64',
+      );
       doc.image(logoBuffer, 50, 40, { fit: [50, 50] });
-    } catch (error) { logger.error("PDF logo rendering failed in handlePayslipGeneration", { error: error.message || error }); }
+    } catch (error) {
+      logger.error('PDF logo rendering failed in handlePayslipGeneration', {
+        error: error.message || error,
+      });
+    }
   }
-  doc.fontSize(20).text("PaySphere", { align: "center" });
+  doc.fontSize(20).text('PaySphere', { align: 'center' });
   doc.moveDown();
   doc.fontSize(16).text(t('payslipTitle', payroll), { align: 'center' });
   doc.moveDown(2);
@@ -336,23 +428,73 @@ async function handlePayslipGeneration(payload) {
   doc.text(`${t('company')}: ${employee.companyName}`);
   doc.moveDown();
 
-  doc.text(`${t('baseSalary')}: ${formatCurrency(payroll.baseSalary, currency)}`);
-  doc.text(`${t('leaveDays')}: ${payroll.leaveDays} (-${formatCurrency(payroll.leaveDeduction, currency)})`);
-  doc.text(`${t('overtimeHours')}: ${payroll.overtimeHours} (+${formatCurrency(payroll.overtimePay, currency)})`);
+  doc.text(
+    `${t('baseSalary')}: ${formatCurrency(payroll.baseSalary, currency)}`,
+  );
+  doc.text(
+    `${t('leaveDays')}: ${payroll.leaveDays} (-${formatCurrency(payroll.leaveDeduction, currency)})`,
+  );
+  doc.text(
+    `${t('overtimeHours')}: ${payroll.overtimeHours} (+${formatCurrency(payroll.overtimePay, currency)})`,
+  );
   doc.text(`${t('bonus')}: +${formatCurrency(payroll.bonus || 0, currency)}`);
-  doc.text(`${t('deductions')}: -${formatCurrency(payroll.deductions || 0, currency)}`);
+  doc.text(
+    `${t('deductions')}: -${formatCurrency(payroll.deductions || 0, currency)}`,
+  );
 
   // Issue #719: Render tax-free reimbursements distinctly
   if (payroll.reimbursements && payroll.reimbursements > 0) {
     doc.moveDown(0.5);
-    doc.fontSize(11).font("Helvetica-Bold").fillColor("#2563EB").text(t('reimbursements'));
-    doc.fontSize(10).font("Helvetica").fillColor("#555555");
-    doc.text(`${t('expenseReimbursements')}: +${formatCurrency(payroll.reimbursements, currency)}`);
+    doc
+      .fontSize(11)
+      .font('Helvetica-Bold')
+      .fillColor('#2563EB')
+      .text(t('reimbursements'));
+    doc.fontSize(10).font('Helvetica').fillColor('#555555');
+    doc.text(
+      `${t('expenseReimbursements')}: +${formatCurrency(payroll.reimbursements, currency)}`,
+    );
   }
 
   doc.moveDown(1);
 
-  doc.fontSize(14).text(`${t('netSalary')}: ${formatCurrency(payroll.netSalary, currency)}`, { underline: true });
+  doc
+    .fontSize(14)
+    .text(`${t('netSalary')}: ${formatCurrency(payroll.netSalary, currency)}`, {
+      underline: true,
+    });
+  doc.end();
+}
+
+/**
+ * Generates PDF from HTML (mock for Document Template Engine)
+ */
+async function handleHtmlPdfGeneration(payload) {
+  const { generatedLetterId, html, context } = payload;
+  const doc = new PDFDocument({ margin: 50 });
+  const buffers = [];
+  doc.on('data', buffers.push.bind(buffers));
+  doc.on('end', () => {
+    const pdfData = Buffer.concat(buffers);
+    parentPort.postMessage({ success: true, pdfData, generatedLetterId });
+  });
+
+  // Mock rendering HTML to PDF
+  doc.fontSize(20).text('Generated Document', { align: 'center' });
+  doc.moveDown();
+  doc
+    .fontSize(12)
+    .text(
+      'Note: Full HTML to PDF rendering requires a specialized library like Puppeteer.',
+    );
+  doc.moveDown();
+  // Strip simple HTML tags for a very basic representation
+  const plainText = html
+    .replace(/<[^>]+>/g, '\n')
+    .replace(/\n+/g, '\n')
+    .trim();
+  doc.fontSize(10).text(plainText);
+
   doc.end();
 }
 
@@ -366,8 +508,25 @@ parentPort.on('message', async (msg) => {
       case 'GENERATE_PAYSLIP':
         await handlePayslipGeneration(msg.payload);
         break;
+      case 'GENERATE_DYNAMIC_PAYSLIP': {
+        const { renderPayslipPdf } = require('../utils/payslipRenderer.pdf');
+        try {
+          const pdfData = await renderPayslipPdf(
+            msg.payload.assembledData,
+            msg.payload.currency,
+            msg.payload.pdfOptions,
+          );
+          parentPort.postMessage({ success: true, pdfData });
+        } catch (e) {
+          parentPort.postMessage({ success: false, error: e.message });
+        }
+        break;
+      }
       case 'GENERATE_FORM_16': // Added for Issue #933
         await handleForm16Generation(msg.payload);
+        break;
+      case 'GENERATE_HTML_PDF':
+        await handleHtmlPdfGeneration(msg.payload);
         break;
       default:
         parentPort.postMessage({
