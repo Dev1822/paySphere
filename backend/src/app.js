@@ -187,6 +187,7 @@ const monthlyUpdatesRoutes = require('./routes/monthlyUpdates.routes');
 const expenseRoutes = require('./routes/expense.routes');
 const fringeBenefitsRoutes = require('./routes/fringeBenefits.routes');
 const timelineRoutes = require('./routes/timeline.routes');
+const escrowRoutes = require('./routes/escrow.routes');
 
 // Labour Welfare Fund (#1701). There is no central Act — fifteen or so state
 // enactments that agree on almost nothing — so the state rule is data and this
@@ -701,6 +702,8 @@ app.use('/api/email', emailRoutes);
 app.use('/api/forex', forexRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/events', companyEventRoutes);
+
+app.use('/api/escrow', escrowRoutes);
 
 // Webhook endpoints (#474) — an admin lets an external system subscribe to
 // payroll and employee events. The controller and models were written in #645
