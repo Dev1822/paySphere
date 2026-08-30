@@ -8,18 +8,7 @@
 
 const logger = require('../utils/logger');
 const cacheService = require('./cache.service');
-
-// Static fallback rates against USD (used when Redis/external API is unreachable)
-const MOCK_FX_RATES = {
-  USD: 1.0,
-  EUR: 0.92,
-  GBP: 0.79,
-  INR: 83.5,
-  CAD: 1.36,
-  AUD: 1.51,
-  JPY: 155.2,
-  SGD: 1.34,
-};
+const ExchangeRate = require('../models/exchangeRate.model');
 
 class FXService {
   /**
@@ -30,6 +19,21 @@ class FXService {
   static _normalizeCurrency(code) {
     if (!code || typeof code !== 'string') return 'USD';
     return code.trim().toUpperCase();
+  }
+
+  /**
+   * Get fresh rates from the database.
+   * Throws an error if rates are missing or older than 48 hours.
+   */
+  static async _getFreshRates() {
+    const rateDoc = await ExchangeRate.findOne().sort({ date: -1 });
+    const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
+    
+    if (!rateDoc || !rateDoc.date || (Date.now() - new Date(rateDoc.date).getTime() > FORTY_EIGHT_HOURS)) {
+      throw new Error('Fresh exchange rates are not available (rates are older than 48 hours). Please ensure the exchange rate synchronization job is running.');
+    }
+    
+    return rateDoc;
   }
 
   /**
@@ -55,19 +59,26 @@ class FXService {
         return cachedRate;
       }
     } catch (err) {
-      logger.warn('Redis read failed in FXService, falling back to calculation', { error: err.message });
+      logger.warn('Redis read failed in FXService, falling back to database', { error: err.message });
     }
 
-    // Calculate cross-rate using mock/live base rates
-    const fromRateUSD = MOCK_FX_RATES[from] || 1.0;
-    const toRateUSD = MOCK_FX_RATES[to] || 1.0;
+    // Fetch from database
+    const rateDoc = await this._getFreshRates();
+    
+    const getRateVal = (target) => {
+      if (target === 'USD') return 1.0;
+      if (typeof rateDoc.rates.get === 'function') {
+        return rateDoc.rates.get(target) || 1.0;
+      }
+      return rateDoc.rates[target] || 1.0;
+    };
+
+    const fromRateUSD = getRateVal(from);
+    const toRateUSD = getRateVal(to);
     const rate = Number((toRateUSD / fromRateUSD).toFixed(6));
 
     try {
-      // Cache rate for 24 hours. `setEx(key, ttl, value)` — the call this
-      // replaces was `set(key, value, ttl)`, which the cache service does not
-      // export, so every rate lookup logged "cacheService.set is not a
-      // function" and nothing was ever cached (#952).
+      // Cache rate for 24 hours.
       await cacheService.setEx(cacheKey, 86400, rate);
     } catch (err) {
       logger.warn('Redis write failed in FXService', { error: err.message });
@@ -110,7 +121,11 @@ class FXService {
    */
   static async getRatesForBase(baseCurrency = 'USD') {
     const base = this._normalizeCurrency(baseCurrency);
-    const currencies = Object.keys(MOCK_FX_RATES);
+    const rateDoc = await this._getFreshRates();
+    
+    const currencies = Array.from(rateDoc.rates.keys());
+    if (!currencies.includes('USD')) currencies.push('USD');
+    
     const rates = {};
 
     for (const curr of currencies) {
