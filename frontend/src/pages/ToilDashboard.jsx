@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import Sidebar from '../components/Sidebar';
 import ThemeToggle from '../components/ThemeToggle';
 import api from '../services/api';
+import { formatDate } from '../utils/formatLocale';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
@@ -70,8 +71,8 @@ export default function ToilDashboard() {
                                 <div className="space-y-2 mt-3">
                                     {data.expiringSoon.map(exp => (
                                         <div key={exp._id} className="flex justify-between text-sm text-amber-800 dark:text-amber-200">
-                                            <span>{exp.days} days from {new Date(exp.createdAt).toLocaleDateString()}</span>
-                                            <span className="font-bold">Expires: {new Date(exp.expiresAt).toLocaleDateString()}</span>
+                                            <span>{exp.days} days from {formatDate(exp.createdAt)}</span>
+                                            <span className="font-bold">Expires: {formatDate(exp.expiresAt)}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -98,7 +99,7 @@ export default function ToilDashboard() {
                                     <tr><td colSpan="5" className="px-6 py-12 text-center text-gray-500">Loading ledger...</td></tr>
                                 ) : data.ledger.map(rec => (
                                     <tr key={rec._id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
-                                        <td className="px-6 py-4 text-sm text-gray-700 dark:text-slate-300">{new Date(rec.createdAt).toLocaleDateString()}</td>
+                                        <td className="px-6 py-4 text-sm text-gray-700 dark:text-slate-300">{formatDate(rec.createdAt)}</td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${rec.transactionType === 'Accrual' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
                                                     rec.transactionType === 'Usage' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' :

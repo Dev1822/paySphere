@@ -25,6 +25,7 @@
  */
 const EMPLOYMENT_STATUS = {
   ACTIVE: 'active',
+  PROBATION: 'probation',
   /** Resigned, still working, still payable up to the last working day. */
   NOTICE_PERIOD: 'notice_period',
   /** Left. Excluded from payroll, but the history is preserved. */
@@ -42,6 +43,7 @@ const EMPLOYMENT_STATUS = {
  */
 const ACTIVE_STATUSES = [
   EMPLOYMENT_STATUS.ACTIVE,
+  EMPLOYMENT_STATUS.PROBATION,
   EMPLOYMENT_STATUS.NOTICE_PERIOD,
 ];
 

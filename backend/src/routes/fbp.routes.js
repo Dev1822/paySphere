@@ -1,31 +1,19 @@
+/**
+ * @fileoverview Flexible Benefit Plan (FBP) API Routes
+ * Issue: #1664
+ */
+
 const express = require('express');
 const router = express.Router();
-const fbpController = require('../controllers/fbp.controller');
-const authMiddleware = require('../middlewares/auth.middleware');
-const roleMiddleware = require('../middlewares/role.middleware');
+const {
+  declareAllocation,
+  submitClaim,
+  getFbpSummary,
+} = require('../controllers/fbp.controller');
+const { protect } = require('../middlewares/auth.middleware');
 
-router.use(authMiddleware.verifyToken);
-
-// Admin routes
-router.post(
-  '/admin/windows',
-  roleMiddleware.requireRole(['admin', 'hr']),
-  fbpController.createWindow,
-);
-router.put(
-  '/admin/declarations/:declarationId/approve',
-  roleMiddleware.requireRole(['admin', 'hr']),
-  fbpController.approveDeclaration,
-);
-router.put(
-  '/admin/declarations/:declarationId/reject',
-  roleMiddleware.requireRole(['admin', 'hr']),
-  fbpController.rejectDeclaration,
-);
-
-// Employee routes
-router.get('/windows', fbpController.getOpenWindows);
-router.post('/employees/:employeeId/simulate', fbpController.simulateTaxImpact);
-router.post('/employees/:employeeId/declare', fbpController.submitDeclaration);
+router.post('/declare-allocation', protect, declareAllocation);
+router.post('/submit-claim', protect, submitClaim);
+router.get('/summary/:employeeId', protect, getFbpSummary);
 
 module.exports = router;

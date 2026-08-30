@@ -15,10 +15,20 @@ const Employee = require('../models/employee.model');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
 const OCRService = require('../services/ocr.service');
-const { extractReceiptData, isConfidenceReliable } = require('../services/ocr.service');
+const {
+  extractReceiptData,
+  isConfidenceReliable,
+} = require('../services/ocr.service');
 const { evaluateClaim } = require('../utils/policyEngine.utils');
 const { ACCOUNT_TYPE } = require('../config/accountTypes');
 const { sanitizeText } = require('../utils/validators');
+const {
+  createObjectKey,
+  deleteObject,
+  getDownloadUrl,
+  putObject,
+  isStorageUri,
+} = require('../services/objectStorage.service');
 
 /** Claims that may still be edited or acted on. */
 const PENDING = 'pending_approval';
@@ -58,9 +68,30 @@ exports.getPolicy = async (req, res, next) => {
       policy = await ExpensePolicy.create({
         tenantId: req.tenantId,
         categories: [
-          { category: 'Meals', maxLimitPerClaim: 1500, maxLimitPerMonth: 5000, requiresReceipt: true, receiptThreshold: 200, weekendAllowed: false },
-          { category: 'Travel', maxLimitPerClaim: 10000, maxLimitPerMonth: 30000, requiresReceipt: true, receiptThreshold: 0, weekendAllowed: true },
-          { category: 'Office Supplies', maxLimitPerClaim: 5000, maxLimitPerMonth: 10000, requiresReceipt: true, receiptThreshold: 500, weekendAllowed: false },
+          {
+            category: 'Meals',
+            maxLimitPerClaim: 1500,
+            maxLimitPerMonth: 5000,
+            requiresReceipt: true,
+            receiptThreshold: 200,
+            weekendAllowed: false,
+          },
+          {
+            category: 'Travel',
+            maxLimitPerClaim: 10000,
+            maxLimitPerMonth: 30000,
+            requiresReceipt: true,
+            receiptThreshold: 0,
+            weekendAllowed: true,
+          },
+          {
+            category: 'Office Supplies',
+            maxLimitPerClaim: 5000,
+            maxLimitPerMonth: 10000,
+            requiresReceipt: true,
+            receiptThreshold: 500,
+            weekendAllowed: false,
+          },
         ],
       });
     }
@@ -110,7 +141,9 @@ exports.submitClaim = async (req, res, next) => {
 
     const policy = await ExpensePolicy.findOne({ tenantId: req.tenantId });
     if (!policy) {
-      return res.status(400).json({ message: 'Expense policy not configured by HR.' });
+      return res
+        .status(400)
+        .json({ message: 'Expense policy not configured by HR.' });
     }
 
     let merchant = '';
@@ -132,10 +165,15 @@ exports.submitClaim = async (req, res, next) => {
     }
 
     const { calculateImageHash } = require('../utils/imageHasher');
-    const imageHash = req.body.imageHash || (receiptUrl ? calculateImageHash(Buffer.from(receiptUrl, 'utf8')) : '');
+    const imageHash =
+      req.body.imageHash ||
+      (receiptUrl ? calculateImageHash(Buffer.from(receiptUrl, 'utf8')) : '');
 
     const ocrMetadata = req.body.ocrMetadata || {
-      extractedAmount: req.body.ocrAmount !== undefined ? Number(req.body.ocrAmount) : undefined,
+      extractedAmount:
+        req.body.ocrAmount !== undefined
+          ? Number(req.body.ocrAmount)
+          : undefined,
       extractedDate: req.body.ocrDate ? new Date(req.body.ocrDate) : undefined,
       extractedCurrency: req.body.ocrCurrency || undefined,
     };
@@ -146,8 +184,8 @@ exports.submitClaim = async (req, res, next) => {
       tenantId: req.tenantId,
       $or: [
         { name: category },
-        { _id: mongoose.Types.ObjectId.isValid(category) ? category : null }
-      ]
+        { _id: mongoose.Types.ObjectId.isValid(category) ? category : null },
+      ],
     });
     const categoryId = categoryDoc ? categoryDoc._id : null;
 
@@ -169,28 +207,22 @@ exports.submitClaim = async (req, res, next) => {
       submittedBy: req.userId,
     };
 
-    // Run Fraud Detection Verification
-    const { verifyExpenseClaim } = require('../services/expenseVerification');
-    const verifiedClaim = await verifyExpenseClaim(claimData);
+    // Save initial claim
+    const initialClaim = await ExpenseClaim.create(claimData);
 
-    // Evaluate against policy
-    const evaluation = await evaluateClaim(verifiedClaim, policy);
-    verifiedClaim.policyViolations = evaluation.violations;
-    verifiedClaim.isCompliant = evaluation.isCompliant;
+    // Run Automated Adjudication (which updates status, fraud score, etc.)
+    const {
+      ExpenseAdjudicatorService,
+    } = require('../services/ExpenseAdjudicatorService');
+    const claim = await ExpenseAdjudicatorService.adjudicateClaim(
+      initialClaim._id,
+    );
 
-    // Determine initial status based on compliance, fraud detection, and auto-approval threshold
-    if (verifiedClaim.isPossibleFraud) {
-      verifiedClaim.status = 'Pending Manager'; // Fraud claims must be audited manually
-    } else if (!evaluation.isCompliant) {
-      verifiedClaim.status = 'Pending Manager'; // Violations require manual review
-    } else if (verifiedClaim.amount <= policy.autoApprovalThreshold) {
-      verifiedClaim.status = 'Auto-Approved';
-      verifiedClaim.approvedBy = null; // System approved
-    } else {
-      verifiedClaim.status = 'Submitted';
-    }
-
-    const claim = await ExpenseClaim.create(verifiedClaim);
+    // We mock evaluation for the response since Adjudicator handles it now
+    const evaluation = {
+      isCompliant: claim.policyViolations.length === 0,
+      violations: claim.policyViolations,
+    };
 
     eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
@@ -199,10 +231,10 @@ exports.submitClaim = async (req, res, next) => {
       resourceIds: [claim._id],
       details: {
         category,
-        amount: verifiedClaim.amount,
-        status: verifiedClaim.status,
+        amount: claim.amount,
+        status: claim.status,
         isCompliant: evaluation.isCompliant,
-        isPossibleFraud: verifiedClaim.isPossibleFraud,
+        isPossibleFraud: claim.isPossibleFraud,
         ocrConfidence,
       },
       req,
@@ -239,6 +271,58 @@ exports.getMyClaims = async (req, res, next) => {
   }
 };
 
+/**
+ * PUT /api/expenses/claims/:id/adjudicate
+ * Adjudicate an expense claim from the Adjudication Workspace.
+ */
+exports.adjudicateClaimStatus = async (req, res, next) => {
+  try {
+    const { status, rejectionReason } = req.body;
+    const { id } = req.params;
+
+    if (!['approved', 'rejected', 'needs_info'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    const claim = await ExpenseClaim.findOne({
+      _id: id,
+      tenantId: req.tenantId,
+    });
+    if (!claim) {
+      return res.status(404).json({ message: 'Expense claim not found' });
+    }
+
+    claim.status = status;
+
+    if (status === 'rejected' || status === 'needs_info') {
+      claim.rejectionReason = rejectionReason || '';
+      claim.rejectedBy = req.userId;
+      claim.rejectedAt = new Date();
+    } else if (status === 'approved') {
+      claim.approvedBy = req.userId;
+      claim.approvedAt = new Date();
+    }
+
+    await claim.save();
+
+    eventBus.emit('AUDIT_LOG', {
+      userId: req.userId,
+      action: 'EXPENSE_CLAIM_ADJUDICATE',
+      resourceType: 'ExpenseClaim',
+      resourceIds: [claim._id],
+      details: {
+        status,
+        rejectionReason,
+      },
+      req,
+    });
+
+    res.status(200).json({ message: 'Expense claim adjudicated', claim });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ============================================================================
 // LEGACY EXPENSE CLAIM CRUD (Preserved from original)
 // ============================================================================
@@ -249,7 +333,8 @@ exports.getMyClaims = async (req, res, next) => {
  */
 exports.submitExpense = async (req, res, next) => {
   try {
-    const { employeeId, categoryId, amount, expenseDate, description } = req.body;
+    const { employeeId, categoryId, amount, expenseDate, description } =
+      req.body;
 
     if (
       !mongoose.Types.ObjectId.isValid(employeeId) ||
@@ -300,7 +385,8 @@ exports.submitExpense = async (req, res, next) => {
       tenantId: req.tenantId,
       isDeleted: { $ne: true },
     });
-    if (!employee) return res.status(404).json({ message: 'Employee not found' });
+    if (!employee)
+      return res.status(404).json({ message: 'Employee not found' });
 
     // Verify category belongs to tenant
     const category = await ExpenseCategory.findOne({
@@ -313,29 +399,50 @@ exports.submitExpense = async (req, res, next) => {
         .status(404)
         .json({ message: 'Expense category not found or inactive' });
 
-    // Process uploaded files (Multer). `file.filename` is the generated name on
-    // disk; `originalname` is kept only as the label shown to a human.
-    const receipts = (req.files || []).map((file) => ({
-      url: `/uploads/receipts/${file.filename}`,
-      filename: sanitizeText(String(file.originalname).slice(0, 255)),
-      mimetype: file.mimetype,
-      size: file.size,
-    }));
+    // Upload receipt bytes only after the claim's tenant/employee/category
+    // checks have passed. Nothing is written to the application filesystem.
+    const uploadedReceiptUris = [];
+    let receipts = [];
+    try {
+      receipts = await Promise.all(
+        (req.files || []).map(async (file) => {
+          const extension = file.mimetype === 'application/pdf'
+            ? 'pdf'
+            : file.mimetype.split('/')[1];
+          const key = createObjectKey({
+            tenantId: req.tenantId,
+            area: 'expenses/receipts',
+            extension,
+          });
+          const stored = await putObject({
+            key,
+            body: file.buffer,
+            contentType: file.mimetype,
+          });
+          uploadedReceiptUris.push(stored.uri);
+          return {
+            url: stored.uri,
+            filename: sanitizeText(String(file.originalname).slice(0, 255)),
+            mimetype: file.mimetype,
+            size: file.size,
+          };
+        }),
+      );
 
-    const claim = await ExpenseClaim.create({
-      tenantId: req.tenantId,
-      employeeId,
-      categoryId,
-      amount: parsedAmount,
-      currency: employee.currency || 'INR',
-      expenseDate: parsedDate,
-      description: sanitizeText(String(description).slice(0, 1000)),
-      receipts,
-      status: PENDING,
-      submittedBy: req.userId,
-    });
+        const claim = await ExpenseClaim.create({
+        tenantId: req.tenantId,
+        employeeId,
+        categoryId,
+        amount: parsedAmount,
+        currency: employee.currency || 'INR',
+        expenseDate: parsedDate,
+        description: sanitizeText(String(description).slice(0, 1000)),
+        receipts,
+        status: PENDING,
+        submittedBy: req.userId,
+      });
 
-    eventBus.emit('AUDIT_LOG', {
+      eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
       action: 'EXPENSE_SUBMIT',
       resourceType: 'ExpenseClaim',
@@ -344,13 +451,35 @@ exports.submitExpense = async (req, res, next) => {
       req,
     });
 
-    res
-      .status(201)
-      .json({ message: 'Expense claim submitted successfully', claim });
+      res
+        .status(201)
+        .json({
+          message: 'Expense claim submitted successfully',
+          claim: await hydrateReceiptUrls(typeof claim.toObject === 'function' ? claim.toObject() : claim),
+        });
+    } catch (error) {
+      await Promise.all(uploadedReceiptUris.map((uri) => deleteObject(uri).catch(() => false)));
+      throw error;
+    }
   } catch (error) {
     next(error);
   }
 };
+
+async function hydrateReceiptUrls(claim) {
+  if (!claim?.receipts?.length) return claim;
+  return {
+    ...claim,
+    receipts: await Promise.all(
+      claim.receipts.map(async (receipt) => ({
+        ...receipt,
+        url: isStorageUri(receipt.url)
+          ? await getDownloadUrl(receipt.url)
+          : receipt.url,
+      })),
+    ),
+  };
+}
 
 /**
  * GET /api/expenses
@@ -407,8 +536,10 @@ exports.getExpenses = async (req, res, next) => {
       ExpenseClaim.countDocuments(query),
     ]);
 
+    const hydratedClaims = await Promise.all(claims.map((claim) => hydrateReceiptUrls(claim)));
+
     res.status(200).json({
-      claims,
+      claims: hydratedClaims,
       pagination: {
         total,
         page: parsedPage,
@@ -714,7 +845,10 @@ exports.createCustomReport = async (req, res, next) => {
       if (req.body.employeeId) {
         employeeId = req.body.employeeId;
       } else {
-        const emp = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+        const emp = await Employee.findOne({
+          userId: req.userId,
+          tenantId: req.tenantId,
+        });
         employeeId = emp?._id || req.userId;
       }
     }
@@ -740,9 +874,14 @@ exports.createCustomReport = async (req, res, next) => {
       status: 'submitted',
     });
 
-    res.status(201).json({ message: 'Custom expense report created successfully', report });
+    res
+      .status(201)
+      .json({ message: 'Custom expense report created successfully', report });
   } catch (error) {
-    logger.error('Failed to create custom expense report', { userId: req.userId, error: error.message });
+    logger.error('Failed to create custom expense report', {
+      userId: req.userId,
+      error: error.message,
+    });
     next(error);
   }
 };
@@ -762,7 +901,10 @@ exports.getMyReports = async (req, res, next) => {
 
     res.status(200).json({ reports });
   } catch (error) {
-    logger.error('Failed to fetch expense reports', { userId: req.userId, error: error.message });
+    logger.error('Failed to fetch expense reports', {
+      userId: req.userId,
+      error: error.message,
+    });
     next(error);
   }
 };
@@ -799,7 +941,8 @@ exports.exportExpenseReport = async (req, res, next) => {
     const totalAmount = claims.reduce((sum, c) => sum + (c.amount || 0), 0);
     const categoryBreakdown = {};
     claims.forEach((c) => {
-      categoryBreakdown[c.category] = (categoryBreakdown[c.category] || 0) + c.amount;
+      categoryBreakdown[c.category] =
+        (categoryBreakdown[c.category] || 0) + c.amount;
     });
 
     res.status(200).json({
@@ -812,7 +955,9 @@ exports.exportExpenseReport = async (req, res, next) => {
       claims,
     });
   } catch (error) {
-    logger.error('Failed to export custom expense report', { error: error.message });
+    logger.error('Failed to export custom expense report', {
+      error: error.message,
+    });
     next(error);
   }
 };
@@ -830,7 +975,10 @@ exports.updateReportStatus = async (req, res, next) => {
       return res.status(400).json({ message: 'Invalid status transition' });
     }
 
-    const report = await ExpenseReport.findOne({ _id: id, tenantId: req.tenantId });
+    const report = await ExpenseReport.findOne({
+      _id: id,
+      tenantId: req.tenantId,
+    });
     if (!report) {
       return res.status(404).json({ message: 'Expense report not found' });
     }
@@ -844,9 +992,13 @@ exports.updateReportStatus = async (req, res, next) => {
 
     await report.save();
 
-    res.status(200).json({ message: `Expense report marked as ${status}`, report });
+    res
+      .status(200)
+      .json({ message: `Expense report marked as ${status}`, report });
   } catch (error) {
-    logger.error('Failed to update expense report status', { error: error.message });
+    logger.error('Failed to update expense report status', {
+      error: error.message,
+    });
     next(error);
   }
 };
@@ -862,4 +1014,3 @@ exports.getFraudClaims = async (req, res, next) => {
     next(error);
   }
 };
-

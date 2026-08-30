@@ -10,7 +10,9 @@ const logger = require('../utils/logger');
 const { runDatabaseBackupJob } = require('./backup.job');
 const { runDatabaseArchivalJob } = require('./archival.job');
 const { runForexSyncJob } = require('./forexSync.job');
-
+const {
+  runCompensationCycleReminderJob,
+} = require('./compensationCycleReminder.job');
 const LOCK_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -308,22 +310,40 @@ async function runDailyGreetingsJob({ now = new Date(), tenantId } = {}) {
   }
 }
 
+const scheduledTasks = [];
+
 const startCronJobs = () => {
   // 09:00 on the 1st of every month.
-  cron.schedule('0 9 1 * *', () => {
-    runMonthlyPayslipJob().catch((error) =>
-      logger.error('Monthly payslip job threw', { error: error.message }),
-    );
-  });
+  scheduledTasks.push(
+    cron.schedule('0 9 1 * *', () => {
+      runMonthlyPayslipJob().catch((error) =>
+        logger.error('Monthly payslip job threw', { error: error.message }),
+      );
+    }),
+  );
   logger.info('Payslip cron job registered.');
 
   // 08:00 daily.
-  cron.schedule('0 8 * * *', () => {
-    runDailyGreetingsJob().catch((error) =>
-      logger.error('Daily greetings job threw', { error: error.message }),
-    );
-  });
+  scheduledTasks.push(
+    cron.schedule('0 8 * * *', () => {
+      runDailyGreetingsJob().catch((error) =>
+        logger.error('Daily greetings job threw', { error: error.message }),
+      );
+    }),
+  );
   logger.info('Daily greetings cron job registered.');
+
+  // 00:00 daily
+  scheduledTasks.push(
+    cron.schedule('0 0 * * *', () => {
+      runCompensationCycleReminderJob().catch((error) =>
+        logger.error('Compensation cycle reminder job threw', {
+          error: error.message,
+        }),
+      );
+    }),
+  );
+  logger.info('Compensation cycle reminder job registered.');
 
   // 00:30 on the 1st of every month.
   //
@@ -335,11 +355,15 @@ const startCronJobs = () => {
   // Half an hour past midnight rather than on it: a run that starts a few
   // seconds early would compute the period from the previous month and credit
   // it a second time.
-  cron.schedule('30 0 1 * *', () => {
-    processMonthlyAccrual().catch((error) =>
-      logger.error('Monthly leave accrual job threw', { error: error.message }),
-    );
-  });
+  scheduledTasks.push(
+    cron.schedule('30 0 1 * *', () => {
+      processMonthlyAccrual().catch((error) =>
+        logger.error('Monthly leave accrual job threw', {
+          error: error.message,
+        }),
+      );
+    }),
+  );
   logger.info('Monthly leave accrual cron job registered.');
 
   // 02:00 daily — the hour `IntegrationConfig.syncSchedule` defaults to.
@@ -348,82 +372,149 @@ const startCronJobs = () => {
   // registration per tenant: the set of tenants changes while the process is
   // running, and a schedule built at boot would never know about a company
   // that connected an HRMS afterwards (#954).
-  cron.schedule('0 2 * * *', () => {
-    runHrmsSyncJob().catch((error) =>
-      logger.error('HRMS sync job threw', { error: error.message }),
-    );
-  });
+  scheduledTasks.push(
+    cron.schedule('0 2 * * *', () => {
+      runHrmsSyncJob().catch((error) =>
+        logger.error('HRMS sync job threw', { error: error.message }),
+      );
+    }),
+  );
   logger.info('HRMS integration sync cron job registered.');
 
   // 03:00 daily — Database backup to S3/local.
-  cron.schedule('0 3 * * *', () => {
-    runDatabaseBackupJob().catch((error) =>
-      logger.error('Database backup job threw', { error: error.message }),
-    );
-  });
+  scheduledTasks.push(
+    cron.schedule('0 3 * * *', () => {
+      runDatabaseBackupJob().catch((error) =>
+        logger.error('Database backup job threw', { error: error.message }),
+      );
+    }),
+  );
   logger.info('Daily database backup cron job registered.');
 
   // 00:00 daily — Forex exchange rate daily sync.
-  cron.schedule('0 0 * * *', () => {
-    runForexSyncJob().catch((error) =>
-      logger.error('Forex sync job threw', { error: error.message }),
-    );
-  });
+  scheduledTasks.push(
+    cron.schedule('0 0 * * *', () => {
+      runForexSyncJob().catch((error) =>
+        logger.error('Forex sync job threw', { error: error.message }),
+      );
+    }),
+  );
   logger.info('Daily forex sync cron job registered.');
 
   // 00:00 on the 1st of every month — Database archival to S3 Glacier/local.
-  cron.schedule('0 0 1 * *', () => {
-    runDatabaseArchivalJob().catch((error) =>
-      logger.error('Database archival job threw', { error: error.message }),
-    );
-  });
+  scheduledTasks.push(
+    cron.schedule('0 0 1 * *', () => {
+      runDatabaseArchivalJob().catch((error) =>
+        logger.error('Database archival job threw', { error: error.message }),
+      );
+    }),
+  );
   logger.info('Monthly database archival cron job registered.');
-
+  // 01:00 daily — Data retention and privacy lifecycle.
+  //
+  // Runs separately from cold-storage archival so retention policy decisions
+  // can be applied per tenant without deleting historical payroll or audit data.
+  scheduledTasks.push(
+    cron.schedule('0 1 * * *', () => {
+      runRetentionLifecycleJob().catch((error) =>
+        logger.error('Retention lifecycle job threw', {
+          error: error.message,
+        }),
+      );
+    }),
+  );
+  logger.info('Daily retention lifecycle cron job registered.');
   // 04:00 daily — TOIL Expirations and Warnings.
-  cron.schedule('0 4 * * *', () => {
-    runToilExpirationJob().catch((error) =>
-      logger.error('TOIL expiration job threw', { error: error.message }),
-    );
-  });
+  scheduledTasks.push(
+    cron.schedule('0 4 * * *', () => {
+      runToilExpirationJob().catch((error) =>
+        logger.error('TOIL expiration job threw', { error: error.message }),
+      );
+    }),
+  );
   logger.info('Daily TOIL expiration cron job registered.');
 
   // 05:00 daily — Treasury Vault Liquidity Rebalancing.
-  cron.schedule('0 5 * * *', () => {
-    runTreasuryRebalancingCron().catch((error) =>
-      logger.error('Treasury rebalancing job threw', { error: error.message }),
-    );
-  });
+  scheduledTasks.push(
+    cron.schedule('0 5 * * *', () => {
+      runTreasuryRebalancingCron().catch((error) =>
+        logger.error('Treasury rebalancing job threw', {
+          error: error.message,
+        }),
+      );
+    }),
+  );
   logger.info('Daily treasury rebalancing cron job registered.');
 
   // 06:00 daily — Regional Tax Slab Auto-Sync.
-  cron.schedule('0 6 * * *', () => {
-    runTaxSyncCron().catch((error) =>
-      logger.error('Tax sync job threw', { error: error.message }),
-    );
-  });
+  scheduledTasks.push(
+    cron.schedule('0 6 * * *', () => {
+      runTaxSyncCron().catch((error) =>
+        logger.error('Tax sync job threw', { error: error.message }),
+      );
+    }),
+  );
   logger.info('Daily regional tax sync cron job registered.');
 
   // 02:00 daily - Usage Counter Rollup (#1113).
   // Persists Redis usage counters to TenantSubscription.usage and checks overage alerts.
-  cron.schedule('0 2 * * *', () => {
-    const { runUsageRollup } = require('./usageRollup.job');
-    runUsageRollup().catch((error) =>
-      logger.error('Usage rollup job threw', { error: error.message }),
-    );
-  });
+  scheduledTasks.push(
+    cron.schedule('0 2 * * *', () => {
+      const { runUsageRollup } = require('./usageRollup.job');
+      runUsageRollup().catch((error) =>
+        logger.error('Usage rollup job threw', { error: error.message }),
+      );
+    }),
+  );
   logger.info('Daily usage rollup cron job registered.');
 
   // Every 15 minutes — Payroll Approval Escalation (#1247).
   // Finds approval instances past their escalationDeadlineAt and marks them
   // escalated so salary disbursement is not blocked by an absent approver.
-  cron.schedule('*/15 * * * *', () => {
-    const { processEscalation } = require('./approvalEscalation.job');
-    processEscalation().catch((error) =>
-      logger.error('Payroll approval escalation job threw', { error: error.message }),
-    );
-  });
-  logger.info('Payroll approval escalation cron job registered (every 15 min).');
+  scheduledTasks.push(
+    cron.schedule('*/15 * * * *', () => {
+      const { processEscalation } = require('./approvalEscalation.job');
+      processEscalation().catch((error) =>
+        logger.error('Payroll approval escalation job threw', {
+          error: error.message,
+        }),
+      );
+    }),
+  );
+  logger.info(
+    'Payroll approval escalation cron job registered (every 15 min).',
+  );
+
+  // 01:30 daily — Detect Milestones (Work Anniversaries) with 7-day lead time.
+  scheduledTasks.push(
+    cron.schedule('30 1 * * *', () => {
+      const { runDetectMilestonesJob } = require('./detectMilestones.job');
+      runDetectMilestonesJob().catch((error) =>
+        logger.error('Detect milestones job threw', { error: error.message }),
+      );
+    }),
+  );
+  logger.info('Daily detect milestones cron job registered.');
+
+  // 02:30 daily — Certification Expiry Notifications.
+  scheduledTasks.push(
+    cron.schedule('30 2 * * *', () => {
+      const {
+        runCertificationExpiryJob,
+      } = require('./certificationExpiry.job');
+      runCertificationExpiryJob().catch((error) =>
+        logger.error('Certification expiry job threw', {
+          error: error.message,
+        }),
+      );
+    }),
+  );
+  logger.info('Daily certification expiry cron job registered.');
 };
+
+function stopCronJobs() {
+  scheduledTasks.forEach((task) => task.stop());
+}
 
 /**
  * Sync every active HRMS integration (#954).
@@ -470,12 +561,17 @@ async function runToilExpirationJob() {
 
   const lock = await acquireLock(lockId);
   if (!lock.acquired) {
-    logger.info('TOIL expiration job skipped: lock is held elsewhere', { lockId });
+    logger.info('TOIL expiration job skipped: lock is held elsewhere', {
+      lockId,
+    });
     return { ran: false, reason: lock.reason };
   }
 
   try {
-    const { processToilExpirations, sendToilExpiryWarnings } = require('../services/toilExpiration.service');
+    const {
+      processToilExpirations,
+      sendToilExpiryWarnings,
+    } = require('../services/toilExpiration.service');
     const expirationResult = await processToilExpirations();
     const warningResult = await sendToilExpiryWarnings();
     await releaseLock(lockId);
@@ -493,7 +589,9 @@ async function runTreasuryRebalancingCron() {
 
   const lock = await acquireLock(lockId);
   if (!lock.acquired) {
-    logger.info('Treasury rebalancing job skipped: lock is held elsewhere', { lockId });
+    logger.info('Treasury rebalancing job skipped: lock is held elsewhere', {
+      lockId,
+    });
     return { ran: false, reason: lock.reason };
   }
 
@@ -533,11 +631,13 @@ async function runTaxSyncCron() {
 
 module.exports = {
   startCronJobs,
+  stopCronJobs,
   runMonthlyPayslipJob,
   runDailyGreetingsJob,
   runHrmsSyncJob,
   runDatabaseBackupJob,
   runDatabaseArchivalJob,
+  runRetentionLifecycleJob,
   runForexSyncJob,
   runToilExpirationJob,
   runTreasuryRebalancingJob: runTreasuryRebalancingCron,

@@ -1,5 +1,6 @@
 // CompensationBandCard — Strictly typed salary band benchmarking card
 import React, { useState, useCallback } from 'react';
+import { formatCurrency } from '../../services/workforce/workforceService';
 
 /** Equity grant range with typed discriminator */
 interface EquityRange {
@@ -42,6 +43,33 @@ interface CompensationBandCardProps {
   onExpand?: (grade: CompensationGrade, expanded: boolean) => void;
   onCompare?: (grade: CompensationGrade) => void;
 }
+
+const gradeColors: Record<CompensationGrade, GradeColorScheme> = {
+  executive: {
+    gradient: 'linear-gradient(135deg, #1e1b4b 0%, #311042 100%)',
+    accent: '#d946ef',
+  },
+  director: {
+    gradient: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
+    accent: '#818cf8',
+  },
+  senior_manager: {
+    gradient: 'linear-gradient(135deg, #020617 0%, #1e293b 100%)',
+    accent: '#38bdf8',
+  },
+  manager: {
+    gradient: 'linear-gradient(135deg, #090d16 0%, #111827 100%)',
+    accent: '#34d399',
+  },
+  senior_individual: {
+    gradient: 'linear-gradient(135deg, #090d16 0%, #111827 100%)',
+    accent: '#fbbf24',
+  },
+  individual: {
+    gradient: 'linear-gradient(135deg, #090d16 0%, #111827 100%)',
+    accent: '#94a3b8',
+  },
+};
 
 const CompensationBandCard: React.FC<CompensationBandCardProps> = ({
   grade,
@@ -182,6 +210,28 @@ const CompensationBandCard: React.FC<CompensationBandCardProps> = ({
           {renderBandBar(maxSalary, 'Band Max', '#ef4444')}
           <p style={{ color: '#64748b', margin: '10px 0 0', fontSize: '10px' }}>Last updated: {lastUpdated}</p>
         </div>
+      )}
+
+      {onCompare && (
+        <button
+          onClick={handleCompare}
+          className="compare-btn"
+          style={{
+            marginTop: '12px',
+            width: '100%',
+            background: `${gc.accent}22`,
+            border: `1px solid ${gc.accent}44`,
+            borderRadius: '8px',
+            padding: '8px 12px',
+            color: '#fff',
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'background 0.2s',
+          }}
+        >
+          ⚖️ Compare Grade
+        </button>
       )}
     </div>
   );

@@ -5,17 +5,31 @@ import { ToastProvider, useToast } from '../ToastContext';
 
 let container = null;
 let root = null;
+import toast from 'react-hot-toast';
 
 const TestComponent = () => {
   const { toast, addToast } = useToast();
 
   return (
     <div>
-      <button id="btn-success" onClick={() => toast.success('Success message')}>Add Success</button>
-      <button id="btn-error" onClick={() => toast.error('Error message')}>Add Error</button>
-      <button id="btn-warning" onClick={() => toast.warning('Warning message')}>Add Warning</button>
-      <button id="btn-info" onClick={() => toast.info('Info message')}>Add Info</button>
-      <button id="btn-custom" onClick={() => addToast({ message: 'Custom Toast', duration: 0 })}>Add Persistent</button>
+      <button id="btn-success" onClick={() => toast.success('Success message')}>
+        Add Success
+      </button>
+      <button id="btn-error" onClick={() => toast.error('Error message')}>
+        Add Error
+      </button>
+      <button id="btn-warning" onClick={() => toast.warning('Warning message')}>
+        Add Warning
+      </button>
+      <button id="btn-info" onClick={() => toast.info('Info message')}>
+        Add Info
+      </button>
+      <button
+        id="btn-custom"
+        onClick={() => addToast({ message: 'Custom Toast', duration: 0 })}
+      >
+        Add Persistent
+      </button>
     </div>
   );
 };
@@ -23,16 +37,18 @@ const TestComponent = () => {
 describe('ToastContext & ToastProvider', () => {
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-    window.matchMedia = window.matchMedia || function () {
-      return {
-        matches: false,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
+    window.matchMedia =
+      window.matchMedia ||
+      function () {
+        return {
+          matches: false,
+          addListener: () => {},
+          removeListener: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+        };
       };
-    };
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -45,9 +61,14 @@ describe('ToastContext & ToastProvider', () => {
         root.unmount();
       });
     }
+    act(() => {
+      toast.remove();
+      vi.advanceTimersByTime(2000);
+    });
     document.body.innerHTML = '';
     container = null;
     root = null;
+    toast.remove();
     vi.useRealTimers();
   });
 
@@ -56,11 +77,13 @@ describe('ToastContext & ToastProvider', () => {
       root.render(
         <ToastProvider>
           <div id="test-child">Test Child</div>
-        </ToastProvider>
+        </ToastProvider>,
       );
     });
 
-    expect(container.querySelector('#test-child')?.textContent).toBe('Test Child');
+    expect(container.querySelector('#test-child')?.textContent).toBe(
+      'Test Child',
+    );
   });
 
   test('allows adding toasts via useToast helper methods', () => {
@@ -68,7 +91,7 @@ describe('ToastContext & ToastProvider', () => {
       root.render(
         <ToastProvider>
           <TestComponent />
-        </ToastProvider>
+        </ToastProvider>,
       );
     });
 
@@ -90,7 +113,7 @@ describe('ToastContext & ToastProvider', () => {
       root.render(
         <ToastProvider>
           <TestComponent />
-        </ToastProvider>
+        </ToastProvider>,
       );
     });
 
@@ -117,7 +140,7 @@ describe('ToastContext & ToastProvider', () => {
       root.render(
         <ToastProvider>
           <DismissTest />
-        </ToastProvider>
+        </ToastProvider>,
       );
     });
 
@@ -133,7 +156,7 @@ describe('ToastContext & ToastProvider', () => {
     });
 
     act(() => {
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(2000);
     });
 
     expect(document.body.textContent).not.toContain('Dismiss me');
@@ -144,7 +167,7 @@ describe('ToastContext & ToastProvider', () => {
       root.render(
         <ToastProvider>
           <TestComponent />
-        </ToastProvider>
+        </ToastProvider>,
       );
     });
 
@@ -165,7 +188,7 @@ describe('ToastContext & ToastProvider', () => {
       root.render(
         <ToastProvider>
           <div>Content</div>
-        </ToastProvider>
+        </ToastProvider>,
       );
     });
 
@@ -173,7 +196,7 @@ describe('ToastContext & ToastProvider', () => {
       window.dispatchEvent(
         new CustomEvent('toast:show', {
           detail: { message: 'Global Custom Event Toast', type: 'success' },
-        })
+        }),
       );
     });
 

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Compensation Benchmarking Intelligence Dashboard - PaySphere</title>
+    <link rel="stylesheet" href="styles/compensation_benchmarking.css" />
+    <script defer src="compensation_benchmarking_engine.js"></script>
+</head>
+
+<body>
+    <!-- ======================================================================== -->
+    <!-- Enterprise Compensation Benchmarking Intelligence Dashboard               -->
+    <!-- PaySphere Global HR & Payroll Platform                                    -->
+    <!-- Version: 3.2.0 | Author: PaySphere Engineering                           -->
+    <!-- Description: Real-time compensation benchmarking, pay equity analysis,    -->
+    <!-- salary range intelligence, and market percentile comparison engine.       -->
+    <!-- Compliance: SOC 2 Type II, CCPA, GDPR Article 88 (Employment Data)       -->
+    <!-- ======================================================================== -->
+
+    <!-- Top Navigation Bar -->
+    <header class="dashboard-header">
+        <div class="header-left">
+            <img src="logo.png" alt="PaySphere Logo" class="logo" />
+            <h1 class="dashboard-title">Compensation Benchmarking Intelligence</h1>
+        </div>
+        <div class="header-right">
+            <span class="badge badge-live">● LIVE DATA</span>
+            <span class="last-sync" id="lastSyncTime">Last synced: --</span>
+            <button class="btn btn-refresh" id="refreshBtn" title="Refresh benchmark data">⟳ Refresh</button>
+            <div class="user-avatar" id="userAvatar">HR</div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="dashboard-main">
+        <!-- Filter & Controls Panel -->
+        <section class="controls-panel glass-card">
+            <h2 class="section-title">Market Intelligence Filters</h2>
+            <div class="filter-grid">
+                <div class="filter-group">
+                    <label for="departmentSelect">Department</label>
+                    <select id="departmentSelect" class="glass-input">
+                        <option value="all">All Departments</option>
+                        <option value="engineering">Engineering</option>
+                        <option value="product">Product Management</option>
+                        <option value="design">Design & UX</option>
+                        <option value="sales">Sales & Revenue</option>
+                        <option value="marketing">Marketing</option>
+                        <option value="finance">Finance & Accounting</option>
+                        <option value="hr">Human Resources</option>
+                        <option value="operations">Operations</option>
+                        <option value="legal">Legal & Compliance</option>
+                        <option value="data">Data Science & Analytics</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="regionSelect">Geographic Region</label>
+                    <select id="regionSelect" class="glass-input">
+                        <option value="all">Global (All Regions)</option>
+                        <option value="na">North America</option>
+                        <option value="eu">Europe (EMEA)</option>
+                        <option value="apac">Asia Pacific (APAC)</option>
+                        <option value="latam">Latin America (LATAM)</option>
+                        <option value="mea">Middle East & Africa</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="jobLevelSelect">Job Level / Band</label>
+                    <select id="jobLevelSelect" class="glass-input">
+                        <option value="all">All Levels</option>
+                        <option value="ic1">IC1 - Entry Level</option>
+                        <option value="ic2">IC2 - Mid Level</option>
+                        <option value="ic3">IC3 - Senior</option>
+                        <option value="ic4">IC4 - Staff</option>
+                        <option value="ic5">IC5 - Principal</option>
+                        <option value="m1">M1 - Manager</option>
+                        <option value="m2">M2 - Director</option>
+                        <option value="m3">M3 - VP</option>
+                        <option value="m4">M4 - SVP / C-Suite</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="currencySelect">Currency</label>
+                    <select id="currencySelect" class="glass-input">
+                        <option value="USD">USD - US Dollar</option>
+                        <option value="EUR">EUR - Euro</option>
+                        <option value="GBP">GBP - British Pound</option>
+                        <option value="JPY">JPY - Japanese Yen</option>
+                        <option value="INR">INR - Indian Rupee</option>
+                        <option value="CAD">CAD - Canadian Dollar</option>
+                        <option value="AUD">AUD - Australian Dollar</option>
+                        <option value="SGD">SGD - Singapore Dollar</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="compensationType">Compensation Component</label>
+                    <select id="compensationType" class="glass-input">
+                        <option value="total">Total Compensation</option>
+                        <option value="base">Base Salary</option>
+                        <option value="bonus">Annual Bonus</option>
+                        <option value="equity">Equity / RSU</option>
+                        <option value="benefits">Benefits Value</option>
+                    </select>
+                </div>
+                <div class="filter-group filter-actions">
+                    <button class="btn btn-primary" id="applyFiltersBtn">Apply Filters</button>
+                    <button class="btn btn-secondary" id="resetFiltersBtn">Reset</button>
+                    <button class="btn btn-export" id="exportCsvBtn">↓ Export CSV</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Key Performance Indicators Row -->
+        <section class="kpi-row">
+            <div class="kpi-card glass-card" id="kpiMedianTotal">
+                <div class="kpi-label">Median Total Comp (P50)</div>
+                <div class="kpi-value" id="medianTotalComp">$142,500</div>
+                <div class="kpi-change positive">▲ 4.2% YoY</div>
+            </div>
+            <div class="kpi-card glass-card" id="kpiPayEquityGap">
+                <div class="kpi-label">Gender Pay Equity Gap</div>
+                <div class="kpi-value" id="payEquityGap">2.8%</div>
+                <div class="kpi-change positive">▼ 1.1pp from last quarter</div>
+            </div>
+            <div class="kpi-card glass-card" id="kpiBudgetUtilization">
+                <div class="kpi-label">Comp Budget Utilization</div>
+                <div class="kpi-value" id="budgetUtilization">87.3%</div>
+                <div class="kpi-change neutral">Within target range</div>
+            </div>
+            <div class="kpi-card glass-card" id="kpiMarketPosition">
+                <div class="kpi-label">Avg Market Percentile</div>
+                <div class="kpi-value" id="marketPercentile">P62</div>
+                <div class="kpi-change positive">Competitive positioning</div>
+            </div>
+        </section>
+
+        <!-- Main Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Compensation Distribution Panel -->
+            <section class="panel glass-card" id="compensationDistribution">
+                <h3 class="panel-title">Compensation Distribution by Level</h3>
+                <div class="chart-container" id="distributionChart">
+                    <div class="bar-chart" id="barChart">
+                        <!-- Populated by JS engine -->
+                    </div>
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Source: PaySphere Market Data Aggregator v3.2</span>
+                </div>
+            </section>
+
+            <!-- Pay Equity Analysis Panel -->
+            <section class="panel glass-card" id="payEquityPanel">
+                <h3 class="panel-title">Pay Equity Analysis by Gender & Ethnicity</h3>
+                <div class="equity-grid" id="equityGrid">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="equity-legend">
+                    <span class="legend-item"><span class="legend-dot green"></span> Within ±2% (Compliant)</span>
+                    <span class="legend-item"><span class="legend-dot yellow"></span> 2-5% variance (Review)</span>
+                    <span class="legend-item"><span class="legend-dot red"></span> &gt;5% variance (Action Required)</span>
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Compliance: Equal Pay Act, CCPA, EU Pay Transparency Directive 2023/970</span>
+                </div>
+            </section>
+
+            <!-- Market Percentile Comparison Panel -->
+            <section class="panel glass-card" id="marketComparison">
+                <h3 class="panel-title">Market Percentile Positioning</h3>
+                <div class="percentile-table" id="percentileTable">
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th>Level</th>
+                                <th>P25</th>
+                                <th>P50</th>
+                                <th>P75</th>
+                                <th>P90</th>
+                                <th>Our Position</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="percentileTableBody">
+                            <!-- Populated by JS engine -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Benchmarked against 2,847 peer organizations globally</span>
+                </div>
+            </section>
+
+            <!-- Salary Range Intelligence Panel -->
+            <section class="panel glass-card" id="salaryRangePanel">
+                <h3 class="panel-title">Salary Range Intelligence & Compa-Ratio</h3>
+                <div class="range-visualization" id="rangeVisualization">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="compa-ratio-summary" id="compaRatioSummary">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Compa-Ratio = (Actual Salary / Range Midpoint) × 100</span>
+                </div>
+            </section>
+
+            <!-- Compensation Cost Forecast Panel -->
+            <section class="panel glass-card panel-wide" id="costForecast">
+                <h3 class="panel-title">12-Month Compensation Cost Forecast</h3>
+                <div class="forecast-table" id="forecastTable">
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th>Base Salary</th>
+                                <th>Bonus Pool</th>
+                                <th>Equity Expense</th>
+                                <th>Benefits</th>
+                                <th>Total Comp Cost</th>
+                                <th>Variance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="forecastTableBody">
+                            <!-- Populated by JS engine -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Forecast model: Linear regression with 3.5% annual merit increase assumption</span>
+                </div>
+            </section>
+
+            <!-- Anomaly Detection Panel -->
+            <section class="panel glass-card" id="anomalyDetection">
+                <h3 class="panel-title">Compensation Anomaly Detection</h3>
+                <div class="anomaly-list" id="anomalyList">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Detection: Z-score &gt; 2.5σ from peer group median</span>
+                </div>
+            </section>
+        </div>
+
+        <!-- Audit Trail Footer -->
+        <footer class="dashboard-footer">
+            <div class="footer-left">
+                <span>PaySphere Compensation Intelligence Engine v3.2.0</span>
+                <span class="separator">|</span>
+                <span> SOC 2 Type II Certified</span>
+                <span class="separator">|</span>
+                <span>GDPR Compliant</span>
+                <span class="separator">|</span>
+                <span>CCPA Compliant</span>
+            </div>
+            <div class="footer-right">
+                <span id="auditTimestamp">Audit Trail: --</span>
+                <span class="separator">|</span>
+                <span id="sessionId">Session: --</span>
+            </div>
+        </footer>
+    </main>
+</body>
+
+</html>

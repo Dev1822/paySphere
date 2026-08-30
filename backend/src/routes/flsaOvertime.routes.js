@@ -1,0 +1,11 @@
+const express = require('express');
+const auth = require('../middlewares/auth.middleware');
+const { requirePermission } = require('../middlewares/rbac.middleware');
+const { writeRateLimiter } = require('../middlewares/rateLimiter.middleware');
+const { saveMatrix, assignAWS, processDailyTimesheet, getDashboard } = require('../controllers/flsaOvertime.controller');
+const router = express.Router();
+router.post('/matrix', auth, requirePermission('WRITE_PAYROLL'), writeRateLimiter, saveMatrix);
+router.post('/aws', auth, requirePermission('WRITE_EMPLOYEE'), writeRateLimiter, assignAWS);
+router.post('/timesheet', auth, requirePermission('WRITE_PAYROLL'), writeRateLimiter, processDailyTimesheet);
+router.get('/dashboard', auth, requirePermission('READ_PAYROLL'), getDashboard);
+module.exports = router;

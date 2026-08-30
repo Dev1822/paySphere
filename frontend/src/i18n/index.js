@@ -4,6 +4,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 
 import en from './locales/en.json';
 import es from './locales/es.json';
+import fr from './locales/fr.json';
 
 const STORAGE_KEY = 'paysphere_language';
 
@@ -14,6 +15,7 @@ i18n
     resources: {
       en: { translation: en },
       es: { translation: es },
+      fr: { translation: fr },
     },
     fallbackLng: 'en',
     detection: {

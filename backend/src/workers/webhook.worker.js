@@ -6,12 +6,12 @@
  * Issue: #645, completed in #474.
  */
 
-const { Worker } = require("bullmq");
-const crypto = require("crypto");
-const axios = require("axios");
-const redisConnection = require("../config/redis");
-const WebhookDelivery = require("../models/webhookDelivery.model");
-const logger = require("../utils/logger");
+const { Worker } = require('bullmq');
+const crypto = require('crypto');
+const axios = require('axios');
+const redisConnection = require('../config/redis');
+const WebhookDelivery = require('../models/webhookDelivery.model');
+const logger = require('../utils/logger');
 
 /**
  * Generates HMAC-SHA256 signature for the payload.
@@ -30,7 +30,10 @@ const logger = require("../utils/logger");
  */
 function generateSignature(payload, secret) {
   const payloadString = JSON.stringify(payload);
-  return crypto.createHmac("sha256", secret).update(payloadString).digest("hex");
+  return crypto
+    .createHmac('sha256', secret)
+    .update(payloadString)
+    .digest('hex');
 }
 
 /**
@@ -49,11 +52,12 @@ const customBackoffStrategy = (attemptsMade) => {
  * BullMQ worker (which would need a real Redis connection).
  */
 async function processWebhookJob(job) {
-  const { endpointId, tenantId, url, secret, eventName, payload } = job.data;
+  const { endpointId, tenantId, url, signingSecret, eventName, payload } =
+    job.data;
   const attempt = job.attemptsMade + 1;
 
   // 1. Generate HMAC Signature
-  const signature = generateSignature(payload, secret);
+  const signature = generateSignature(payload, signingSecret);
 
   // 2. Prepare Delivery Log Entry
   const deliveryLog = {
@@ -71,10 +75,10 @@ async function processWebhookJob(job) {
     // 3. Send HTTP POST Request
     const response = await axios.post(url, payload, {
       headers: {
-        "Content-Type": "application/json",
-        "X-PaySphere-Signature": `sha256=${signature}`,
-        "X-PaySphere-Event": eventName,
-        "User-Agent": "PaySphere-Webhooks/1.0",
+        'Content-Type': 'application/json',
+        'X-PaySphere-Signature': `sha256=${signature}`,
+        'X-PaySphere-Event': eventName,
+        'User-Agent': 'PaySphere-Webhooks/1.0',
       },
       timeout: 10000, // 10 second timeout
       validateStatus: () => true, // Don't throw on 4xx/5xx, handle manually
@@ -85,7 +89,7 @@ async function processWebhookJob(job) {
 
     deliveryLog.httpStatus = response.status;
     deliveryLog.responseBody =
-      typeof response.data === "string"
+      typeof response.data === 'string'
         ? response.data.slice(0, 1000)
         : JSON.stringify(response.data).slice(0, 1000);
     deliveryLog.isSuccess = isSuccess;
@@ -97,7 +101,7 @@ async function processWebhookJob(job) {
       try {
         await WebhookDelivery.create(deliveryLog);
       } catch (logError) {
-        logger.error("Webhook delivered but delivery log could not be saved", {
+        logger.error('Webhook delivered but delivery log could not be saved', {
           endpointId,
           url,
           event: eventName,
@@ -121,7 +125,9 @@ async function processWebhookJob(job) {
     // Calculate next retry time if it will be retried
     if (attempt < 5) {
       const delays = [60000, 300000, 1800000, 7200000];
-      deliveryLog.nextRetryAt = new Date(Date.now() + (delays[attempt - 1] || 0));
+      deliveryLog.nextRetryAt = new Date(
+        Date.now() + (delays[attempt - 1] || 0),
+      );
     } else {
       deliveryLog.isDlq = true;
     }
@@ -131,7 +137,7 @@ async function processWebhookJob(job) {
     try {
       await WebhookDelivery.create(deliveryLog);
     } catch (logError) {
-      logger.error("Failed to persist webhook delivery failure", {
+      logger.error('Failed to persist webhook delivery failure', {
         endpointId,
         url,
         event: eventName,
@@ -166,7 +172,7 @@ let worker = null;
 function startWebhookWorker() {
   if (worker) return worker;
 
-  worker = new Worker("webhook-deliveries", processWebhookJob, {
+  worker = new Worker('webhook-deliveries', processWebhookJob, {
     connection: redisConnection,
     concurrency: 5, // Process up to 5 webhooks simultaneously
     settings: {
@@ -174,26 +180,42 @@ function startWebhookWorker() {
     },
   });
 
-  worker.on("completed", (job) => {
+  worker.on('completed', (job) => {
     logger.debug(`Webhook job ${job.id} completed successfully`);
   });
 
-  worker.on("failed", (job, err) => {
+  worker.on('failed', (job, err) => {
     if (job.attemptsMade >= 5) {
-      logger.error(`Webhook job ${job.id} permanently failed after 5 attempts`, {
-        endpointId: job.data.endpointId,
-        error: err.message,
-      });
+      logger.error(
+        `Webhook job ${job.id} permanently failed after 5 attempts`,
+        {
+          endpointId: job.data.endpointId,
+          error: err.message,
+        },
+      );
     }
   });
 
-  logger.info("Webhook worker started", { queue: "webhook-deliveries" });
+  logger.info('Webhook worker started', { queue: 'webhook-deliveries' });
 
   return worker;
 }
 
+/**
+ * Gracefully shuts down the BullMQ worker.
+ * Awaits completion of in-progress jobs.
+ * @returns {Promise<void>}
+ */
+async function stopWebhookWorker() {
+  if (worker) {
+    await worker.close();
+    worker = null;
+  }
+}
+
 module.exports = {
   startWebhookWorker,
+  stopWebhookWorker,
   processWebhookJob,
   generateSignature,
   customBackoffStrategy,

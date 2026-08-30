@@ -10,6 +10,7 @@ import Sidebar from '../components/Sidebar';
 import ThemeToggle from '../components/ThemeToggle';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { formatDate } from '../utils/formatLocale';
 
 // --- Recharts Components ---
 import CustomReportBuilder from '../components/reports/CustomReportBuilder';
@@ -214,7 +215,7 @@ export default function Reports() {
             net: formatCurrency(p.netSalary, currency),
             netSalary: p.netSalary,
             status: p.status || "Paid",
-            date: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : "-",
+            date: formatDate(p.updatedAt),
           }))
         };
 

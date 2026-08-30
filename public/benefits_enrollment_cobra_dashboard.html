@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Benefits Enrollment & COBRA Administration Dashboard - PaySphere</title>
+    <link rel="stylesheet" href="styles/benefits_enrollment_cobra.css" />
+    <script defer src="benefits_enrollment_cobra_engine.js"></script>
+</head>
+
+<body>
+    <!-- ======================================================================== -->
+    <!-- Enterprise Employee Benefits Enrollment & COBRA Administration Dashboard -->
+    <!-- PaySphere Global HR & Payroll Platform                                    -->
+    <!-- Version: 2.6.0 | Author: PaySphere Benefits Engineering                   -->
+    <!-- Description: Open enrollment management, COBRA administration, benefits   -->
+    <!-- eligibility verification, plan comparison, qualifying life events, and     -->
+    <!-- employer cost optimization across multiple benefit plan types.             -->
+    <!-- Compliance: ERISA §601, COBRA (ERISA §601-609), ACA §4980H, HIPAA,        -->
+    <!-- IRS §125 Cafeteria Plan, Mental Health Parity Act (MHPAEA)               -->
+    <!-- ======================================================================== -->
+
+    <!-- Top Navigation Bar -->
+    <header class="dashboard-header">
+        <div class="header-left">
+            <img src="logo.png" alt="PaySphere Logo" class="logo" />
+            <h1 class="dashboard-title">Benefits Enrollment & COBRA Admin</h1>
+        </div>
+        <div class="header-right">
+            <span class="badge badge-live">● LIVE</span>
+            <span class="badge badge-compliance">ACA Compliant</span>
+            <span class="last-sync" id="lastSyncTime">Last synced: --</span>
+            <button class="btn btn-refresh" id="refreshBtn">⟳ Refresh</button>
+            <div class="user-avatar" id="userAvatar">BA</div>
+        </div>
+    </header>
+
+    <main class="dashboard-main">
+        <!-- Filter & Controls Panel -->
+        <section class="controls-panel glass-card">
+            <h2 class="section-title">Benefits Administration Filters</h2>
+            <div class="filter-grid">
+                <div class="filter-group">
+                    <label for="benefitTypeSelect">Benefit Type</label>
+                    <select id="benefitTypeSelect" class="glass-input">
+                        <option value="all">All Benefits</option>
+                        <option value="medical">Medical / Health Insurance</option>
+                        <option value="dental">Dental Insurance</option>
+                        <option value="vision">Vision Insurance</option>
+                        <option value="life">Life Insurance</option>
+                        <option value="disability">Disability (STD/LTD)</option>
+                        <option value="hsa">Health Savings Account (HSA)</option>
+                        <option value="fsa">Flexible Spending Account (FSA)</option>
+                        <option value="commuter">Commuter Benefits</option>
+                        <option value="legal">Legal Protection Plan</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="enrollmentStatus">Enrollment Status</label>
+                    <select id="enrollmentStatus" class="glass-input">
+                        <option value="all">All Statuses</option>
+                        <option value="active">Active Enrollment</option>
+                        <option value="pending">Pending Verification</option>
+                        <option value="cobra">COBRA Qualified</option>
+                        <option value="terminated">Terminated</option>
+                        <option value="waived">Waived Coverage</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="planYearSelect">Plan Year</label>
+                    <select id="planYearSelect" class="glass-input">
+                        <option value="2026">2026</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="cobraStatusSelect">COBRA Status</label>
+                    <select id="cobraStatusSelect" class="glass-input">
+                        <option value="all">All</option>
+                        <option value="eligible">COBRA Eligible</option>
+                        <option value="elected">COBRA Elected</option>
+                        <option value="expired">COBRA Expired</option>
+                        <option value="premium_past_due">Premium Past Due</option>
+                        <option value="not_applicable">Not Applicable</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="entitySelect">Legal Entity</label>
+                    <select id="entitySelect" class="glass-input">
+                        <option value="all">All Entities</option>
+                        <option value="us_hq">US Headquarters</option>
+                        <option value="us_west">US West Region</option>
+                        <option value="uk_ltd">UK Limited</option>
+                        <option value="india_pvt">India Private Ltd</option>
+                    </select>
+                </div>
+                <div class="filter-group filter-actions">
+                    <button class="btn btn-primary" id="applyFiltersBtn">Apply Filters</button>
+                    <button class="btn btn-secondary" id="resetFiltersBtn">Reset</button>
+                    <button class="btn btn-export" id="exportCsvBtn">↓ Export CSV</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- KPI Row -->
+        <section class="kpi-row">
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">Total Enrolled</div>
+                <div class="kpi-value" id="totalEnrolled">3,241</div>
+                <div class="kpi-change positive">▲ 127 from last OE</div>
+            </div>
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">COBRA Active Participants</div>
+                <div class="kpi-value" id="cobraActive">87</div>
+                <div class="kpi-change negative">▲ 12 from last quarter</div>
+            </div>
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">Annual Benefits Cost</div>
+                <div class="kpi-value" id="annualBenefitsCost">$14.8M</div>
+                <div class="kpi-change neutral">Within budget (+2.1%)</div>
+            </div>
+            <div class="kpi-card glass-card">
+                <div class="kpi-label">Open Enrollment Rate</div>
+                <div class="kpi-value" id="oeRate">94.2%</div>
+                <div class="kpi-change positive">▲ 3.1pp YoY</div>
+            </div>
+        </section>
+
+        <!-- Main Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Benefits Plan Comparison Panel -->
+            <section class="panel glass-card" id="planComparison">
+                <h3 class="panel-title">Benefits Plan Comparison & Premium Summary</h3>
+                <div class="plan-table-wrap">
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th>Plan Name</th>
+                                <th>Type</th>
+                                <th>Employee Premium</th>
+                                <th>Employer Subsidy</th>
+                                <th>Deductible</th>
+                                <th>OOP Max</th>
+                                <th>Enrolled</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="planTableBody">
+                            <!-- Populated by JS engine -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">ACA §4980H Employer Shared Responsibility Compliant</span>
+                </div>
+            </section>
+
+            <!-- COBRA Administration Panel -->
+            <section class="panel glass-card" id="cobraAdminPanel">
+                <h3 class="panel-title">COBRA Administration & Qualifying Events</h3>
+                <div class="cobra-summary" id="cobraSummary">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="cobra-timeline" id="cobraTimeline">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">COBRA ERISA §601-609 | HIPAA §9801 | State Mini-COBRA compliance</span>
+                </div>
+            </section>
+
+            <!-- Open Enrollment Progress Panel -->
+            <section class="panel glass-card" id="oeProgress">
+                <h3 class="panel-title">Open Enrollment Progress Tracker</h3>
+                <div class="oe-metrics" id="oeMetrics">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Open Enrollment Window: Nov 1 – Nov 30, 2026</span>
+                </div>
+            </section>
+
+            <!-- Qualifying Life Events Panel -->
+            <section class="panel glass-card" id="qleTracker">
+                <h3 class="panel-title">Qualifying Life Events (QLE) Tracker</h3>
+                <div class="qle-list" id="qleList">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">IRS §125 Cafeteria Plan — QLE Special Enrollment Period (30 days)</span>
+                </div>
+            </section>
+
+            <!-- Employer Cost Optimization Panel -->
+            <section class="panel glass-card panel-wide" id="costOptimization">
+                <h3 class="panel-title">Employer Benefits Cost Analysis & Optimization</h3>
+                <div class="cost-table-wrap">
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th>Plan Category</th>
+                                <th>Enrolled Count</th>
+                                <th>Annual Employer Cost</th>
+                                <th>Cost Per Employee</th>
+                                <th>YoY Change</th>
+                                <th>Industry Benchmark</th>
+                                <th>Optimization Opportunity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="costTableBody">
+                            <!-- Populated by JS engine -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">Benchmarked against SHRM 2026 Employee Benefits Survey</span>
+                </div>
+            </section>
+
+            <!-- ACA Affordability & Compliance Panel -->
+            <section class="panel glass-card" id="acaCompliance">
+                <h3 class="panel-title">ACA Affordability & Compliance Monitor</h3>
+                <div class="aca-status" id="acaStatus">
+                    <!-- Populated by JS engine -->
+                </div>
+                <div class="panel-footer">
+                    <span class="data-source">ACA §4980H Affordability safe harbor: 9.12% of household income (2026)</span>
+                </div>
+            </section>
+        </div>
+
+        <!-- Footer -->
+        <footer class="dashboard-footer">
+            <div class="footer-left">
+                <span>PaySphere Benefits Administration Engine v2.6.0</span>
+                <span class="separator">|</span>
+                <span>ERISA Compliant</span>
+                <span class="separator">|</span>
+                <span>ACA §4980H</span>
+                <span class="separator">|</span>
+                <span>COBRA Admin</span>
+                <span class="separator">|</span>
+                <span>HIPAA</span>
+            </div>
+            <div class="footer-right">
+                <span id="auditTimestamp">Audit Trail: --</span>
+                <span class="separator">|</span>
+                <span id="sessionId">Session: --</span>
+            </div>
+        </footer>
+    </main>
+</body>
+
+</html>

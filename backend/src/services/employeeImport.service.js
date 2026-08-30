@@ -128,4 +128,44 @@ async function rollbackImport(importJobId, tenantId) {
   return { rolledBack: true };
 }
 
-module.exports = { parseAndValidate, commitImport, rollbackImport };
+/**
+ * Queue async batch import via BullMQ
+ */
+async function commitImportAsync(importJobId, tenantId, createdBy) {
+  const queue = require('../jobs/queue.service').getQueue('employee-import');
+  const job = await EmployeeImport.findOne({ _id: importJobId, tenantId });
+  
+  if (!job) throw Object.assign(new Error('Import job not found.'), { status: 404 });
+  if (job.status !== 'preview_ready') {
+    throw Object.assign(new Error('Job is not ready to commit. Status: ' + job.status), { status: 400 });
+  }
+
+  job.status = 'importing';
+  const totalBatches = Math.ceil(job.validatedRows.length / job.batchSize);
+  
+  // Queue all batches
+  for (let i = 0; i < totalBatches; i++) {
+    await queue.add('process-batch', {
+      importJobId,
+      batchIndex: i,
+      tenantId,
+      createdBy
+    }, {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 1000 },
+      removeOnComplete: true
+    });
+  }
+
+  await job.save();
+  logger.info('Import queued', { importJobId, totalBatches });
+  
+  return { jobId: importJobId, status: 'importing' };
+}
+
+module.exports = { 
+  parseAndValidate, 
+  commitImport, 
+  rollbackImport,
+  commitImportAsync 
+};

@@ -18,6 +18,16 @@ jest.mock('../models/expenseClaim.model');
 jest.mock('../models/expenseCategory.model');
 jest.mock('../models/employee.model');
 jest.mock('../services/event.service', () => ({ emit: jest.fn() }));
+jest.mock('../services/objectStorage.service', () => ({
+  createObjectKey: jest.fn(() => 'tenants/test/expenses/receipt.jpg'),
+  deleteObject: jest.fn().mockResolvedValue(true),
+  getDownloadUrl: jest.fn(async (uri) => `https://signed.example/${encodeURIComponent(uri)}`),
+  isStorageUri: jest.fn((value) => String(value).startsWith('s3://')),
+  putObject: jest.fn().mockResolvedValue({
+    uri: 's3://test-bucket/tenants/test/expenses/receipt.jpg',
+    key: 'tenants/test/expenses/receipt.jpg',
+  }),
+}));
 
 const ExpenseClaim = require('../models/expenseClaim.model');
 const ExpenseCategory = require('../models/expenseCategory.model');
@@ -205,6 +215,7 @@ describe('submitExpense (#794)', () => {
       body: validBody(),
       files: [
         {
+          buffer: Buffer.from('receipt'),
           filename: 'b7c1f0a2-0000-4000-8000-000000000000.jpg',
           originalname: '../../etc/passwd',
           mimetype: 'image/jpeg',
@@ -217,7 +228,7 @@ describe('submitExpense (#794)', () => {
 
     const [created] = ExpenseClaim.create.mock.calls[0];
     expect(created.receipts[0].url).toBe(
-      '/uploads/receipts/b7c1f0a2-0000-4000-8000-000000000000.jpg',
+      's3://test-bucket/tenants/test/expenses/receipt.jpg',
     );
     expect(created.receipts[0].url).not.toContain('..');
   });

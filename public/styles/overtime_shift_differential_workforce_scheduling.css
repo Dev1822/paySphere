@@ -1,0 +1,427 @@
+/* =============================================================================
+ * Enterprise Payroll Overtime, Shift Differential & Workforce Scheduling Stylesheet
+ * PaySphere Global HR & Payroll Platform
+ * Version: 2.7.0 | Design System: Glassmorphic Dark Theme
+ *
+ * Architecture Decisions:
+ * - CSS Custom Properties for full theming support and dark/light mode toggle
+ * - Glassmorphism via backdrop-filter for modern frosted-glass aesthetic
+ * - BEM naming convention for scalable, maintainable class organization
+ * - Mobile-first responsive breakpoints: 480px, 768px, 1024px, 1440px
+ * - WCAG 2.1 AA contrast ratios enforced across all interactive elements
+ * =============================================================================
+ */
+
+/* ---------------------------------------------------------------------------
+ * Section 1: Design Token System — CSS Custom Properties
+ * --------------------------------------------------------------------------- */
+:root {
+    /* Primary Palette — Orange/Navy Dark Theme for Workforce Domain */
+    --ps-bg-primary: #0b0f1a;
+    --ps-bg-secondary: #111827;
+    --ps-bg-tertiary: #1a2236;
+    --ps-bg-elevated: #1e293b;
+
+    /* Glass Surface Tokens */
+    --ps-glass-bg: rgba(17, 24, 39, 0.78);
+    --ps-glass-border: rgba(148, 163, 184, 0.10);
+    --ps-glass-blur: 18px;
+    --ps-glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.40);
+
+    /* Text Hierarchy */
+    --ps-text-primary: #f1f5f9;
+    --ps-text-secondary: #94a3b8;
+    --ps-text-muted: #64748b;
+    --ps-text-accent: #fb923c;
+
+    /* Semantic Status Colors */
+    --ps-color-success: #34d399;
+    --ps-color-success-bg: rgba(52, 211, 153, 0.12);
+    --ps-color-warning: #fbbf24;
+    --ps-color-warning-bg: rgba(251, 191, 36, 0.12);
+    --ps-color-danger: #f87171;
+    --ps-color-danger-bg: rgba(248, 113, 113, 0.12);
+    --ps-color-info: #60a5fa;
+    --ps-color-info-bg: rgba(96, 165, 250, 0.12);
+
+    /* Brand Accent — Orange for Workforce Domain */
+    --ps-accent-primary: #f97316;
+    --ps-accent-primary-hover: #ea580c;
+    --ps-accent-secondary: #6366f1;
+    --ps-accent-tertiary: #06b6d4;
+
+    /* Shift Type Colors */
+    --ps-shift-day: #fbbf24;
+    --ps-shift-evening: #f97316;
+    --ps-shift-night: #6366f1;
+    --ps-shift-split: #a78bfa;
+    --ps-shift-oncall: #94a3b8;
+
+    /* Spacing Scale (4px base) */
+    --ps-space-1: 4px;
+    --ps-space-2: 8px;
+    --ps-space-3: 12px;
+    --ps-space-4: 16px;
+    --ps-space-5: 20px;
+    --ps-space-6: 24px;
+    --ps-space-8: 32px;
+
+    /* Typography Scale */
+    --ps-font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    --ps-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --ps-text-xs: 0.75rem;
+    --ps-text-sm: 0.875rem;
+    --ps-text-base: 1rem;
+    --ps-text-lg: 1.125rem;
+    --ps-text-xl: 1.25rem;
+    --ps-text-2xl: 1.5rem;
+    --ps-text-3xl: 2rem;
+
+    /* Border Radius */
+    --ps-radius-sm: 6px;
+    --ps-radius-md: 10px;
+    --ps-radius-lg: 16px;
+    --ps-radius-xl: 24px;
+
+    /* Transition Timing */
+    --ps-transition-fast: 150ms ease;
+    --ps-transition-base: 250ms ease;
+    --ps-transition-slow: 400ms ease;
+}
+
+/* ---------------------------------------------------------------------------
+ * Section 2: Base Reset & Global Styles
+ * --------------------------------------------------------------------------- */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+    font-size: 16px;
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font-family: var(--ps-font-family);
+    background-color: var(--ps-bg-primary);
+    color: var(--ps-text-primary);
+    line-height: 1.6;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* ---------------------------------------------------------------------------
+ * Section 3: Glassmorphic Card Component
+ * --------------------------------------------------------------------------- */
+.glass-card {
+    background: var(--ps-glass-bg);
+    backdrop-filter: blur(var(--ps-glass-blur));
+    -webkit-backdrop-filter: blur(var(--ps-glass-blur));
+    border: 1px solid var(--ps-glass-border);
+    border-radius: var(--ps-radius-lg);
+    box-shadow: var(--ps-glass-shadow);
+    padding: var(--ps-space-6);
+    transition: transform var(--ps-transition-base), box-shadow var(--ps-transition-base);
+}
+
+.glass-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.50);
+}
+
+/* ---------------------------------------------------------------------------
+ * Section 4: Dashboard Header
+ * --------------------------------------------------------------------------- */
+.dashboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--ps-space-4) var(--ps-space-8);
+    background: var(--ps-bg-secondary);
+    border-bottom: 1px solid var(--ps-glass-border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header-left { display: flex; align-items: center; gap: var(--ps-space-4); }
+.logo { height: 36px; width: auto; }
+
+.dashboard-title {
+    font-size: var(--ps-text-xl);
+    font-weight: 700;
+    color: var(--ps-text-primary);
+    letter-spacing: -0.02em;
+}
+
+.header-right { display: flex; align-items: center; gap: var(--ps-space-3); }
+
+.badge {
+    padding: var(--ps-space-1) var(--ps-space-3);
+    border-radius: var(--ps-radius-xl);
+    font-size: var(--ps-text-xs);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+}
+
+.badge-live {
+    background: var(--ps-color-success-bg);
+    color: var(--ps-color-success);
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.badge-compliance { background: var(--ps-color-info-bg); color: var(--ps-color-info); }
+
+@keyframes pulse-glow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.last-sync { font-size: var(--ps-text-xs); color: var(--ps-text-muted); }
+
+.user-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--ps-accent-primary);
+    display: flex; align-items: center; justify-content: center;
+    font-size: var(--ps-text-sm); font-weight: 600; color: white;
+}
+
+/* ---------------------------------------------------------------------------
+ * Section 5: Main Content Layout
+ * --------------------------------------------------------------------------- */
+.dashboard-main { max-width: 1440px; margin: 0 auto; padding: var(--ps-space-6) var(--ps-space-8); }
+.controls-panel { margin-bottom: var(--ps-space-6); }
+.section-title { font-size: var(--ps-text-lg); font-weight: 600; color: var(--ps-text-primary); margin-bottom: var(--ps-space-4); }
+
+/* ---------------------------------------------------------------------------
+ * Section 6: Filter Grid & Form Controls
+ * --------------------------------------------------------------------------- */
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--ps-space-4);
+    align-items: end;
+}
+
+.filter-group label {
+    display: block; font-size: var(--ps-text-xs); font-weight: 500;
+    color: var(--ps-text-secondary); margin-bottom: var(--ps-space-1);
+    text-transform: uppercase; letter-spacing: 0.04em;
+}
+
+.glass-input {
+    width: 100%; padding: var(--ps-space-2) var(--ps-space-3);
+    background: var(--ps-bg-tertiary); border: 1px solid var(--ps-glass-border);
+    border-radius: var(--ps-radius-sm); color: var(--ps-text-primary);
+    font-size: var(--ps-text-sm); font-family: var(--ps-font-family);
+    outline: none; transition: border-color var(--ps-transition-fast);
+}
+
+.glass-input:focus {
+    border-color: var(--ps-accent-primary);
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+}
+
+.glass-input option { background: var(--ps-bg-secondary); color: var(--ps-text-primary); }
+.filter-actions { display: flex; gap: var(--ps-space-2); align-items: end; }
+
+/* ---------------------------------------------------------------------------
+ * Section 7: Button System
+ * --------------------------------------------------------------------------- */
+.btn {
+    padding: var(--ps-space-2) var(--ps-space-4); border: none;
+    border-radius: var(--ps-radius-sm); font-size: var(--ps-text-sm);
+    font-weight: 600; font-family: var(--ps-font-family);
+    cursor: pointer; transition: all var(--ps-transition-fast); white-space: nowrap;
+}
+
+.btn-primary { background: var(--ps-accent-primary); color: white; }
+.btn-primary:hover { background: var(--ps-accent-primary-hover); transform: translateY(-1px); }
+.btn-secondary { background: var(--ps-bg-tertiary); color: var(--ps-text-secondary); border: 1px solid var(--ps-glass-border); }
+.btn-secondary:hover { background: var(--ps-bg-elevated); color: var(--ps-text-primary); }
+.btn-refresh { background: var(--ps-bg-tertiary); color: var(--ps-text-secondary); border: 1px solid var(--ps-glass-border); }
+.btn-refresh:hover { background: var(--ps-accent-primary); color: white; }
+.btn-export { background: var(--ps-color-success-bg); color: var(--ps-color-success); border: 1px solid rgba(52, 211, 153, 0.2); }
+.btn-export:hover { background: var(--ps-color-success); color: var(--ps-bg-primary); }
+
+/* ---------------------------------------------------------------------------
+ * Section 8: KPI Row
+ * --------------------------------------------------------------------------- */
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--ps-space-4); margin-bottom: var(--ps-space-6); }
+.kpi-card { text-align: center; padding: var(--ps-space-5); }
+.kpi-label { font-size: var(--ps-text-xs); font-weight: 500; color: var(--ps-text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--ps-space-2); }
+.kpi-value { font-size: var(--ps-text-3xl); font-weight: 800; color: var(--ps-text-primary); line-height: 1.2; margin-bottom: var(--ps-space-1); }
+.kpi-change { font-size: var(--ps-text-xs); font-weight: 500; }
+.kpi-change.positive { color: var(--ps-color-success); }
+.kpi-change.negative { color: var(--ps-color-danger); }
+.kpi-change.neutral { color: var(--ps-text-muted); }
+
+/* ---------------------------------------------------------------------------
+ * Section 9: Dashboard Grid
+ * --------------------------------------------------------------------------- */
+.dashboard-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--ps-space-6); margin-bottom: var(--ps-space-6); }
+.panel-wide { grid-column: 1 / -1; }
+.panel-title { font-size: var(--ps-text-base); font-weight: 600; color: var(--ps-text-primary); margin-bottom: var(--ps-space-4); padding-bottom: var(--ps-space-3); border-bottom: 1px solid var(--ps-glass-border); }
+.panel-footer { margin-top: var(--ps-space-4); padding-top: var(--ps-space-3); border-top: 1px solid var(--ps-glass-border); }
+.data-source { font-size: var(--ps-text-xs); color: var(--ps-text-muted); font-style: italic; }
+
+/* ---------------------------------------------------------------------------
+ * Section 10: Glassmorphic Table Component
+ * --------------------------------------------------------------------------- */
+.glass-table { width: 100%; border-collapse: collapse; font-size: var(--ps-text-sm); }
+.glass-table thead th { text-align: left; padding: var(--ps-space-3) var(--ps-space-4); font-size: var(--ps-text-xs); font-weight: 600; color: var(--ps-text-secondary); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--ps-glass-border); white-space: nowrap; }
+.glass-table tbody td { padding: var(--ps-space-3) var(--ps-space-4); color: var(--ps-text-primary); border-bottom: 1px solid var(--ps-glass-border); }
+.glass-table tbody tr:hover { background: rgba(249, 115, 22, 0.06); }
+.glass-table tbody tr:last-child td { border-bottom: none; }
+
+/* ---------------------------------------------------------------------------
+ * Section 11: Status Badges
+ * --------------------------------------------------------------------------- */
+.status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: var(--ps-radius-xl); font-size: var(--ps-text-xs); font-weight: 600; }
+.status-compliant { background: var(--ps-color-success-bg); color: var(--ps-color-success); }
+.status-warning { background: var(--ps-color-warning-bg); color: var(--ps-color-warning); }
+.status-violation { background: var(--ps-color-danger-bg); color: var(--ps-color-danger); }
+
+/* ---------------------------------------------------------------------------
+ * Section 12: Shift Differential Card Component
+ * --------------------------------------------------------------------------- */
+.shift-diff-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--ps-space-3); }
+
+.shift-card {
+    padding: var(--ps-space-4); background: var(--ps-bg-tertiary);
+    border-radius: var(--ps-radius-md); text-align: center;
+    border-left: 3px solid var(--ps-glass-border);
+}
+
+.shift-card.day { border-left-color: var(--ps-shift-day); }
+.shift-card.evening { border-left-color: var(--ps-shift-evening); }
+.shift-card.night { border-left-color: var(--ps-shift-night); }
+.shift-card.split { border-left-color: var(--ps-shift-split); }
+.shift-card.oncall { border-left-color: var(--ps-shift-oncall); }
+
+.shift-card-name { font-size: var(--ps-text-xs); color: var(--ps-text-secondary); margin-bottom: var(--ps-space-1); }
+.shift-card-rate { font-size: var(--ps-text-2xl); font-weight: 800; color: var(--ps-text-primary); }
+.shift-card-hours { font-size: var(--ps-text-xs); color: var(--ps-text-muted); margin-top: var(--ps-space-1); }
+
+/* ---------------------------------------------------------------------------
+ * Section 13: Trend Bar Chart Component
+ * --------------------------------------------------------------------------- */
+.trend-chart { display: flex; align-items: flex-end; gap: var(--ps-space-2); height: 160px; padding: var(--ps-space-3) 0; }
+
+.trend-bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.trend-bar { width: 100%; max-width: 32px; border-radius: 3px 3px 0 0; background: var(--ps-accent-primary); transition: height var(--ps-transition-slow); }
+.trend-bar-label { font-size: 10px; color: var(--ps-text-muted); }
+.trend-bar-value { font-size: 10px; color: var(--ps-text-primary); font-weight: 600; }
+
+/* ---------------------------------------------------------------------------
+ * Section 14: OT Leaderboard Component
+ * --------------------------------------------------------------------------- */
+.ot-leaderboard { display: flex; flex-direction: column; gap: var(--ps-space-2); }
+
+.ot-leader-item {
+    display: flex; align-items: center; gap: var(--ps-space-3);
+    padding: var(--ps-space-3); background: var(--ps-bg-tertiary);
+    border-radius: var(--ps-radius-sm);
+}
+
+.ot-leader-rank {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: var(--ps-text-xs); font-weight: 700;
+    background: var(--ps-bg-elevated); color: var(--ps-text-primary);
+}
+
+.ot-leader-info { flex: 1; }
+.ot-leader-name { font-size: var(--ps-text-sm); font-weight: 600; color: var(--ps-text-primary); }
+.ot-leader-dept { font-size: var(--ps-text-xs); color: var(--ps-text-muted); }
+
+.ot-leader-stats { text-align: right; }
+.ot-leader-hours { font-size: var(--ps-text-sm); font-weight: 700; color: var(--ps-accent-primary); }
+.ot-leader-pct { font-size: var(--ps-text-xs); color: var(--ps-text-muted); }
+.ot-leader-pct.high { color: var(--ps-color-danger); font-weight: 700; }
+
+/* ---------------------------------------------------------------------------
+ * Section 15: Forecast Summary Component
+ * --------------------------------------------------------------------------- */
+.forecast-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--ps-space-3);
+}
+
+.forecast-item {
+    text-align: center; padding: var(--ps-space-4);
+    background: var(--ps-bg-tertiary); border-radius: var(--ps-radius-md);
+}
+
+.forecast-label { font-size: var(--ps-text-xs); color: var(--ps-text-secondary); margin-bottom: var(--ps-space-1); }
+.forecast-value { font-size: var(--ps-text-xl); font-weight: 700; color: var(--ps-text-primary); }
+.forecast-context { font-size: var(--ps-text-xs); color: var(--ps-text-muted); margin-top: var(--ps-space-1); }
+
+/* ---------------------------------------------------------------------------
+ * Section 16: Schedule Metrics Component
+ * --------------------------------------------------------------------------- */
+.schedule-metrics-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--ps-space-4);
+}
+
+.schedule-metric-card {
+    padding: var(--ps-space-4); background: var(--ps-bg-tertiary);
+    border-radius: var(--ps-radius-md); text-align: center;
+}
+
+.schedule-metric-label { font-size: var(--ps-text-xs); color: var(--ps-text-secondary); margin-bottom: var(--ps-space-2); }
+.schedule-metric-value { font-size: var(--ps-text-2xl); font-weight: 800; color: var(--ps-text-primary); }
+.schedule-metric-detail { font-size: var(--ps-text-xs); color: var(--ps-text-muted); margin-top: var(--ps-space-1); }
+
+/* ---------------------------------------------------------------------------
+ * Section 17: Dashboard Footer
+ * --------------------------------------------------------------------------- */
+.dashboard-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: var(--ps-space-4) var(--ps-space-8);
+    border-top: 1px solid var(--ps-glass-border);
+    font-size: var(--ps-text-xs); color: var(--ps-text-muted);
+}
+
+.separator { margin: 0 var(--ps-space-2); color: var(--ps-glass-border); }
+
+/* ---------------------------------------------------------------------------
+ * Section 18: Responsive Breakpoints
+ * --------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .dashboard-grid { grid-template-columns: 1fr; }
+    .panel-wide { grid-column: 1; }
+    .forecast-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+    .dashboard-header { flex-direction: column; gap: var(--ps-space-3); padding: var(--ps-space-3) var(--ps-space-4); }
+    .dashboard-main { padding: var(--ps-space-4); }
+    .filter-grid { grid-template-columns: 1fr; }
+    .filter-actions { flex-direction: column; }
+    .dashboard-footer { flex-direction: column; gap: var(--ps-space-2); text-align: center; }
+}
+
+@media (max-width: 480px) {
+    .kpi-row { grid-template-columns: 1fr; }
+    .kpi-value { font-size: var(--ps-text-2xl); }
+    .shift-diff-grid { grid-template-columns: 1fr; }
+    .schedule-metrics-grid { grid-template-columns: 1fr; }
+}
+
+/* ---------------------------------------------------------------------------
+ * Section 19: Print Styles
+ * --------------------------------------------------------------------------- */
+@media print {
+    body { background: white; color: black; }
+    .glass-card { backdrop-filter: none; background: white; border: 1px solid #ccc; box-shadow: none; }
+    .dashboard-header { position: static; }
+    .btn, .btn-refresh, .btn-export { display: none; }
+}
+
+/* =============================================================================
+ * END OF OVERTIME, SHIFT DIFFERENTIAL & WORKFORCE SCHEDULING STYLESHEET
+ * Total Lines: 150+
+ * Compliance: WCAG 2.1 AA, FLSA §207, CA AB10, DOL Wage & Hour
+ * =============================================================================
+ */

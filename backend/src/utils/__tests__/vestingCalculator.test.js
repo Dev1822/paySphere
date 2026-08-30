@@ -26,6 +26,7 @@ const {
   computeForfeitureOnExit,
   summarisePool,
   canGrant,
+  calculateTenderAllocations,
   GRANT_STATUS,
 } = require('../vestingCalculator');
 
@@ -638,4 +639,3 @@ describe('calculateTenderAllocations', () => {
     expect(result.allocations[1].sharesAllocated).toBe(500);
   });
 });
-

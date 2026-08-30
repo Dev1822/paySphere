@@ -1,3 +1,5 @@
+import { formatDateTime } from './formatLocale';
+
 /**
  * Build a CSV string from an array of employee objects and trigger a
  * browser download. Pure client-side — no network call, no dependency.
@@ -41,7 +43,7 @@ export function exportEmployeesToCsv(employees, options = {}) {
   const csvLines = [];
   if (companyName) {
     csvLines.push(`# ${companyName} — Employee Roster`);
-    csvLines.push(`# Exported: ${new Date().toLocaleString()}`);
+    csvLines.push(`# Exported: ${formatDateTime(new Date())}`);
     csvLines.push(''); // blank line separates metadata from data
   }
   csvLines.push(header.map(escapeCell).join(','));

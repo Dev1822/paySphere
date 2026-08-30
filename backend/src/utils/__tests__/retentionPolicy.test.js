@@ -55,3 +55,16 @@ describe('Data Retention & GDPR Right-to-be-Forgotten Policy Engine', () => {
     });
   });
 });
+    it('does not produce negative archived days when the deletion date is in the future', () => {
+      const emp = {
+        _id: 'emp3',
+        deletedAt: new Date('2027-01-01T00:00:00Z'),
+      };
+      const now = new Date('2026-08-14T00:00:00Z');
+
+      const result = evaluateRetentionEligibility(emp, 7, now);
+
+      expect(result.isEligibleForPurge).toBe(false);
+      expect(result.daysArchived).toBe(0);
+      expect(result.remainingDays).toBe(2555);
+    });
