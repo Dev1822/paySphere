@@ -10,10 +10,10 @@ const {
   submitClaim,
   getRelocationTaxSummary,
 } = require('../controllers/relocation.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/create-package', protect, createPackage);
-router.post('/submit-claim', protect, submitClaim);
-router.get('/tax-summary/:employeeId', protect, getRelocationTaxSummary);
+router.post('/create-package', auth, createPackage);
+router.post('/submit-claim', auth, submitClaim);
+router.get('/tax-summary/:employeeId', auth, getRelocationTaxSummary);
 
 module.exports = router;

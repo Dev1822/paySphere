@@ -10,10 +10,10 @@ const {
   getPerDiemRates,
   getTravelTaxSummary,
 } = require('../controllers/perDiem.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/calculate-itinerary', protect, calculateItinerary);
-router.get('/rates', protect, getPerDiemRates);
-router.get('/travel-tax-summary/:employeeId', protect, getTravelTaxSummary);
+router.post('/calculate-itinerary', auth, calculateItinerary);
+router.get('/rates', auth, getPerDiemRates);
+router.get('/travel-tax-summary/:employeeId', auth, getTravelTaxSummary);
 
 module.exports = router;

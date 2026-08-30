@@ -8,7 +8,9 @@ const {
   listCalculationRules,
   createCalculationRule,
   activateCalculationRule,
-} = require('../controllers/payrollCalculationRule.controller');const auth = require('../middlewares/auth.middleware');
+} = require('../controllers/payrollCalculationRule.controller');
+
+const auth = require('../middlewares/auth.middleware');
 const { requireScope } = require('../middlewares/rbac.middleware');
 const { validateRequest } = require('../middlewares/validate.middleware');
 const idempotencyMiddleware = require('../middlewares/idempotency.middleware');
@@ -24,7 +26,6 @@ router.post(
   submitPayrollForReview,
 );
 router.get('/summary', auth, requireScope('payroll:read'), getPayrollSummary);
-router.post('/payroll/:payrollId/generate-payslips', authMiddleware, rbacMiddleware, payrollController.generatePayslips);
 router.get(
   '/calculation-rules',
   auth,
@@ -45,5 +46,4 @@ router.post(
   requireScope('payroll:write'),
   activateCalculationRule,
 );
-router.get('/payslip/:jobHash/status', authMiddleware, payrollController.getPayslipStatus);
 module.exports = router;

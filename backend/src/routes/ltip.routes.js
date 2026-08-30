@@ -10,10 +10,10 @@ const {
   evaluateVesting,
   getLtipPortfolio,
 } = require('../controllers/ltip.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/grant-units', protect, grantUnits);
-router.post('/evaluate-vesting', protect, evaluateVesting);
-router.get('/portfolio/:employeeId', protect, getLtipPortfolio);
+router.post('/grant-units', auth, grantUnits);
+router.post('/evaluate-vesting', auth, evaluateVesting);
+router.get('/portfolio/:employeeId', auth, getLtipPortfolio);
 
 module.exports = router;
