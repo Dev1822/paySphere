@@ -512,6 +512,17 @@ class PayrollEngine {
         session = null;
       }
 
+      // Apply retroactive adjustments (Arrears Injector Middleware)
+      const { injectApprovedArrears } = require('./retroCalculator.service');
+      for (const item of preparedItems) {
+        const injected = await injectApprovedArrears(tenantId, item.employee._id, item.netSalary, item.deductions);
+        item.netSalary = injected.netSalary;
+        item.deductions = injected.deductions;
+        if (injected.arrearsAmount > 0) {
+          item.bonus += injected.arrearsAmount;
+        }
+      }
+
       const bulkOps = preparedItems.map((item) => {
         const targetCurrency =
           item.employee.targetCurrency || item.employee.currency || 'USD';

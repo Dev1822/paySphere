@@ -56,6 +56,8 @@ const customFieldRoutes = require('./routes/customField.routes');
 const employeeImportRoutes = require('./routes/employeeImport.routes');
 const payrollRoutes = require('./routes/payroll.routes');
 const forecastRoutes = require('./routes/forecast.routes');
+const retroactiveRoutes = require('./routes/retroactive.routes');
+const forecastRoutes = require('./routes/forecast.routes');
 const payrollApprovalRoutes = require('./routes/payrollApproval.routes');
 const payrollComparisonRoutes = require('./routes/payrollComparison.routes');
 const employeeCompensationRoutes = require('./routes/employeeCompensation.routes');
@@ -580,6 +582,8 @@ app.use('/api/employees', employeeImportRoutes);
 const bulkOperationRoutes = require('./routes/bulkOperation.routes');
 app.use('/api/bulk-operations', bulkOperationRoutes);
 
+app.use('/api/payroll/forecast', forecastRoutes);
+app.use('/api/payroll/retroactive', retroactiveRoutes);
 app.use('/api/payroll/forecast', forecastRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/payroll', payrollApprovalRoutes);
