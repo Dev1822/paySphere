@@ -314,7 +314,7 @@ exports.getEmployees = async (req, res, next) => {
     }
 
     // `?includeDeleted=true` has to opt out of the plugin as well as out of the
-    // `deletedAt: null` clause above (#897). Now that `deleteEmployee` sets
+    // `` clause above (#897). Now that `deleteEmployee` sets
     // `isDeleted`, a query with no `deletedAt` key gets `isDeleted: { $ne:
     // true }` appended by softDelete.plugin.js — so asking for deleted rows
     // would return exactly the rows that are not deleted.
@@ -347,8 +347,7 @@ exports.getRecentEmployees = async (req, res, next) => {
   try {
     const employees = await Employee.find({
       createdBy: req.userId,
-      deletedAt: null,
-    })
+      })
       .sort({ createdAt: -1 })
       .limit(5);
 
@@ -1157,14 +1156,12 @@ exports.deleteEmployee = async (req, res, next) => {
     //   - The plugin's whole purpose — hiding deleted rows from any query that
     //     has not opted in — never took effect for employees. Nothing leaked
     //     from the directory only because `getEmployees` happens to filter on
-    //     `deletedAt: null` by hand.
+    //     `` by hand.
     //
     // Set together, so the two markers cannot disagree again. `restoreEmployee`
     // clears both.
-    employee.isDeleted = true;
-    employee.deletedAt = new Date();
-    employee.isActive = false;
-    await employee.save();
+    employee.isActive = false; // Still need to deactivate
+    await employee.softDelete();
 
     eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
@@ -1248,10 +1245,8 @@ exports.restoreEmployee = async (req, res, next) => {
     // `deletedAt` alone would leave `isDeleted: true` on a record the UI now
     // shows as live — and every plugin hook would go on hiding it, so the
     // employee would vanish from the directory with nothing to explain why.
-    employee.isDeleted = false;
-    employee.deletedAt = null;
     employee.isActive = true;
-    await employee.save();
+    await employee.restore();
 
     eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
@@ -1284,8 +1279,7 @@ exports.exportEmployeesCSV = async (req, res, next) => {
   try {
     const query = {
       createdBy: req.userId,
-      deletedAt: null,
-    };
+      };
 
     const employees = await Employee.find(query).sort({ createdAt: -1 });
 

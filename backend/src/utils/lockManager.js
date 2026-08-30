@@ -28,32 +28,31 @@ async function acquireLock(key, ttlMs = 300000) {
 
   // Fallback: MongoDB-based lock
   try {
-    const expiresAt = new Date(Date.now() + ttlMs);
-    await CronLock.create({
-      _id: key,
-      lockedAt: new Date(),
-      expiresAt,
-    });
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + ttlMs);
+    
+    // Atomic compare-and-swap: update if expired, or insert if not exists
+    await CronLock.findOneAndUpdate(
+      {
+        _id: key,
+        $or: [
+          { expiresAt: { $exists: false } },
+          { expiresAt: { $lt: now } }
+        ]
+      },
+      {
+        $setOnInsert: { _id: key },
+        $set: { lockedAt: now, expiresAt }
+      },
+      { upsert: true, new: true }
+    );
     return true;
   } catch (err) {
     if (err.code === 11000) {
-      // Check if the lock exists and is expired (since MongoDB TTL indices run periodically, not instantly)
-      try {
-        const existing = await CronLock.findById(key);
-        if (existing && existing.expiresAt < new Date()) {
-          await CronLock.deleteOne({ _id: key });
-          await CronLock.create({
-            _id: key,
-            lockedAt: new Date(),
-            expiresAt,
-          });
-          return true;
-        }
-      } catch (innerErr) {
-        logger.error('Error recovering expired DB lock', { error: innerErr.message });
-      }
+      // Lock exists and is not expired
       return false;
     }
+    logger.error('DB lock acquisition failed', { error: err.message });
     throw err;
   }
 }

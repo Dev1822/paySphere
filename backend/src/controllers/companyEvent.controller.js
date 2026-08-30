@@ -339,8 +339,7 @@ exports.rsvp = async (req, res, next) => {
     const employee = await Employee.findOne({
       createdBy: req.userId,
       tenantId: req.tenantId,
-      deletedAt: null,
-    });
+      });
     if (!employee)
       return res.status(404).json({ message: 'No employee record found' });
 
@@ -388,8 +387,7 @@ exports.checkIn = async (req, res, next) => {
     const employee = await Employee.findOne({
       createdBy: req.userId,
       tenantId: req.tenantId,
-      deletedAt: null,
-    });
+      });
     if (!employee)
       return res.status(404).json({ message: 'No employee record found' });
 
@@ -431,8 +429,7 @@ exports.getMyRSVPs = async (req, res, next) => {
     const employee = await Employee.findOne({
       createdBy: req.userId,
       tenantId: req.tenantId,
-      deletedAt: null,
-    });
+      });
     if (!employee) return res.status(200).json({ rsvps: [] });
 
     const rsvps = await EventRSVP.find({

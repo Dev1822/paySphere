@@ -5,8 +5,10 @@
  */
 const mongoose = require('mongoose');
 const { PrivacyConsent, PIIMaskingRule, DataErasureRequest, DataAuditLog } = require('../models/dataPrivacy.model');
+const DataPrivacyPolicy = require('../models/dataPrivacyPolicy.model');
 const Employee = require('../models/employee.model'); // Assuming exists
 const { applyDynamicMasking, executeSafeErasure } = require('../utils/piiMaskingEngine.utils');
+const { requestUnmaskedPII } = require('../services/dataPrivacy.service');
 const logger = require('../utils/logger');
 
 exports.createMaskingRule = async (req, res, next) => {
@@ -110,26 +112,22 @@ exports.processErasure = async (req, res, next) => {
 exports.getMaskedEmployeeData = async (req, res, next) => {
     try {
         const { employeeId } = req.params;
-        const employee = await Employee.findById(employeeId);
+        const userRoles = req.userRoles || ['StandardUser'];
+        const userRole = userRoles[0] || 'StandardUser';
+
+        const employee = await Employee.findOne({ _id: employeeId, tenantId: req.tenantId })
+            .setOptions({ tenantId: req.tenantId, userRole });
+
         if (!employee) return res.status(404).json({ message: 'Employee not found' });
 
-        const rules = await PIIMaskingRule.find({ tenantId: req.tenantId, isActive: true });
+        // Log the access in DataAuditLog
+        await DataAuditLog.create({
+            tenantId: req.tenantId, userId: req.userId, userRole,
+            action: 'Viewed PII', targetEmployeeId: employeeId,
+            fieldsAccessed: ['bankAccount', 'ssn'], ipAddress: req.ip, wasMasked: true
+        });
 
-        // Mocking user roles from the auth middleware
-        const userRoles = req.userRoles || ['StandardUser'];
-
-        const { maskedData, accessedFields, wasMasked } = applyDynamicMasking(employee.toObject(), rules, userRoles);
-
-        // Log the access
-        if (accessedFields.length > 0) {
-            await DataAuditLog.create({
-                tenantId: req.tenantId, userId: req.userId, userRole: userRoles[0] || 'Unknown',
-                action: 'Viewed PII', targetEmployeeId: employeeId,
-                fieldsAccessed: accessedFields, ipAddress: req.ip, wasMasked
-            });
-        }
-
-        res.status(200).json({ data: maskedData, wasMasked });
+        res.status(200).json({ data: employee, wasMasked: true });
     } catch (error) { next(error); }
 };
 
@@ -143,5 +141,52 @@ exports.getDashboard = async (req, res, next) => {
             .sort({ createdAt: -1 }).limit(50);
 
         res.status(200).json({ rules, pendingErasure, recentLogs });
+    } catch (error) { next(error); }
+};
+
+exports.getPolicies = async (req, res, next) => {
+    try {
+        const policies = await DataPrivacyPolicy.find({ tenantId: req.tenantId });
+        res.json({ policies });
+    } catch (error) { next(error); }
+};
+
+exports.createOrUpdatePolicy = async (req, res, next) => {
+    try {
+        const { rules, isActive } = req.body;
+        const policy = await DataPrivacyPolicy.findOneAndUpdate(
+            { tenantId: req.tenantId },
+            { $set: { rules: rules || [], isActive: isActive !== false } },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+        res.status(200).json({ message: 'Privacy policy saved successfully', policy });
+    } catch (error) { next(error); }
+};
+
+exports.revealPII = async (req, res, next) => {
+    try {
+        const { employeeId } = req.params;
+        const { fields, reason } = req.body;
+        const userRoles = req.userRoles || ['StandardUser'];
+        const userRole = userRoles[0] || 'StandardUser';
+
+        if (!Array.isArray(fields) || fields.length === 0) {
+            return res.status(400).json({ error: 'fields must be a non-empty array' });
+        }
+        if (!reason) {
+            return res.status(400).json({ error: 'reason is required for viewing unmasked PII values' });
+        }
+
+        const unmasked = await requestUnmaskedPII({
+            userId: req.userId,
+            tenantId: req.tenantId,
+            employeeId,
+            fields,
+            reason,
+            userRole,
+            req,
+        });
+
+        res.json({ data: unmasked });
     } catch (error) { next(error); }
 };

@@ -14,9 +14,10 @@ const API_KEY_PREFIX = 'ps_';
  * @param {string[]} scopes
  * @returns {Promise<{ apiKey: ApiKey, rawKey: string }>}
  */
-async function generateApiKey(tenantId, userId, name, scopes = []) {
+async function generateApiKey(tenantId, userId, name, scopes = [], whitelistedCIDRs = []) {
   // Generate a random 32-byte hex string (64 characters)
   const randomSecret = crypto.randomBytes(32).toString('hex');
+  const secret = crypto.randomBytes(32).toString('hex');
 
   // We'll save a placeholder first to get the _id
   const apiKeyDoc = new ApiKey({
@@ -25,6 +26,8 @@ async function generateApiKey(tenantId, userId, name, scopes = []) {
     createdBy: userId,
     prefix: API_KEY_PREFIX,
     scopes,
+    secret,
+    whitelistedCIDRs,
     hashedKey: 'temp', // will replace immediately
   });
 
@@ -124,10 +127,27 @@ async function revokeApiKey(keyId, tenantId) {
   return false;
 }
 
+/**
+ * Update whitelisted CIDR blocks for an API key.
+ * @param {string} keyId
+ * @param {string} tenantId
+ * @param {string[]} cidrBlocks
+ * @returns {Promise<ApiKey|null>}
+ */
+async function updateApiKeyCIDRs(keyId, tenantId, cidrBlocks) {
+  const apiKey = await ApiKey.findOneAndUpdate(
+    { _id: keyId, tenantId, isActive: true },
+    { $set: { whitelistedCIDRs: cidrBlocks } },
+    { new: true }
+  );
+  return apiKey;
+}
+
 module.exports = {
   API_KEY_PREFIX,
   generateApiKey,
   validateApiKey,
   listApiKeys,
   revokeApiKey,
+  updateApiKeyCIDRs,
 };

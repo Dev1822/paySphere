@@ -175,6 +175,11 @@ const FINDING = {
   NOT_IN_REGISTER: 'NOT_IN_REGISTER',
   TURNS_EIGHTEEN_IN_PERIOD: 'TURNS_EIGHTEEN_IN_PERIOD',
   NO_DATE_OF_BIRTH: 'NO_DATE_OF_BIRTH',
+  ROSTER_NIGHT_SHIFT: 'ROSTER_NIGHT_SHIFT',
+  ROSTER_MAX_DAILY_HOURS: 'ROSTER_MAX_DAILY_HOURS',
+  ROSTER_INTERVAL_SHORT: 'ROSTER_INTERVAL_SHORT',
+  ROSTER_DOUBLE_SHIFT: 'ROSTER_DOUBLE_SHIFT',
+  ROSTER_MULTIPLE_ESTABLISHMENTS: 'ROSTER_MULTIPLE_ESTABLISHMENTS',
 };
 
 const FINDING_SECTION = {
@@ -193,6 +198,11 @@ const FINDING_SECTION = {
   [FINDING.NOT_IN_REGISTER]: 'Section 11',
   [FINDING.TURNS_EIGHTEEN_IN_PERIOD]: 'Section 2(i)',
   [FINDING.NO_DATE_OF_BIRTH]: 'Section 10 and section 11',
+  [FINDING.ROSTER_NIGHT_SHIFT]: 'Factories Act, Section 71(1)(b)',
+  [FINDING.ROSTER_MAX_DAILY_HOURS]: 'Factories Act, Section 71(1)(a)',
+  [FINDING.ROSTER_INTERVAL_SHORT]: 'Factories Act, Section 71(1)',
+  [FINDING.ROSTER_DOUBLE_SHIFT]: 'Factories Act, Section 71(4)',
+  [FINDING.ROSTER_MULTIPLE_ESTABLISHMENTS]: 'Factories Act, Section 71(5)',
 };
 
 const SEVERITY = {
@@ -220,6 +230,11 @@ const FINDING_SEVERITY = {
   [FINDING.NOT_IN_REGISTER]: SEVERITY.BREACH,
   [FINDING.TURNS_EIGHTEEN_IN_PERIOD]: SEVERITY.INFORMATIONAL,
   [FINDING.NO_DATE_OF_BIRTH]: SEVERITY.BREACH,
+  [FINDING.ROSTER_NIGHT_SHIFT]: SEVERITY.PROHIBITED,
+  [FINDING.ROSTER_MAX_DAILY_HOURS]: SEVERITY.PROHIBITED,
+  [FINDING.ROSTER_INTERVAL_SHORT]: SEVERITY.PROHIBITED,
+  [FINDING.ROSTER_DOUBLE_SHIFT]: SEVERITY.PROHIBITED,
+  [FINDING.ROSTER_MULTIPLE_ESTABLISHMENTS]: SEVERITY.PROHIBITED,
 };
 
 // --- Dates and age ----------------------------------------------------------
@@ -703,6 +718,113 @@ function assessWeek({ days, dayOffChanges = [], rules = EMPLOYMENT_RULES }) {
 // --- Assessment -------------------------------------------------------------
 
 /**
+ * Validates a scheduled shift roster for an adolescent under Section 71 of the Factories Act, 1948.
+ *
+ * @param {object} input
+ * @param {Date|string} input.date
+ * @param {Array<{start: string, end: string}>} input.shifts
+ * @param {object} input.person
+ * @param {Map} [input.personWorkDates]
+ * @returns {Array<object>} array of violation findings
+ */
+function validateRosterShift({ date, shifts, person, personWorkDates }) {
+  const findings = [];
+  const dob = person?.dateOfBirth;
+  if (!dob) return findings;
+
+  const { classification } = classifyOn({ dateOfBirth: dob, on: date });
+  if (classification !== CLASSIFICATION.ADOLESCENT && classification !== CLASSIFICATION.CHILD) {
+    return findings;
+  }
+
+  const spans = (shifts || [])
+    .map((shift) => ({
+      start: minutesOf(shift?.start),
+      end: minutesOf(shift?.end),
+    }))
+    .filter((span) => span.start !== null && span.end !== null)
+    .map((span) => ({
+      ...span,
+      end: span.end <= span.start ? span.end + 24 * 60 : span.end,
+    }))
+    .sort((a, b) => a.start - b.start);
+
+  if (spans.length === 0) {
+    return findings;
+  }
+
+  // 1. Night shift: 10 PM (22:00) to 6 AM (06:00).
+  for (const span of spans) {
+    const startsInNight = span.start < 6 * 60;
+    const endsInNight = span.end > 22 * 60;
+
+    if (startsInNight || endsInNight) {
+      findings.push({
+        code: FINDING.ROSTER_NIGHT_SHIFT,
+        date,
+        note: 'Adolescents are prohibited from night shifts between 10 PM and 6 AM.',
+      });
+    }
+  }
+
+  // 2. Max work hours: 4.5 hours (270 minutes) per day.
+  let totalWorkMinutes = 0;
+  for (const span of spans) {
+    totalWorkMinutes += (span.end - span.start);
+  }
+
+  if (totalWorkMinutes > 4.5 * 60) {
+    findings.push({
+      code: FINDING.ROSTER_MAX_DAILY_HOURS,
+      date,
+      minutes: totalWorkMinutes,
+      limitMinutes: 4.5 * 60,
+      note: 'Total daily work hours for an adolescent cannot exceed 4.5 hours.',
+    });
+  }
+
+  // 3. Mandatory rest interval of at least 1 hour (60 minutes).
+  for (let i = 1; i < spans.length; i++) {
+    const gap = spans[i].start - spans[i - 1].end;
+    if (gap < 60) {
+      findings.push({
+        code: FINDING.ROSTER_INTERVAL_SHORT,
+        date,
+        gapMinutes: gap,
+        requiredMinutes: 60,
+        note: 'Mandatory rest interval of at least 1 hour is required between shifts.',
+      });
+    }
+  }
+
+  // 4. Double shifts check.
+  if (spans.length > 1) {
+    findings.push({
+      code: FINDING.ROSTER_DOUBLE_SHIFT,
+      date,
+      note: 'Adolescents are prohibited from working double shifts.',
+    });
+  }
+
+  // 5. Multiple establishments check.
+  if (personWorkDates) {
+    const dateStr = new Date(date).toISOString().split('T')[0];
+    const estSet = personWorkDates.get(String(person.personId || person._id))?.get(dateStr);
+    if (estSet && estSet.size > 1) {
+      findings.push({
+        code: FINDING.ROSTER_MULTIPLE_ESTABLISHMENTS,
+        date,
+        note: `Adolescent worker scheduled in multiple establishments on the same day: ${Array.from(estSet).join(', ')}.`,
+      });
+    }
+  }
+
+  return findings;
+}
+
+// --- Assessment -------------------------------------------------------------
+
+/**
  * Everything for one person over a period.
  *
  * @param {object} input
@@ -711,6 +833,7 @@ function assessWeek({ days, dayOffChanges = [], rules = EMPLOYMENT_RULES }) {
  * @param {Array<object>} [input.days]
  * @param {Array<object>} [input.dayOffChanges]
  * @param {boolean} [input.inRegister]
+ * @param {Map} [input.personWorkDates]
  * @param {object} [input.schedule]
  * @param {object} [input.rules]
  * @returns {object}
@@ -721,6 +844,7 @@ function assessPerson({
   days = [],
   dayOffChanges = [],
   inRegister = false,
+  personWorkDates,
   schedule = HAZARDOUS_SCHEDULE,
   rules = EMPLOYMENT_RULES,
 }) {
@@ -760,6 +884,15 @@ function assessPerson({
     });
 
     findings.push(...dayResult.findings);
+
+    const rosterViolations = validateRosterShift({
+      date: day.date,
+      shifts: day.shifts,
+      person,
+      personWorkDates,
+    });
+
+    findings.push(...rosterViolations);
   }
 
   const weekResult = assessWeek({ days, dayOffChanges, rules });
@@ -944,6 +1077,7 @@ module.exports = {
   assessDay,
   assessWeek,
   assessPerson,
+  validateRosterShift,
   assertNoAmounts,
   assessEstablishment,
 };

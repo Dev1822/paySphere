@@ -64,6 +64,7 @@ const EVENT_MAPPING = {
   PAYROLL_APPROVE: 'PAYROLL_APPROVE',
   PAYROLL_REJECT: 'PAYROLL_REJECT',
   PAYROLL_PAID: 'PAYROLL_PAID',
+  COMPLIANCE_VIOLATION: 'COMPLIANCE_VIOLATION',
 };
 
 /** Idempotence guard: requiring twice must not double-subscribe. */

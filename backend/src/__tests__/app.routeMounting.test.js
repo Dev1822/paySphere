@@ -70,6 +70,7 @@ const app = require('../app');
  */
 const MOUNTED_ROUTES = [
   ['/api/auth', 'post', '/api/auth/login'],
+  ['/api/section-89-relief', 'get', '/api/section-89-relief/rules'],
   ['/api/employees', 'get', '/api/employees'],
   ['/api/payroll', 'get', '/api/payroll/summary'],
   ['/api/statutory-bonus', 'get', '/api/statutory-bonus/ledger'],
@@ -97,6 +98,7 @@ const MOUNTED_ROUTES = [
   ['/api/archive', 'get', '/api/archive/employees'],
   ['/api/workflows', 'get', '/api/workflows'],
   ['/api/flashcards', 'get', '/api/flashcards/my-decks'],
+  ['/api/holidays', 'get', '/api/holidays/rules'],
   ['/api/contract-labour', 'get', '/api/contract-labour/contractors'],
   ['/api/apprenticeships', 'get', '/api/apprenticeships/rules'],
   ['/api/migrant-workmen', 'get', '/api/migrant-workmen/rules'],
@@ -137,6 +139,7 @@ const MOUNTED_ROUTES = [
   ['/api/perquisites', 'get', '/api/perquisites/rules'],
   ['/api/lta', 'get', '/api/lta/queue'],
   ['/api/appraisals', 'get', '/api/appraisals/my-review'],
+  ['/api/international-workers', 'get', '/api/international-workers/rules'],
   ['/api/contracts', 'post', '/api/contracts/issue'],
   ['/api/forecasts', 'get', '/api/forecasts'],
   ['/api/accounting', 'get', '/api/accounting/mappings'],
@@ -209,6 +212,7 @@ const PUBLIC_ROUTES = new Set(['/api/auth/login', '/api/email/webhooks']);
  */
 const ROUTER_MOUNTS = {
   accounting: '/api/accounting',
+  sectionEightyNineRelief: '/api/section-89-relief',
   appraisal: '/api/appraisals',
   archive: '/api/archive',
   asset: '/api/assets',
@@ -230,6 +234,7 @@ const ROUTER_MOUNTS = {
   employee: '/api/employees',
   employeePortal: '/api/employee-portal',
   esop: '/api/esop',
+  holiday: '/api/holidays',
   professionalTax: '/api/professional-tax',
 
   expense: '/api/expenses',
@@ -259,6 +264,7 @@ const ROUTER_MOUNTS = {
   notification: '/api/notifications',
   payEquity: '/api/pay-equity',
   pension: '/api/pension',
+  internationalWorker: '/api/international-workers',
   payroll: '/api/payroll',
   pyq: '/api/pyqs',
   recruitment: '/api/recruitment',

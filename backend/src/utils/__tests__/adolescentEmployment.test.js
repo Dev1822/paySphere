@@ -32,6 +32,7 @@ const {
   assessDay,
   assessWeek,
   assessPerson,
+  validateRosterShift,
   assertNoAmounts,
   assessEstablishment,
 } = require('../adolescentEmployment');
@@ -657,5 +658,54 @@ describe('assessEstablishment', () => {
     const result = assessEstablishment();
     expect(result.people).toEqual([]);
     expect(result.prohibited).toEqual([]);
+  });
+});
+
+describe('validateRosterShift — Section 71 / Factories Act 1948 Roster limits', () => {
+  const person = {
+    personId: 'p-underage',
+    name: 'Young Worker',
+    dateOfBirth: '2010-01-01',
+  };
+
+  it('flags night shift work (10 PM to 6 AM)', () => {
+    const shifts = [{ start: '21:30', end: '23:30' }]; // ends at 11:30 PM (after 10 PM)
+    const result = validateRosterShift({ date: '2026-01-01', shifts, person });
+    expect(codesOf(result)).toContain(FINDING.ROSTER_NIGHT_SHIFT);
+  });
+
+  it('flags exceeding daily work limit (> 4.5 hours)', () => {
+    const shifts = [{ start: '09:00', end: '14:00' }]; // 5 hours
+    const result = validateRosterShift({ date: '2026-01-01', shifts, person });
+    expect(codesOf(result)).toContain(FINDING.ROSTER_MAX_DAILY_HOURS);
+  });
+
+  it('flags rest intervals shorter than 1 hour', () => {
+    const shifts = [
+      { start: '09:00', end: '11:00' },
+      { start: '11:45', end: '13:00' }, // 45-minute gap
+    ];
+    const result = validateRosterShift({ date: '2026-01-01', shifts, person });
+    expect(codesOf(result)).toContain(FINDING.ROSTER_INTERVAL_SHORT);
+  });
+
+  it('flags double shifts (multiple shifts on same day)', () => {
+    const shifts = [
+      { start: '09:00', end: '11:00' },
+      { start: '13:00', end: '15:00' },
+    ];
+    const result = validateRosterShift({ date: '2026-01-01', shifts, person });
+    expect(codesOf(result)).toContain(FINDING.ROSTER_DOUBLE_SHIFT);
+  });
+
+  it('flags scheduling across multiple establishments on the same day', () => {
+    const personWorkDates = new Map();
+    const dateStr = '2026-01-01';
+    const estSet = new Set(['Factory A', 'Factory B']);
+    personWorkDates.set(person.personId, new Map([[dateStr, estSet]]));
+
+    const shifts = [{ start: '09:00', end: '12:00' }];
+    const result = validateRosterShift({ date: dateStr, shifts, person, personWorkDates });
+    expect(codesOf(result)).toContain(FINDING.ROSTER_MULTIPLE_ESTABLISHMENTS);
   });
 });

@@ -47,6 +47,7 @@ const {
   attainsAgeOn,
   overtimeTreatment,
   assertNoAmounts,
+  assessPerson,
   assessEstablishment,
 } = require('../utils/adolescentEmployment');
 const eventBus = require('../services/event.service');
@@ -76,11 +77,33 @@ async function computePosition({ tenantId, establishment }) {
     .populate('ageRecordId')
     .lean();
 
-  // Everybody with an age record, not only those already on the register. The
-  // people this Act reaches are the ones nobody registered — a position built
-  // from the register alone would report a clean establishment because the
-  // register is empty.
   const ageRecords = await AgeRecord.find({ tenantId }).lean();
+
+  // Load all active registers for multiple establishment checks
+  const allEntries = await YoungPersonRegister.find({
+    tenantId,
+    active: true,
+  })
+    .populate('ageRecordId')
+    .lean();
+
+  const personWorkDates = new Map();
+  for (const entry of allEntries) {
+    const personIdStr = String(entry.ageRecordId?._id);
+    const est = entry.establishment || '';
+    for (const day of entry.days || []) {
+      if (!day.worked || !day.shifts || day.shifts.length === 0) continue;
+      const dateStr = new Date(day.date).toISOString().split('T')[0];
+      if (!personWorkDates.has(personIdStr)) {
+        personWorkDates.set(personIdStr, new Map());
+      }
+      const dateMap = personWorkDates.get(personIdStr);
+      if (!dateMap.has(dateStr)) {
+        dateMap.set(dateStr, new Set());
+      }
+      dateMap.get(dateStr).add(est);
+    }
+  }
 
   const registered = new Map(
     entries.map((entry) => [String(entry.ageRecordId?._id), entry]),
@@ -104,6 +127,7 @@ async function computePosition({ tenantId, establishment }) {
       days: entry?.days || [],
       dayOffChanges: entry?.dayOffChanges || [],
       inRegister: Boolean(entry),
+      personWorkDates,
     };
   });
 
@@ -392,6 +416,8 @@ exports.upsertRegisterEntry = async (req, res, next) => {
       req,
     });
 
+    await triggerComplianceAlerts({ tenantId: req.tenantId, record, entry, req });
+
     return res.status(201).json({ entry, classification });
   } catch (error) {
     return next(error);
@@ -455,6 +481,11 @@ exports.recordDays = async (req, res, next) => {
       details: { dayCount: req.body.days.length },
       req,
     });
+
+    const record = await AgeRecord.findById(entry.ageRecordId);
+    if (record) {
+      await triggerComplianceAlerts({ tenantId: req.tenantId, record, entry, req });
+    }
 
     return res.status(201).json({ entry });
   } catch (error) {
@@ -698,3 +729,83 @@ exports.commitAssessment = async (req, res, next) => {
     return next(error);
   }
 };
+
+/**
+ * Trigger WebSocket alerts and log compliance exceptions for roster violations.
+ */
+async function triggerComplianceAlerts({ tenantId, record, entry, req }) {
+  try {
+    const logger = require('../utils/logger');
+    const allEntries = await YoungPersonRegister.find({
+      tenantId,
+      active: true,
+    }).lean();
+
+    const personWorkDates = new Map();
+    for (const ent of allEntries) {
+      const personIdStr = String(ent.ageRecordId);
+      const est = ent.establishment || '';
+      const days = String(ent._id) === String(entry._id) ? entry.days : ent.days;
+      for (const day of days || []) {
+        if (!day.worked || !day.shifts || day.shifts.length === 0) continue;
+        const dateStr = new Date(day.date).toISOString().split('T')[0];
+        if (!personWorkDates.has(personIdStr)) {
+          personWorkDates.set(personIdStr, new Map());
+        }
+        const dateMap = personWorkDates.get(personIdStr);
+        if (!dateMap.has(dateStr)) {
+          dateMap.set(dateStr, new Set());
+        }
+        dateMap.get(dateStr).add(est);
+      }
+    }
+
+    const result = assessPerson({
+      person: {
+        personId: record._id,
+        name: record.name,
+        dateOfBirth: record.dateOfBirth,
+        ageBasis: record.ageBasis,
+      },
+      engagement: entry.engagement,
+      days: entry.days,
+      dayOffChanges: entry.dayOffChanges,
+      inRegister: true,
+      personWorkDates,
+    });
+
+    const rosterViolations = result.findings.filter(f =>
+      f.code.startsWith('ROSTER_') || f.code === 'NIGHT_WORK' || f.code === 'INTERVAL_SHORT' || f.code === 'DAY_EXCEEDS_LIMIT'
+    );
+
+    if (rosterViolations.length > 0) {
+      eventBus.emit('AUDIT_LOG', {
+        userId: req.userId,
+        action: 'COMPLIANCE_VIOLATION',
+        resourceType: 'YoungPersonRegister',
+        resourceIds: [entry._id],
+        details: {
+          name: record.name,
+          establishment: entry.establishment,
+          violations: rosterViolations.map(v => ({ code: v.code, note: v.note, section: v.section })),
+        },
+        req,
+      });
+
+      const { getIo } = require('../sockets/payroll.socket');
+      const io = getIo();
+      if (io) {
+        io.to(`tenant:${tenantId}`).emit('compliance_alert', {
+          type: 'ADOLESCENT_ROSTER_VIOLATION',
+          tenantId,
+          personId: record._id,
+          name: record.name,
+          violations: rosterViolations,
+        });
+      }
+    }
+  } catch (err) {
+    const logger = require('../utils/logger');
+    logger.error('Failed to trigger compliance alerts:', { error: err.message });
+  }
+}

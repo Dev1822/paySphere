@@ -46,6 +46,16 @@ const {
   assessEstablishment,
 } = require('../utils/epfBelatedRemittance');
 const eventBus = require('../services/event.service');
+const {
+  computePosition,
+  loadRules,
+  ordinalOf,
+  waiversFor,
+  epfRemittanceQueue,
+} = require('../services/epfRemittance.service');
+const { getSimulationCacheKey } = require('../workers/epfRemittance.worker');
+const cacheService = require('../services/cache.service');
+const { acquireLock, releaseLock } = require('../utils/lockManager');
 
 /** Rule fields a caller may set. Anything else on the body is ignored. */
 const NUMERIC_RULE_FIELDS = [
@@ -54,30 +64,6 @@ const NUMERIC_RULE_FIELDS = [
   'interestRatePercent',
   'damagesCapPercentOfArrears',
 ];
-
-/**
- * The rules for an establishment, falling back to the central figures.
- *
- * @param {mongoose.Types.ObjectId} tenantId
- * @param {string} establishment
- * @returns {Promise<object>}
- */
-async function loadRules(tenantId, establishment) {
-  const stored = await EpfRemittanceRules.findOne({
-    tenantId,
-    establishment: establishment || '',
-  }).lean();
-
-  if (!stored) return resolveRules();
-
-  return resolveRules({
-    dueDayOfNextMonth: stored.dueDayOfNextMonth,
-    graceDays: stored.graceDays,
-    interestRatePercent: stored.interestRatePercent,
-    damagesCapPercentOfArrears: stored.damagesCapPercentOfArrears,
-    damageSlabs: stored.damageSlabs?.length ? stored.damageSlabs : undefined,
-  });
-}
 
 /**
  * @param {*} value
@@ -103,112 +89,6 @@ function parseWageMonth(value) {
   if (month < 1 || month > 12) return null;
 
   return { year, month };
-}
-
-/** A wage month as a single sortable integer, for range comparisons. */
-const ordinalOf = (year, month) => year * 12 + (month - 1);
-
-/**
- * Expand paragraph 32B orders into a per-month waiver map.
- *
- * An order covers a period, and the engine wants a state per wage month. Doing
- * the expansion here rather than storing a state on each month is what keeps
- * the copies from disagreeing — see the header.
- *
- * Where two orders overlap the later decision wins, which is why the query
- * sorts by `decidedOn`. Two orders covering the same month is not a data error;
- * it is what happens when an application is refused and made again.
- *
- * @param {Array<object>} orders
- * @returns {Object<string, {state: string, waivedPercent: number}>}
- */
-function waiversFor(orders) {
-  const map = {};
-
-  for (const order of orders || []) {
-    const from = ordinalOf(order.fromYear, order.fromMonth);
-    const to = ordinalOf(order.toYear, order.toMonth);
-    if (to < from) continue;
-
-    for (let cursor = from; cursor <= to; cursor += 1) {
-      const year = Math.floor(cursor / 12);
-      const month = (cursor % 12) + 1;
-      map[wageMonthKey({ year, month })] = {
-        state: order.state,
-        waivedPercent: order.waivedPercent,
-        orderReference: order.orderReference,
-      };
-    }
-  }
-
-  return map;
-}
-
-/**
- * Load the ledger and compute the position.
- *
- * @param {object} input
- * @param {mongoose.Types.ObjectId} input.tenantId
- * @param {string} input.establishment
- * @param {object} [input.range]
- * @param {Date} [input.asAt]
- * @returns {Promise<object>}
- */
-async function computePosition({ tenantId, establishment, range, asAt }) {
-  const rules = await loadRules(tenantId, establishment);
-
-  const filter = { tenantId, establishment: establishment || '' };
-
-  // The range is applied on the sortable ordinal rather than on year and month
-  // separately: `{year: {$gte: 2024}, month: {$gte: 4}}` excludes January 2025,
-  // which is inside every range that starts in April 2024.
-  const months = await EpfRemittanceMonth.find(filter)
-    .sort({ year: 1, month: 1 })
-    .lean();
-
-  const from = range?.from
-    ? ordinalOf(range.from.year, range.from.month)
-    : null;
-  const to = range?.to ? ordinalOf(range.to.year, range.to.month) : null;
-
-  const selected = months.filter((month) => {
-    const ordinal = ordinalOf(month.year, month.month);
-    if (from !== null && ordinal < from) return false;
-    if (to !== null && ordinal > to) return false;
-    return true;
-  });
-
-  const orders = await EpfDamagesWaiver.find({
-    tenantId,
-    establishment: establishment || '',
-  })
-    .sort({ decidedOn: 1, createdAt: 1 })
-    .lean();
-
-  const result = assessEstablishment({
-    months: selected.map((month) => ({
-      wageMonth: { year: month.year, month: month.month },
-      basis: month.basis,
-      dues: (month.amountsDue || []).reduce((acc, row) => {
-        acc[row.component] = (acc[row.component] || 0) + row.amount;
-        return acc;
-      }, {}),
-      remittances: (month.remittances || []).reduce((acc, row) => {
-        if (!acc[row.component]) acc[row.component] = [];
-        acc[row.component].push({
-          paidOn: row.paidOn,
-          amount: row.amount,
-          reference: row.reference,
-        });
-        return acc;
-      }, {}),
-    })),
-    waivers: waiversFor(orders),
-    asAt,
-    rules,
-  });
-
-  return { rules, result, waivers: orders, monthCount: selected.length };
 }
 
 /**
@@ -767,6 +647,113 @@ exports.commitAssessment = async (req, res, next) => {
     });
 
     return res.status(201).json({ assessment });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * POST /api/epf-remittance/simulate
+ *
+ * Enqueues an asynchronous simulation job to compute interest and damages.
+ */
+exports.simulate = async (req, res, next) => {
+  try {
+    const { establishment, from, to, asAt } = req.body;
+    const tenantId = req.tenantId;
+
+    const fromMonth = parseWageMonth(from);
+    const toMonth = parseWageMonth(to);
+
+    if (!fromMonth || !toMonth) {
+      return res.status(400).json({ message: 'from and to must be valid YYYY-MM wage months' });
+    }
+
+    const cacheKey = getSimulationCacheKey(tenantId, establishment, { from: fromMonth, to: toMonth }, asAt);
+    const cached = await cacheService.get(cacheKey);
+
+    if (cached) {
+      return res.json({
+        cached: true,
+        result: JSON.parse(cached),
+      });
+    }
+
+    // Determine financial year for lock check
+    const month = fromMonth.month;
+    const year = fromMonth.year;
+    const financialYear = month >= 4 ? year : year - 1;
+
+    const lockKey = `epf_lock:${tenantId}:${financialYear}`;
+    
+    // Check lock
+    const acquired = await acquireLock(lockKey, 10000);
+    if (!acquired) {
+      return res.status(409).json({ message: 'Simulation or computation is already in progress for this financial year' });
+    }
+    await releaseLock(lockKey);
+
+    if (typeof epfRemittanceQueue.add !== 'function') {
+      return res.status(400).json({ message: 'Redis is disabled. Async simulations are not available.' });
+    }
+
+    const job = await epfRemittanceQueue.add('simulate-remittance', {
+      tenantId,
+      establishment: readEstablishment(establishment),
+      range: { from: fromMonth, to: toMonth },
+      asAt: asAt || new Date().toISOString(),
+    });
+
+    return res.status(202).json({
+      message: 'Simulation job enqueued',
+      jobId: job.id,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * GET /api/epf-remittance/simulate/status/:jobId
+ *
+ * Fetches calculation progress and results.
+ */
+exports.getSimulationStatus = async (req, res, next) => {
+  try {
+    const { jobId } = req.params;
+
+    if (typeof epfRemittanceQueue.getJob !== 'function') {
+      return res.status(400).json({ message: 'Redis is disabled. Async simulations are not available.' });
+    }
+
+    const job = await epfRemittanceQueue.getJob(jobId);
+    if (!job) {
+      return res.status(404).json({ message: 'Simulation job not found' });
+    }
+
+    const state = await job.getState();
+    const progress = job.progress;
+
+    if (state === 'completed') {
+      return res.json({
+        status: 'completed',
+        progress,
+        result: job.returnvalue,
+      });
+    }
+
+    if (state === 'failed') {
+      return res.json({
+        status: 'failed',
+        progress,
+        error: job.failedReason,
+      });
+    }
+
+    return res.json({
+      status: state,
+      progress,
+    });
   } catch (error) {
     return next(error);
   }

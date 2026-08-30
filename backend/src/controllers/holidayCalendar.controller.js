@@ -350,8 +350,7 @@ exports.getUpcomingHolidays = async (req, res, next) => {
     const employee = await Employee.findOne({
       createdBy: req.userId,
       tenantId: req.tenantId,
-      deletedAt: null,
-    });
+      });
 
     const calendars = await HolidayCalendar.find({
       tenantId: req.tenantId,

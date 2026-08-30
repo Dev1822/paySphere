@@ -20,6 +20,21 @@ const softDeletePlugin = require('../utils/softDelete.plugin');
  */
 const AUDIT_ACTIONS = [
   'PAYROLL_FINALIZE',
+  // Section 89(1) relief on salary arrears (#1969). The rate table is audited
+  // because it is the widest change in the module: moving the 2022-23 slabs
+  // moves every relief ever computed against a relation year in that year, for
+  // every employee, with no claim record changing and nothing on any screen
+  // saying why the figure is different.
+  //
+  // The Form 10E furnishing is audited for the neighbouring reason. Its *date*
+  // is what decides whether the relief stands — furnished after the return was
+  // filed the relief is disallowed — and giving the relief in the TDS
+  // computation without it is a short deduction the employer carries.
+  'RELIEF_RATE_TABLE_RECORDED',
+  'RELIEF_ASSESSED_YEAR_RECORDED',
+  'RELIEF_CLAIM_RECORDED',
+  'RELIEF_FORM_10E_FURNISHED',
+  'RELIEF_APPLIED_TO_TDS',
   // #438 shipped approve/reject handlers that emitted no audit event at
   // all, so the one action a maker–checker flow exists to record was the
   // one action left untracked (#458).
@@ -187,6 +202,22 @@ const AUDIT_ACTIONS = [
   'EPS_ASSUMPTIONS_UPDATED',
   'EPS_WAGE_HISTORY_BACKFILLED',
   'EPS_VALUATION_COMMITTED',
+  // National and Festival Holidays Acts (#1970). The substitution is audited
+  // with the holiday's kind on it, because a NATIONAL kind on one of these rows
+  // means the engine's refusal was bypassed — 26 January, 15 August and 2
+  // October cannot be substituted by any agreement, and that is the record an
+  // inspection asks about.
+  //
+  // A holiday worked is audited with both the payable and what was paid,
+  // because the gap between them is the finding: the entitlement is a whole day
+  // at the statutory rate however few hours were worked, and the natural wrong
+  // answer — scaling it by hours through the overtime engine — produces a
+  // smaller number that looks arithmetically reasonable.
+  'HOLIDAY_CALENDAR_OPENED',
+  'HOLIDAY_LIST_SETTLED',
+  'FESTIVAL_HOLIDAY_DECLARED',
+  'HOLIDAY_SUBSTITUTED',
+  'HOLIDAY_WORKED_RECORDED',
   // A salary advance commits future deductions from someone's pay, so
   // issuing, pausing and collecting against one are all financial events
   // and are audited as such (#460).
@@ -263,6 +294,7 @@ const AUDIT_ACTIONS = [
   'YOUNG_PERSON_DAYS_RECORDED',
   'YOUNG_PERSON_FINDING_RESOLVED',
   'YOUNG_PERSON_ASSESSMENT_COMMITTED',
+  'COMPLIANCE_VIOLATION',
 
   'WORKFLOW_CREATE',
   'WORKFLOW_INSTANCE_START',
@@ -336,6 +368,21 @@ const AUDIT_ACTIONS = [
   'APPRENTICESHIP_STRENGTH_RECORDED',
   'APPRENTICE_ENGAGED',
   'APPRENTICE_CONTRACT_REGISTERED',
+  // EPF International Workers, paragraph 83 (#1971). The determination and the
+  // certificate are audited because each moves a remittance by roughly a factor
+  // of forty, in opposite directions: the determination removes the ₹15,000
+  // ceiling and the certificate stops the contribution altogether. Nothing else
+  // in the product moves that much money on the strength of one field.
+  //
+  // The contribution is audited with the ceiling figure beside the basis
+  // actually used, because that pair is what lets a reviewer tell an intended
+  // full-pay basis from a bug — and a lapsed certificate turns every month
+  // since into an under-remittance carrying section 7Q interest and section 14B
+  // damages under #1875.
+  'IW_STATUS_DETERMINED',
+  'IW_CERTIFICATE_RECORDED',
+  'IW_CONTRIBUTION_COMPUTED',
+  'IW_ONE_FILED',
   'APPRENTICESHIP_ASSESSMENT_COMMITTED',
   // Inter-State Migrant Workmen Act, 1979 (#1826). The comparator is audited
   // for the same reason the recorded strength above is: it is the denominator
@@ -493,10 +540,11 @@ const auditLogSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
       },
     ],
-    details: {
-      type: mongoose.Schema.Types.Mixed,
-      default: {},
-    },
+    details: { type: mongoose.Schema.Types.Mixed, default: {} },
+    // Integrity chain fields
+    recordHash: { type: String, default: null, index: true },
+    previousHash: { type: String, default: null },
+    hashChainValid: { type: Boolean, default: true },
     result: {
       type: String,
       enum: ['success', 'failure', 'partial'],

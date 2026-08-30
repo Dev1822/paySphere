@@ -121,7 +121,11 @@ async function resolveTenantId(user, decoded) {
 
   if (isUsableTenantId(decoded.tenantId)) return decoded.tenantId;
 
-  return (await ensureTenantForUser(user)) || null;
+  const tenantId = await ensureTenantForUser(user);
+  if (tenantId) return tenantId;
+
+  const { MissingTenantError } = require('../utils/tenantScope');
+  throw new MissingTenantError('Request is not scoped to a company');
 }
 
 /**
@@ -204,7 +208,11 @@ const auth = async (req, res, next) => {
     }
 
     next();
-  } catch {
+  } catch (error) {
+    if (error.name === 'MissingTenantError') {
+      res.status(403).json({ message: error.message });
+      return;
+    }
     // Deliberately opaque. Distinguishing "expired" from "malformed" from "bad
     // signature" in the response body tells an attacker which half of a forged
     // token to keep working on.

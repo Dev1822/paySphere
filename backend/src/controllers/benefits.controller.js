@@ -312,8 +312,7 @@ exports.enroll = async (req, res, next) => {
     const employee = await Employee.findOne({
       createdBy: req.userId,
       tenantId: req.tenantId,
-      deletedAt: null,
-    });
+      });
     if (!employee)
       return res.status(404).json({ message: 'No employee record found' });
 
@@ -464,8 +463,7 @@ exports.getMyEnrollments = async (req, res, next) => {
     const employee = await Employee.findOne({
       createdBy: req.userId,
       tenantId: req.tenantId,
-      deletedAt: null,
-    });
+      });
     if (!employee) return res.status(200).json({ enrollments: [] });
 
     const enrollments = await BenefitEnrollment.find({
@@ -516,7 +514,6 @@ exports.getEnrollmentStats = async (req, res, next) => {
     const plans = await BenefitPlan.find({ tenantId: req.tenantId });
     const totalEmployees = await Employee.countDocuments({
       tenantId: req.tenantId,
-      deletedAt: null,
       isActive: true,
     });
 

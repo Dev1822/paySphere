@@ -140,6 +140,11 @@ const startServer = async () => {
       startBulkOperationWorker,
     } = require('./workers/bulkOperation.worker');
     startBulkOperationWorker();
+
+    const {
+      startEpfRemittanceWorker,
+    } = require('./workers/epfRemittance.worker');
+    startEpfRemittanceWorker();
   } else if (!isRedisAvailable()) {
     logger.warn(
       'Webhook worker not started: REDIS_URL is not set. Webhook deliveries require Redis.',

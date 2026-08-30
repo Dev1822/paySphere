@@ -664,6 +664,64 @@ function enrolmentLiability({ rule, annualAmount, enrolled = false }) {
 
 /**
  * A year of professional tax for one employee, in one work state.
+ * Resolves the majority work state for a given month based on workStateHistory.
+ *
+ * @param {object} employee
+ * @param {number} year
+ * @param {number} month
+ * @returns {string}
+ */
+function resolveStateForMonth(employee, year, month) {
+  const history = employee?.workStateHistory || [];
+  const defaultState = String(employee?.workState || '').trim().toUpperCase();
+
+  if (!Array.isArray(history) || history.length === 0) {
+    return defaultState;
+  }
+
+  // Calculate start and end of target month
+  const startOfMonth = new Date(Date.UTC(year, month - 1, 1));
+  const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+
+  const stateDays = new Map();
+
+  for (const entry of history) {
+    const state = String(entry.state || '').trim().toUpperCase();
+    if (!state) continue;
+
+    const entryStart = entry.startDate ? new Date(entry.startDate) : startOfMonth;
+    const entryEnd = entry.endDate ? new Date(entry.endDate) : endOfMonth;
+
+    // Intersect entry interval with calendar month
+    const overlapStart = entryStart > startOfMonth ? entryStart : startOfMonth;
+    const overlapEnd = entryEnd < endOfMonth ? entryEnd : endOfMonth;
+
+    if (overlapStart <= overlapEnd) {
+      const msDiff = overlapEnd.getTime() - overlapStart.getTime();
+      const calendarDays = Math.floor(msDiff / (1000 * 60 * 60 * 24)) + 1;
+      const days = entry.daysWorked && entry.daysWorked > 0 && entry.daysWorked < calendarDays
+        ? entry.daysWorked
+        : calendarDays;
+
+      stateDays.set(state, (stateDays.get(state) || 0) + days);
+    }
+  }
+
+  let majorityState = defaultState;
+  let maxDays = 0;
+
+  for (const [state, days] of stateDays.entries()) {
+    if (days > maxDays) {
+      maxDays = days;
+      majorityState = state;
+    }
+  }
+
+  return majorityState;
+}
+
+/**
+ * Everything for one person over a period.
  *
  * @param {object} input
  * @param {object} input.employee
@@ -678,10 +736,6 @@ function computeEmployeeYear({
   wageMonths,
   ruleSets = SEED_RULES,
 }) {
-  const workState = employee?.workState
-    ? String(employee.workState).trim().toUpperCase()
-    : '';
-
   const category = employee?.category || CATEGORY.DEFAULT;
   const exemptions = Array.isArray(employee?.exemptions)
     ? employee.exemptions.filter((code) => EXEMPTION[code])
@@ -697,76 +751,106 @@ function computeEmployeeYear({
 
   const issues = [];
 
-  if (!workState) {
-    issues.push({ code: FINDING.WORK_STATE_MISSING });
-    return {
-      employeeId: employee?.employeeId,
-      name: employee?.name,
-      workState: '',
-      periodicity: null,
-      accrued: 0,
-      lines: [],
-      issues,
-    };
-  }
-
-  // Resolved as at the start of the year and again per month, because a state
-  // can amend mid-year and the earlier months keep the earlier table.
-  const openingRule = resolveRule(workState, periodStart(months[0]), ruleSets);
-
-  if (!openingRule) {
-    issues.push({ code: FINDING.NO_RULE_FOR_STATE, state: workState });
-    return {
-      employeeId: employee?.employeeId,
-      name: employee?.name,
-      workState,
-      periodicity: null,
-      accrued: 0,
-      lines: [],
-      issues,
-    };
-  }
-
-  if (openingRule.periodicity === PERIODICITY.NOT_LEVIED) {
-    issues.push({ code: FINDING.NOT_LEVIED_IN_STATE, state: workState });
-    return {
-      employeeId: employee?.employeeId,
-      name: employee?.name,
-      workState,
-      periodicity: PERIODICITY.NOT_LEVIED,
-      accrued: 0,
-      lines: [],
-      issues,
-    };
-  }
-
-  if (openingRule.requiresLocalBody && !employee?.localBody) {
-    issues.push({ code: FINDING.LOCAL_BODY_NOT_SET, state: workState });
-  }
-
   if (exemptions.length > 0) {
     issues.push({ code: FINDING.PERSON_EXEMPT, exemptions });
   }
 
   const lines = [];
 
-  if (openingRule.periodicity === PERIODICITY.HALF_YEARLY) {
-    const seen = new Set();
+  // 1. Resolve workState and rule for each month
+  const resolvedMonths = months.map((month) => {
+    const workState = resolveStateForMonth(employee, month.year, month.month);
+    const rule = resolveRule(workState, periodStart(month), ruleSets);
+    return {
+      month,
+      workState,
+      rule,
+    };
+  });
 
-    for (const month of months) {
-      const half = halfYearOf(month);
-      if (seen.has(half.key)) continue;
-      seen.add(half.key);
+  // Verify rules exist
+  for (const item of resolvedMonths) {
+    if (!item.workState) {
+      issues.push({ code: FINDING.WORK_STATE_MISSING });
+    } else if (!item.rule) {
+      issues.push({ code: FINDING.NO_RULE_FOR_STATE, state: item.workState });
+    } else if (item.rule.periodicity === PERIODICITY.NOT_LEVIED) {
+      issues.push({ code: FINDING.NOT_LEVIED_IN_STATE, state: item.workState });
+    } else if (item.rule.requiresLocalBody && !employee?.localBody) {
+      issues.push({ code: FINDING.LOCAL_BODY_NOT_SET, state: item.workState });
+    }
+  }
 
-      const aggregate = half.months.reduce(
-        (total, row) =>
-          total + (salaryByKey.get(`${row.year}-${row.month}`) || 0),
+  // 2. Separate monthly and half-yearly calculations
+  const halfYears = new Map(); // key -> list of resolved month items
+  const monthlyItems = [];
+
+  for (const item of resolvedMonths) {
+    if (item.rule && item.rule.periodicity === PERIODICITY.HALF_YEARLY) {
+      const half = halfYearOf(item.month);
+      if (!halfYears.has(half.key)) {
+        halfYears.set(half.key, { half, items: [] });
+      }
+      halfYears.get(half.key).items.push(item);
+    } else {
+      monthlyItems.push(item);
+    }
+  }
+
+  // 3. Process monthly items
+  for (const item of monthlyItems) {
+    const salary = salaryByKey.get(`${item.month.year}-${item.month.month}`) || 0;
+    let amount = 0;
+    let slab = null;
+    let specialMonth = null;
+    let exempt = false;
+
+    if (item.rule && item.rule.periodicity !== PERIODICITY.NOT_LEVIED) {
+      const liability = monthlyLiability({
+        rule: item.rule,
+        period: item.month,
+        salary,
+        category,
+        exemptions,
+      });
+      amount = liability.amount;
+      slab = liability.slab;
+      specialMonth = liability.specialMonth;
+      exempt = liability.exempt;
+    }
+
+    lines.push({
+      ...item.month,
+      workState: item.workState,
+      amount,
+      salary,
+      slab,
+      specialMonth,
+      periodicity: item.rule ? item.rule.periodicity : PERIODICITY.MONTHLY,
+      exempt,
+      attributed: false,
+    });
+  }
+
+  // 4. Process half-yearly items
+  for (const [key, val] of halfYears.entries()) {
+    const byState = new Map();
+    for (const item of val.items) {
+      if (!byState.has(item.workState)) {
+        byState.set(item.workState, []);
+      }
+      byState.get(item.workState).push(item);
+    }
+
+    for (const [state, stateItems] of byState.entries()) {
+      const aggregate = stateItems.reduce(
+        (total, item) =>
+          total + (salaryByKey.get(`${item.month.year}-${item.month.month}`) || 0),
         0,
       );
 
-      const rule =
-        resolveRule(workState, periodStart(half.months[0]), ruleSets) ||
-        openingRule;
+      const firstItem = stateItems[0];
+      const rule = firstItem.rule;
 
       const liability = halfYearlyLiability({
         rule,
@@ -775,65 +859,29 @@ function computeEmployeeYear({
         exemptions,
       });
 
-      // Only the months inside this financial year are attributed. The second
-      // half spills into January-March of the next calendar year, which is
-      // still this financial year, so the filter is on membership rather than
-      // on the calendar.
-      const inYear = half.months.filter((row) =>
-        months.some(
-          (candidate) =>
-            candidate.year === row.year && candidate.month === row.month,
-        ),
-      );
-
+      const inYear = stateItems.map((item) => item.month);
       const attributed = attributeHalfYearly(liability.amount, inYear);
 
       for (const row of attributed) {
         lines.push({
           ...row,
-          halfYear: half.key,
+          workState: state,
+          halfYear: val.half.key,
           aggregateSalary: aggregate,
           slab: liability.slab,
           periodicity: PERIODICITY.HALF_YEARLY,
           exempt: liability.exempt,
         });
       }
-
-      if (liability.amount > 0) {
-        issues.push({
-          code: FINDING.HALF_YEARLY_ATTRIBUTED,
-          halfYear: half.key,
-          amount: liability.amount,
-          months: inYear.length,
-        });
-      }
-    }
-  } else {
-    for (const month of months) {
-      const rule =
-        resolveRule(workState, periodStart(month), ruleSets) || openingRule;
-      const salary = salaryByKey.get(`${month.year}-${month.month}`) || 0;
-
-      const liability = monthlyLiability({
-        rule,
-        period: month,
-        salary,
-        category,
-        exemptions,
-      });
-
-      lines.push({
-        ...month,
-        amount: liability.amount,
-        salary,
-        slab: liability.slab,
-        specialMonth: liability.specialMonth,
-        periodicity: PERIODICITY.MONTHLY,
-        exempt: liability.exempt,
-        attributed: false,
-      });
     }
   }
+
+  // Sort lines by month order (using financialYearMonths order)
+  lines.sort((a, b) => {
+    const idxA = months.findIndex((m) => m.year === a.year && m.month === a.month);
+    const idxB = months.findIndex((m) => m.year === b.year && m.month === b.month);
+    return idxA - idxB;
+  });
 
   const accruedBeforeCeiling = lines.reduce(
     (total, line) => total + line.amount,
@@ -849,15 +897,33 @@ function computeEmployeeYear({
     });
   }
 
+  // Prorate lines if capped
+  if (ceiling.capped) {
+    let balance = ceiling.amount;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.amount > balance) {
+        line.amount = balance;
+        balance = 0;
+      } else {
+        balance -= line.amount;
+      }
+    }
+  }
+
+  const primaryState = resolvedMonths[0]?.workState || employee?.workState || '';
+  const primaryPeriodicity = resolvedMonths[0]?.rule?.periodicity || null;
+  const primaryLevyLevel = resolvedMonths[0]?.rule?.levyLevel || null;
+
   return {
     employeeId: employee?.employeeId,
     name: employee?.name,
-    workState,
+    workState: primaryState,
     localBody: employee?.localBody || '',
     category,
     exemptions,
-    periodicity: openingRule.periodicity,
-    levyLevel: openingRule.levyLevel,
+    periodicity: primaryPeriodicity,
+    levyLevel: primaryLevyLevel,
     accrued: ceiling.amount,
     accruedBeforeCeiling: round0(accruedBeforeCeiling),
     ceilingApplied: ceiling.capped,
@@ -874,19 +940,14 @@ function computeEmployeeYear({
 function addFinding(findings, code, detail) {
   findings.push({
     code,
-    authority: FINDING_AUTHORITY[code],
-    severity: FINDING_SEVERITY[code],
+    authority: FINDING_AUTHORITY[code] || '',
+    severity: FINDING_SEVERITY[code] || SEVERITY.BREACH,
     ...detail,
   });
 }
 
 /**
- * Assess an establishment for a financial year.
- *
- * Returns **one remittance per registration certificate**, keyed by work state,
- * and no single total across them. A company in Mumbai with an office in
- * Bengaluru remits to two authorities under two certificates on two schedules,
- * and a combined figure is not a number anyone can pay.
+ * Assess the whole establishment.
  *
  * @param {object} input
  * @param {Array<object>} input.employees
@@ -925,23 +986,33 @@ function assessEstablishment({
     }
   }
 
-  // Grouped by state, because that is the certificate the money is remitted
-  // under. Never summed across them — see the note on the function.
+  // Grouped by state based on each line of the employee's PT to support mid-year/mid-month transfers correctly.
   const byState = new Map();
   for (const row of assessed) {
-    if (!row.workState || row.periodicity === PERIODICITY.NOT_LEVIED) continue;
+    const statesDeducted = new Set();
+    for (const line of row.lines || []) {
+      if (line.amount <= 0 || !line.workState) continue;
+      statesDeducted.add(line.workState);
 
-    const bucket = byState.get(row.workState) || {
-      state: row.workState,
-      periodicity: row.periodicity,
-      levyLevel: row.levyLevel,
-      employeeCount: 0,
-      deductedFromEmployees: 0,
-    };
+      const rule = resolveRule(line.workState, periodStart(line), ruleSets);
+      const periodicity = rule?.periodicity || row.periodicity;
+      const levyLevel = rule?.levyLevel || row.levyLevel;
 
-    bucket.employeeCount += 1;
-    bucket.deductedFromEmployees += row.accrued;
-    byState.set(row.workState, bucket);
+      const bucket = byState.get(line.workState) || {
+        state: line.workState,
+        periodicity,
+        levyLevel,
+        employeeCount: 0,
+        deductedFromEmployees: 0,
+      };
+
+      bucket.deductedFromEmployees += line.amount;
+      byState.set(line.workState, bucket);
+    }
+    for (const st of statesDeducted) {
+      const bucket = byState.get(st);
+      if (bucket) bucket.employeeCount += 1;
+    }
   }
 
   const enrolmentByState = new Map(
@@ -972,10 +1043,6 @@ function assessEstablishment({
     return {
       ...bucket,
       deductedFromEmployees: round0(bucket.deductedFromEmployees),
-      /**
-       * The employer's own annual liability, under a different certificate.
-       * Kept beside the deduction and deliberately not added to it.
-       */
       employerEnrolmentLiability: employerOwn.amount,
       enrolled: employerOwn.enrolled,
     };
@@ -1012,19 +1079,9 @@ function assessEstablishment({
   return {
     financialYear,
     employees: assessed,
-
-    /** One per registration certificate. There is no total across them. */
     registrations,
-
-    /** What was deducted from employees over the year, before remittance. */
     accrued: round0(accrued),
-
-    /**
-     * What was actually paid, in the shape section 16(iii) wants.
-     * Not the same number as `accrued`, and the difference is not allowable.
-     */
     paidForSection16iii: remitted.amount,
-
     findings,
     summary: [...summary.values()],
   };
@@ -1047,6 +1104,7 @@ module.exports = {
   financialYearMonths,
   halfYearOf,
   resolveRule,
+  resolveStateForMonth,
   slabFor,
   slabsFor,
   monthlyLiability,

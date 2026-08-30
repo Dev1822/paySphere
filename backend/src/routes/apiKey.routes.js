@@ -22,4 +22,10 @@ router.delete(
   apiKeyController.revokeKey,
 );
 
+router.put(
+  '/:id/whitelisted-cidrs',
+  requirePermission('settings:write'),
+  apiKeyController.updateWhitelistedCIDRs,
+);
+
 module.exports = router;

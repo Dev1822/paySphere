@@ -31,8 +31,7 @@ async function loadOwnedEmployee(employeeId, userId) {
   const employee = await Employee.findOne({
     _id: employeeId,
     createdBy: userId,
-    deletedAt: null,
-  });
+    });
 
   if (!employee) {
     return { ok: false, status: 404, message: 'Employee not found' };

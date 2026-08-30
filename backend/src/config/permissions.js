@@ -11,6 +11,29 @@
 
 const PERMISSIONS = {
   READ_EMPLOYEE: 'READ_EMPLOYEE',
+
+  // --- Section 89(1) relief on salary arrears (#1969) ---------------------
+  //
+  // Split on which name can move a relief figure without touching a claim.
+  //
+  // MANAGE_TAX_RATE_TABLE is the widest authority in the module by a distance.
+  // Changing the 2022-23 slabs moves every relief ever computed against a
+  // relation year in that year, for every employee, with no claim record
+  // changing and nothing on any screen explaining why the number is different.
+  // The employee's assessed total income for a past year sits with it, because
+  // six lakh rather than nine moves the marginal rate the relation-year term is
+  // priced at and does the same damage by a shorter route.
+  //
+  // MANAGE_RELIEF_CLAIM records the arrear, its year-wise spread and the Form
+  // 10E furnishing, and gives the relief in the TDS computation once the form
+  // is on file. Clerical against documents.
+  //
+  // Deliberately not the payroll permissions. Payroll answers what was paid;
+  // this answers what the bunching of that payment cost in tax, and the section
+  // 201(1A) interest for getting it wrong lands on the employer.
+  READ_ARREAR_RELIEF: 'READ_ARREAR_RELIEF',
+  MANAGE_RELIEF_CLAIM: 'MANAGE_RELIEF_CLAIM',
+  MANAGE_TAX_RATE_TABLE: 'MANAGE_TAX_RATE_TABLE',
   WRITE_EMPLOYEE: 'WRITE_EMPLOYEE',
   DELETE_EMPLOYEE: 'DELETE_EMPLOYEE',
   // --- Section 10A, Standing Orders Act, 1946 (#1828) ----------------------
@@ -115,6 +138,28 @@ const PERMISSIONS = {
   // "was the employer allowed to take that much", and the people who audit the
   // second are not the people who run the first.
   READ_WAGE_DEDUCTIONS: 'READ_WAGE_DEDUCTIONS',
+
+  // --- National and Festival Holidays Acts (#1970) ------------------------
+  //
+  // Split on which name can take a paid day away from somebody.
+  //
+  // MANAGE_HOLIDAY_CALENDAR opens the year, declares the festival holidays and
+  // settles the list with the Inspector. Clerical: the three national days are
+  // seeded rather than typed, the festival count is measured against the
+  // state's figure, and the settlement date is checkable against the Rules.
+  //
+  // MANAGE_HOLIDAY_SUBSTITUTION is separate because it is the only power in the
+  // module that changes which day an employee gets off — and because the engine
+  // refuses it outright against the three national days. Folding the two
+  // together would make that refusal read as a setting somebody forgot to
+  // switch on rather than as a limit on the employer's power.
+  //
+  // Deliberately not the leave permissions. Leave is applied for, approved and
+  // deducted from a balance; a holiday is none of those, cannot be refused, and
+  // one of the three cannot even be moved.
+  READ_HOLIDAY_CALENDAR: 'READ_HOLIDAY_CALENDAR',
+  MANAGE_HOLIDAY_CALENDAR: 'MANAGE_HOLIDAY_CALENDAR',
+  MANAGE_HOLIDAY_SUBSTITUTION: 'MANAGE_HOLIDAY_SUBSTITUTION',
   MANAGE_WAGE_DEDUCTION_RULES: 'MANAGE_WAGE_DEDUCTION_RULES',
   COMMIT_WAGE_DEDUCTION_REGISTER: 'COMMIT_WAGE_DEDUCTION_REGISTER',
   // Statutory compliance (#933, reachable since #951). Deliberately not
@@ -244,6 +289,26 @@ const PERMISSIONS = {
   // non-discretionary payment accruing interest at twelve percent from the date
   // of the accident.
   READ_EC_CLAIM: 'READ_EC_CLAIM',
+
+  // --- EPF International Workers, paragraph 83 (#1971) --------------------
+  //
+  // The split is on which name can take the ₹15,000 wage ceiling off — or put
+  // it back on.
+  //
+  // MANAGE_IW_DETERMINATION records the paragraph 83 status and the Certificate
+  // of Coverage. Both move a remittance by a factor of forty, in opposite
+  // directions: the determination removes the ceiling and the certificate stops
+  // the contribution altogether. Nothing else in the product moves that much
+  // money on the strength of one field.
+  //
+  // MANAGE_IW_CONTRIBUTION computes a month's basis and files IW-1. Clerical
+  // against the determination — the basis follows the status and the pay.
+  //
+  // Deliberately not the EPF permissions. Those cover the domestic ECR where
+  // the ceiling always applies; these cover the members it never applies to.
+  READ_INTERNATIONAL_WORKER: 'READ_INTERNATIONAL_WORKER',
+  MANAGE_IW_CONTRIBUTION: 'MANAGE_IW_CONTRIBUTION',
+  MANAGE_IW_DETERMINATION: 'MANAGE_IW_DETERMINATION',
   MANAGE_EC_CLAIM: 'MANAGE_EC_CLAIM',
 
   // --- Industrial Disputes Act, Chapters VA and VB (#1830) -----------------
@@ -616,6 +681,21 @@ const PERMISSIONS = {
 
 const PERMISSION_DEFINITIONS = [
   {
+    name: PERMISSIONS.READ_ARREAR_RELIEF,
+    description:
+      'View the relief each salary arrear earns under section 89(1), the year-wise spread behind it, and the Form 10E position',
+  },
+  {
+    name: PERMISSIONS.MANAGE_RELIEF_CLAIM,
+    description:
+      'Record an arrear and its year-wise spread, record the employee’s Form 10E furnishing, and give the relief in the TDS computation',
+  },
+  {
+    name: PERMISSIONS.MANAGE_TAX_RATE_TABLE,
+    description:
+      'Maintain the dated slab, surcharge and rebate tables and the employee’s assessed income for past years — the figures every section 89(1) relief is computed against',
+  },
+  {
     name: PERMISSIONS.READ_EMPLOYEE,
     description: 'View the employee directory and individual employee records',
   },
@@ -759,6 +839,21 @@ const PERMISSION_DEFINITIONS = [
     name: PERMISSIONS.MANAGE_GIG_WORKER_REGISTER,
     description:
       'Record a gig or platform worker and their engagements across aggregators, including platforms this tenant does not operate',
+  },
+  {
+    name: PERMISSIONS.READ_HOLIDAY_CALENDAR,
+    description:
+      'View the year’s national and festival holidays, the list’s settlement position with the Inspector, and what each holiday worked is owed',
+  },
+  {
+    name: PERMISSIONS.MANAGE_HOLIDAY_CALENDAR,
+    description:
+      'Open a year’s holiday calendar, declare the state’s festival holidays, settle the list with the Inspector, and record a holiday worked',
+  },
+  {
+    name: PERMISSIONS.MANAGE_HOLIDAY_SUBSTITUTION,
+    description:
+      'Substitute a festival holiday for another day against the employee’s recorded agreement — the three national holidays cannot be substituted at all',
   },
   {
     name: PERMISSIONS.MANAGE_AGGREGATOR_TURNOVER,
@@ -915,6 +1010,21 @@ const PERMISSION_DEFINITIONS = [
       'View the register of children and adolescents engaged, the section 7 hours against each, and the prohibited engagements',
   },
 
+  {
+    name: PERMISSIONS.READ_INTERNATIONAL_WORKER,
+    description:
+      'View the paragraph 83 register, each Certificate of Coverage as a countdown, the full-pay contribution against what the ceiling would have given, and the withdrawal position',
+  },
+  {
+    name: PERMISSIONS.MANAGE_IW_CONTRIBUTION,
+    description:
+      'Compute an international worker’s monthly contribution on full pay and file the IW-1 return',
+  },
+  {
+    name: PERMISSIONS.MANAGE_IW_DETERMINATION,
+    description:
+      'Record the paragraph 83 status and the Certificate of Coverage — the two determinations that take the statutory wage ceiling off a member, or stop their contribution entirely',
+  },
   {
     name: PERMISSIONS.READ_CONSTRUCTION_CESS,
     description:
@@ -1244,6 +1354,12 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_EMPLOYEE,
       PERMISSIONS.WRITE_EMPLOYEE,
       PERMISSIONS.DELETE_EMPLOYEE,
+      // #1969. All three. Maintaining the rate table a relief is computed
+      // against and giving that relief in the TDS computation are two halves of
+      // the same check, and the owner is the one account allowed to be both.
+      PERMISSIONS.READ_ARREAR_RELIEF,
+      PERMISSIONS.MANAGE_RELIEF_CLAIM,
+      PERMISSIONS.MANAGE_TAX_RATE_TABLE,
       // #1828. All three. Deciding whose conduct delayed an enquiry and
       // certifying the establishment against the result are the two halves of
       // one check, and the owner is the one account allowed to be both.
@@ -1280,6 +1396,12 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_MINIMUM_WAGE,
       PERMISSIONS.MANAGE_MINIMUM_WAGE_SCHEDULE,
       PERMISSIONS.RUN_MINIMUM_WAGE_ASSESSMENT,
+      // #1970. All three. Declaring the list and moving a day off it are two
+      // halves of the same check, and the owner is the one account allowed to
+      // be both.
+      PERMISSIONS.READ_HOLIDAY_CALENDAR,
+      PERMISSIONS.MANAGE_HOLIDAY_CALENDAR,
+      PERMISSIONS.MANAGE_HOLIDAY_SUBSTITUTION,
 
       // #1767. All three, for the reason immediately above: the owner is the
       // one account allowed to be both halves of a check. Writing off a
@@ -1331,6 +1453,12 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_CONSTRUCTION_CESS,
       PERMISSIONS.MANAGE_CESS_REGISTER,
       PERMISSIONS.MANAGE_CESS_BASE,
+      // #1971. All three. Determining that a member is outside the wage ceiling
+      // and computing the contribution that follows are two halves of the same
+      // check, and the owner is the one account allowed to be both.
+      PERMISSIONS.READ_INTERNATIONAL_WORKER,
+      PERMISSIONS.MANAGE_IW_CONTRIBUTION,
+      PERMISSIONS.MANAGE_IW_DETERMINATION,
 
       // #1344. All three. MANAGE_GRATUITY_ASSUMPTIONS stops here for the same
       // reason MANAGE_COMPLIANCE does — it decides what gets reported, not who
@@ -1494,6 +1622,13 @@ const ROLE_DEFINITIONS = [
       // the party whose delay is in question, which is exactly why the finding
       // sits with the owner.
       PERMISSIONS.READ_SUSPENSION,
+      // #1969. Read and the claims, not the rate tables. Recording an arrear
+      // and an employee's Form 10E is clerical against documents; the dated
+      // slabs and a past year's assessed income are the figures every relief
+      // is computed against, and moving one of those silently moves every
+      // relief for every employee.
+      PERMISSIONS.READ_ARREAR_RELIEF,
+      PERMISSIONS.MANAGE_RELIEF_CLAIM,
       PERMISSIONS.MANAGE_SUSPENSION,
 
       PERMISSIONS.READ_PAYROLL,
@@ -1580,6 +1715,13 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.MANAGE_PROFESSIONAL_TAX,
 
       PERMISSIONS.READ_GRATUITY_VALUATION,
+      // #1970. Read and the calendar, not the substitutions. Declaring the
+      // festival list and settling it with the Inspector is clerical work
+      // measured against the state's own figure; moving a day an employee has
+      // already been told they are getting off is not, and the same permission
+      // holding both would let one person do it end to end.
+      PERMISSIONS.READ_HOLIDAY_CALENDAR,
+      PERMISSIONS.MANAGE_HOLIDAY_CALENDAR,
 
       // #1769. HR reads the pension statements — "why is my pensionable salary
       // ₹14,500 when I earned ₹40,000" is a question an employee asks HR, and
@@ -1601,6 +1743,13 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.MANAGE_LAYOFF_SPELL,
 
       PERMISSIONS.READ_EC_CLAIM,
+      // #1971. Read and the contribution, not the determination. Computing a
+      // month's basis follows mechanically from the status and the pay; the
+      // status itself takes the ₹15,000 ceiling off a member, and a certificate
+      // stops their contribution altogether. One person should not be able to
+      // decide that and then compute against it.
+      PERMISSIONS.READ_INTERNATIONAL_WORKER,
+      PERMISSIONS.MANAGE_IW_CONTRIBUTION,
 
       PERMISSIONS.READ_VENDOR,
 

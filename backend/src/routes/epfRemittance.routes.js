@@ -11,6 +11,8 @@ const {
   getPosition,
   listAssessments,
   commitAssessment,
+  simulate,
+  getSimulationStatus,
 } = require('../controllers/epfRemittance.controller');
 const auth = require('../middlewares/auth.middleware');
 const { requirePermission } = require('../middlewares/rbac.middleware');
@@ -121,6 +123,22 @@ router.post(
   requirePermission(PERMISSIONS.MANAGE_EPF_WAIVER),
   writeRateLimiter,
   commitAssessment,
+);
+
+// Belated remittance interest & damages simulations
+router.post(
+  '/simulate',
+  auth,
+  requirePermission(PERMISSIONS.READ_EPF_REMITTANCE),
+  writeRateLimiter,
+  simulate,
+);
+
+router.get(
+  '/simulate/status/:jobId',
+  auth,
+  requirePermission(PERMISSIONS.READ_EPF_REMITTANCE),
+  getSimulationStatus,
 );
 
 module.exports = router;

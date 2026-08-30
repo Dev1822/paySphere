@@ -64,7 +64,19 @@ function registerAuditListener() {
   logger.info("Audit listener registered", { event: AUDIT_LOG_EVENT });
   return true;
 }
+    const auditIntegrity = require('../services/auditIntegrity.service');
+    const recordWithIntegrity = await auditIntegrity.addIntegrityMetadata({
+      tenantId: auditContext.tenantId,
+      userId: auditContext.userId,
+      event: auditContext.event,
+      action: auditContext.action,
+      resourceType: auditContext.resourceType,
+      resourceId: auditContext.resourceId,
+      details: auditContext.details,
+      timestamp: new Date().toISOString()
+    });
 
+    await AuditLog.create(recordWithIntegrity);
 /**
  * Is something listening for audit events?
  *

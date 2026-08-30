@@ -508,6 +508,20 @@ parentPort.on('message', async (msg) => {
       case 'GENERATE_PAYSLIP':
         await handlePayslipGeneration(msg.payload);
         break;
+      case 'GENERATE_DYNAMIC_PAYSLIP': {
+        const { renderPayslipPdf } = require('../utils/payslipRenderer.pdf');
+        try {
+          const pdfData = await renderPayslipPdf(
+            msg.payload.assembledData,
+            msg.payload.currency,
+            msg.payload.pdfOptions,
+          );
+          parentPort.postMessage({ success: true, pdfData });
+        } catch (e) {
+          parentPort.postMessage({ success: false, error: e.message });
+        }
+        break;
+      }
       case 'GENERATE_FORM_16': // Added for Issue #933
         await handleForm16Generation(msg.payload);
         break;

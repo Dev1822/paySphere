@@ -78,6 +78,11 @@ export const APP_ROUTES = [
     component: lazy(() => import('../pages/ResetPassword')),
     isProtected: false,
   },
+  {
+    path: '/verify-payslip',
+    component: lazy(() => import('../pages/payroll/PayslipVerificationPage')),
+    isProtected: false,
+  },
 
   // ── Overview ─────────────────────────────────────────────────────────────
   {
@@ -118,6 +123,19 @@ export const APP_ROUTES = [
     label: 'Employees',
     group: 'people',
     icon: 'people',
+  },
+  {
+    // In People rather than in Payroll, and deliberately not beside Leave. A
+    // holiday is not leave — it is not applied for, cannot be refused, is not
+    // deducted from a balance, and three of them cannot be moved at all.
+    // Filing it under Leave would put a substitute control next to days that
+    // have none (#1970).
+    path: '/holiday-calendar',
+    component: lazy(() => import('../pages/HolidayCalendarRegister')),
+    appShell: true,
+    label: 'Holiday calendar',
+    group: 'people',
+    icon: 'calendar',
   },
   {
     path: '/add-employee',
@@ -272,12 +290,34 @@ export const APP_ROUTES = [
 
   // ── Payroll ──────────────────────────────────────────────────────────────
   {
+    path: '/payslip-templates',
+    component: lazy(
+      () => import('../components/payroll/PayslipTemplateDesigner'),
+    ),
+    label: 'Payslip Templates',
+    group: 'payroll',
+    icon: 'document',
+    appShell: true,
+  },
+  {
     path: '/approvals',
     component: lazy(() => import('../pages/Approvals')),
     appShell: true,
     label: 'Approvals',
     group: 'payroll',
     icon: 'check',
+  },
+  {
+    // In Payroll rather than in Compliance. The relief is a figure that changes
+    // what is deducted this month, and the people who act on it are the ones
+    // running the deduction — putting it under Compliance would file it beside
+    // things nobody touches until an audit (#1969).
+    path: '/section-89-relief',
+    component: lazy(() => import('../pages/SectionEightyNineReliefRegister')),
+    appShell: true,
+    label: 'Section 89(1) relief',
+    group: 'payroll',
+    icon: 'calculator',
   },
   {
     path: '/loans',
@@ -376,6 +416,8 @@ export const APP_ROUTES = [
     path: '/recognition',
     component: lazy(() => import('../components/EmployeeRecognitionWall')),
     label: 'Recognition Wall',
+    group: 'payroll',
+    icon: 'trophy',
   },
   {
     path: '/team-performance',
@@ -384,7 +426,6 @@ export const APP_ROUTES = [
     group: 'payroll',
     icon: 'chart',
   },
-    // In Payroll rather than Compliance: it is a deduction that has to be in
   {
     path: '/learning',
     component: lazy(() => import('../components/EmployeeLearningTracker')),
@@ -393,6 +434,7 @@ export const APP_ROUTES = [
     icon: 'book',
   },
   {
+    // In Payroll rather than Compliance: it is a deduction that has to be in
     // the run, and it is missed because nobody schedules it rather than because
     // anybody computes it wrongly. Putting it where the run is planned is the
     // whole point (#1701).
@@ -491,6 +533,18 @@ export const APP_ROUTES = [
   },
 
   // ── Compliance ───────────────────────────────────────────────────────────
+  {
+    // In Compliance rather than in Payroll. The figures are payroll figures,
+    // but the thing that has to be watched is a certificate lapsing on a date
+    // nobody is looking at — and that belongs beside the other obligations with
+    // deadlines rather than beside the run (#1971).
+    path: '/international-workers',
+    component: lazy(() => import('../pages/InternationalWorkerRegister')),
+    appShell: true,
+    label: 'International workers',
+    group: 'compliance',
+    icon: 'globe',
+  },
   {
     // In Compliance rather than Payroll: the register's subject is who the
     // scheme covers, and the fact people come to it for — that somebody above

@@ -20,6 +20,7 @@ const {
   financialYearMonths,
   halfYearOf,
   resolveRule,
+  resolveStateForMonth,
   slabFor,
   slabsFor,
   monthlyLiability,
@@ -580,5 +581,84 @@ describe('assessEstablishment', () => {
     const result = assessEstablishment();
     expect(result.employees).toEqual([]);
     expect(result.registrations).toEqual([]);
+  });
+});
+
+describe('State Transfer and Location History Handler', () => {
+  it('resolves majority state correctly for mid-month transfers', () => {
+    const employee = {
+      workState: 'MH',
+      workStateHistory: [
+        { state: 'MH', startDate: '2026-08-01', endDate: '2026-08-20' }, // 20 days
+        { state: 'KA', startDate: '2026-08-21', endDate: '2026-08-31' }, // 11 days
+      ],
+    };
+
+    const state = resolveStateForMonth(employee, 2026, 8);
+    expect(state).toBe('MH');
+
+    const employee2 = {
+      workState: 'MH',
+      workStateHistory: [
+        { state: 'MH', startDate: '2026-08-01', endDate: '2026-08-10' }, // 10 days
+        { state: 'KA', startDate: '2026-08-11', endDate: '2026-08-31' }, // 21 days
+      ],
+    };
+
+    const state2 = resolveStateForMonth(employee2, 2026, 8);
+    expect(state2).toBe('KA');
+  });
+
+  it('prorates/splits PT lines correctly based on state history across the year', () => {
+    const employee = {
+      employeeId: 'emp-transfer',
+      name: 'Transferred Worker',
+      workState: 'MH',
+      workStateHistory: [
+        { state: 'MH', startDate: '2025-04-01', endDate: '2025-09-30' }, // First half in MH (monthly)
+        { state: 'KA', startDate: '2025-10-01', endDate: '2026-03-31' }, // Second half in KA (monthly)
+      ],
+    };
+
+    const result = computeEmployeeYear({
+      employee,
+      financialYear: 2025,
+      wageMonths: evenYear(2025, 30000), // Salary ₹30,000 every month
+    });
+
+    // Check lines for first 6 months (April-September) should be MH
+    const mhLines = result.lines.slice(0, 6);
+    for (const line of mhLines) {
+      expect(line.workState).toBe('MH');
+      expect(line.amount).toBe(200); // MH slab for ₹30k is ₹200 (except Feb)
+    }
+
+    // Check lines for remaining months (October-March) should be KA
+    const kaLines = result.lines.slice(6, 12);
+    for (const line of kaLines) {
+      expect(line.workState).toBe('KA');
+      expect(line.amount).toBe(200); // KA slab for ₹30k is ₹200
+    }
+  });
+
+  it('prevents double-deductions within the same calendar month by selecting majority state', () => {
+    const employee = {
+      employeeId: 'emp-mid-month',
+      workState: 'MH',
+      workStateHistory: [
+        { state: 'MH', startDate: '2025-04-01', endDate: '2025-04-10' }, // 10 days
+        { state: 'KA', startDate: '2025-04-11', endDate: '2025-04-30' }, // 20 days (majority)
+      ],
+    };
+
+    const result = computeEmployeeYear({
+      employee,
+      financialYear: 2025,
+      wageMonths: [{ year: 2025, month: 4, salary: 30000 }],
+    });
+
+    expect(result.lines).toHaveLength(1);
+    expect(result.lines[0].workState).toBe('KA');
+    expect(result.lines[0].amount).toBe(200); // Single deduction applied
   });
 });

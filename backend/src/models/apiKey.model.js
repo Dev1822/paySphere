@@ -29,6 +29,14 @@ const apiKeySchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    secret: {
+      type: String,
+      required: true,
+    },
+    whitelistedCIDRs: {
+      type: [String],
+      default: [],
+    },
     lastUsedAt: {
       type: Date,
     },

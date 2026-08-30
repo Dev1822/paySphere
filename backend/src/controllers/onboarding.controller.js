@@ -16,6 +16,8 @@ const Employee = require('../models/employee.model');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
 const { sanitizeText } = require('../utils/validators');
+const ProbationTrackerService = require('../services/probationTracker.service');
+const { EMPLOYMENT_STATUS } = require('../config/employment');
 
 // ─── Admin: Create Onboarding Plan ────────────────────────────────────────
 
@@ -197,11 +199,9 @@ exports.addTaskToPlan = async (req, res, next) => {
 
     const validDepts = ['HR', 'IT', 'Finance', 'Manager', 'Employee'];
     if (!validDepts.includes(department)) {
-      return res
-        .status(400)
-        .json({
-          message: `Invalid department. Must be one of: ${validDepts.join(', ')}`,
-        });
+      return res.status(400).json({
+        message: `Invalid department. Must be one of: ${validDepts.join(', ')}`,
+      });
     }
 
     const plan = await OnboardingPlan.findOne({
@@ -317,7 +317,6 @@ exports.startOnboarding = async (req, res, next) => {
     const employee = await Employee.findOne({
       _id: employeeId,
       tenantId: req.tenantId,
-      deletedAt: null,
     });
     if (!employee)
       return res.status(404).json({ message: 'Employee not found' });
@@ -367,12 +366,26 @@ exports.startOnboarding = async (req, res, next) => {
       taskCount: created.length,
     });
 
-    return res
-      .status(201)
-      .json({
-        message: `Onboarding started with ${created.length} tasks`,
-        tasks: created,
-      });
+    if (employee.employmentStatus === EMPLOYMENT_STATUS.PROBATION) {
+      try {
+        await ProbationTrackerService.initiateProbation({
+          tenantId: req.tenantId,
+          employeeId: employee._id,
+          createdBy: req.userId,
+        });
+      } catch (probationErr) {
+        logger.error('Failed to auto-initiate probation during onboarding', {
+          employeeId,
+          error: probationErr.message,
+        });
+        // We do not fail the onboarding start if probation fails, but log it.
+      }
+    }
+
+    return res.status(201).json({
+      message: `Onboarding started with ${created.length} tasks`,
+      tasks: created,
+    });
   } catch (error) {
     logger.error('Failed to start onboarding', {
       userId: req.userId,
@@ -414,11 +427,9 @@ exports.updateTaskStatus = async (req, res, next) => {
 
     const validStatuses = ['Pending', 'In Progress', 'Completed', 'Blocked'];
     if (!validStatuses.includes(status)) {
-      return res
-        .status(400)
-        .json({
-          message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
-        });
+      return res.status(400).json({
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+      });
     }
 
     const task = await OnboardingTask.findOne({
@@ -592,7 +603,6 @@ exports.uploadDocument = async (req, res, next) => {
     const employee = await Employee.findOne({
       _id: employeeId,
       tenantId: req.tenantId,
-      deletedAt: null,
     });
     if (!employee)
       return res.status(404).json({ message: 'Employee not found' });
@@ -640,11 +650,9 @@ exports.verifyDocument = async (req, res, next) => {
 
     const validStatuses = ['Pending Verification', 'Verified', 'Rejected'];
     if (!validStatuses.includes(status)) {
-      return res
-        .status(400)
-        .json({
-          message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
-        });
+      return res.status(400).json({
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+      });
     }
 
     const doc = await OnboardingDocument.findOne({

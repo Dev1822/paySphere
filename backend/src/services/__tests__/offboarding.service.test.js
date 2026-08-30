@@ -61,10 +61,15 @@ describe('Offboarding Service', () => {
       OffboardingProcess.findOne.mockResolvedValue({ _id: 'existing' });
 
       await expect(
-        offboardingService.initiateOffboarding(tenantId, 'emp1', {
-          exitType: 'Resignation',
-          lastWorkingDay: new Date(),
-        }, userId),
+        offboardingService.initiateOffboarding(
+          tenantId,
+          'emp1',
+          {
+            exitType: 'Resignation',
+            lastWorkingDay: new Date(),
+          },
+          userId,
+        ),
       ).rejects.toThrow('already exists');
     });
   });
@@ -72,10 +77,11 @@ describe('Offboarding Service', () => {
   describe('getProcess', () => {
     it('should return process with populated fields', async () => {
       OffboardingProcess.findOne.mockReturnValue({
-        populate: jest.fn().mockReturnThis(),
-        populate: jest.fn().mockResolvedValue({
-          _id: 'o1',
-          status: 'InProgress',
+        populate: jest.fn().mockReturnValue({
+          populate: jest.fn().mockResolvedValue({
+            _id: 'o1',
+            status: 'InProgress',
+          }),
         }),
       });
 
@@ -85,8 +91,9 @@ describe('Offboarding Service', () => {
 
     it('should throw 404 when not found', async () => {
       OffboardingProcess.findOne.mockReturnValue({
-        populate: jest.fn().mockReturnThis(),
-        populate: jest.fn().mockResolvedValue(null),
+        populate: jest.fn().mockReturnValue({
+          populate: jest.fn().mockResolvedValue(null),
+        }),
       });
 
       await expect(
@@ -162,7 +169,12 @@ describe('Offboarding Service', () => {
       });
 
       await expect(
-        offboardingService.transitionProcess('o1', tenantId, 'Initiated', userId),
+        offboardingService.transitionProcess(
+          'o1',
+          tenantId,
+          'Initiated',
+          userId,
+        ),
       ).rejects.toThrow('Cannot transition');
     });
   });
@@ -272,7 +284,10 @@ describe('Offboarding Service', () => {
         { deductionAmount: 2000 },
       ]);
 
-      const total = await offboardingService.getTotalAssetDeductions('o1', tenantId);
+      const total = await offboardingService.getTotalAssetDeductions(
+        'o1',
+        tenantId,
+      );
       expect(total).toBe(7000);
     });
   });
@@ -381,7 +396,8 @@ describe('Offboarding Service', () => {
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
-      const dashboard = await offboardingService.getOffboardingDashboard(tenantId);
+      const dashboard =
+        await offboardingService.getOffboardingDashboard(tenantId);
 
       expect(dashboard.activeCount).toBe(2);
       expect(dashboard.upcomingCount).toBe(1);

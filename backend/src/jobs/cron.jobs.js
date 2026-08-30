@@ -10,6 +10,9 @@ const logger = require('../utils/logger');
 const { runDatabaseBackupJob } = require('./backup.job');
 const { runDatabaseArchivalJob } = require('./archival.job');
 const { runForexSyncJob } = require('./forexSync.job');
+const {
+  runCompensationCycleReminderJob,
+} = require('./compensationCycleReminder.job');
 const LOCK_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -330,6 +333,18 @@ const startCronJobs = () => {
   );
   logger.info('Daily greetings cron job registered.');
 
+  // 00:00 daily
+  scheduledTasks.push(
+    cron.schedule('0 0 * * *', () => {
+      runCompensationCycleReminderJob().catch((error) =>
+        logger.error('Compensation cycle reminder job threw', {
+          error: error.message,
+        }),
+      );
+    }),
+  );
+  logger.info('Compensation cycle reminder job registered.');
+
   // 00:30 on the 1st of every month.
   //
   // #646 wrote this job and never scheduled it. Its own header says "Runs on
@@ -480,6 +495,21 @@ const startCronJobs = () => {
     }),
   );
   logger.info('Daily detect milestones cron job registered.');
+
+  // 02:30 daily — Certification Expiry Notifications.
+  scheduledTasks.push(
+    cron.schedule('30 2 * * *', () => {
+      const {
+        runCertificationExpiryJob,
+      } = require('./certificationExpiry.job');
+      runCertificationExpiryJob().catch((error) =>
+        logger.error('Certification expiry job threw', {
+          error: error.message,
+        }),
+      );
+    }),
+  );
+  logger.info('Daily certification expiry cron job registered.');
 };
 
 function stopCronJobs() {
