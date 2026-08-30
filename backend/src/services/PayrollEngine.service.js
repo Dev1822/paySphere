@@ -507,6 +507,10 @@ class PayrollEngine {
         throw conflictError;
       }
 
+      // Multi-tenant PEO Escrow Pre-Flight Check
+      const { checkPayrollFunding } = require('./escrowReconciliation.service');
+      await checkPayrollFunding(tenantId, preparedItems);
+
       try {
         session = await mongoose.startSession();
         session.startTransaction();
