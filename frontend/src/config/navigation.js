@@ -190,6 +190,23 @@ export const APP_ROUTES = [
     icon: 'chart',
   },
   {
+    // Retention analytics sits in People beside Pay equity — both answer
+    // workforce-stability questions, and the risk scores here feed directly
+    // into the compensation decisions on that page (#1902).
+    path: '/retention',
+    component: lazy(() => import('../components/EmployeeRetentionDashboard')),
+    label: 'Retention analytics',
+    group: 'people',
+    icon: 'chart',
+  },
+  {
+    path: '/offer-letters',
+    component: lazy(() => import('../pages/OfferLetterBuilder')),
+    label: 'Offer letters',
+    group: 'people',
+    icon: 'document',
+  },
+  {
     path: '/templates',
     component: lazy(() => import('../pages/LetterTemplateManager')),
     label: 'Letter templates',
