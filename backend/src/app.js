@@ -208,6 +208,14 @@ const complianceRoutes = require('./routes/compliance.routes');
 // aggregator owes a share of its own turnover on account of workers who are
 // expressly not its employees.
 const aggregatorContributionRoutes = require('./routes/aggregatorContribution.routes');
+// Industrial Disputes Act section 9A (#1973). Apart from every router that
+// makes a change in conditions of service, because it observes them and owns
+// none of them: a salary revision, a roster change and a contribution change are
+// each effected elsewhere, and putting a twenty-one-day rule in each of those
+// three places is five copies that will drift. Apart from #1830's Chapter VB
+// router too — that one is about employment ending, this one is about the terms
+// of employment continuing, and they share an Act and nothing else.
+const noticeOfChangeRoutes = require('./routes/noticeOfChange.routes');
 const forexRoutes = require('./routes/forex.routes');
 const announcementRoutes = require('./routes/announcement.routes');
 const companyEventRoutes = require('./routes/companyEvent.routes');
@@ -761,6 +769,16 @@ app.use('/api/compliance', complianceRoutes);
 // it does not live under `/api/employees` — section 2(35) puts a gig worker
 // outside the employment relationship entirely.
 app.use('/api/aggregator-contribution', aggregatorContributionRoutes);
+
+// #1973. The router owns `/rules`, `/queue`, `/changes`,
+// `/changes/:id/classification`, `/changes/:id/population`,
+// `/changes/:id/notices`, `/changes/:id/effective-date`,
+// `/changes/:id/proceeding` and `/changes/:id/exemption`. It blocks nothing —
+// section 9A creates a notice obligation and a section 31 penalty, not
+// invalidity, and a router that refused to save a change would be asserting a
+// remedy the Act does not give. Where a proceeding is pending it returns
+// SECTION_33_PERMISSION_REQUIRED with no notice window at all.
+app.use('/api/notice-of-change', noticeOfChangeRoutes);
 
 // ─── Feature routers that were never mounted (#1009) ───────────────────────
 //
