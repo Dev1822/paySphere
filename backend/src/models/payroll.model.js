@@ -77,6 +77,40 @@ const payrollUpdateSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+      dailyRate: {
+    type: Number,
+    description: 'Daily rate for leave calculation',
+  },
+
+  leaveDays: {
+    type: Number,
+    default: 0,
+    description: 'Number of leave days taken',
+  },
+
+  overtimeHours: {
+    type: Number,
+    default: 0,
+    description: 'Overtime hours worked',
+  },
+
+  overtimeRate: {
+    type: Number,
+    default: 0,
+    description: 'Rate per overtime hour',
+  },
+
+  taxRate: {
+    type: Number,
+    default: 0,
+    description: 'Tax rate percentage',
+  },
+
+  components: {
+    type: mongoose.Schema.Types.Mixed,
+    description: 'Calculated payroll components breakdown',
+    default: null,
+  },
     customDeductions: [
       {
         name: {

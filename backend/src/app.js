@@ -25,7 +25,9 @@
 const mongoose = require('mongoose');
 const piiMaskingPlugin = require('./utils/piiMaskingPlugin');
 const tenantEnforcementPlugin = require('./models/plugins/tenantEnforcement.plugin');
+const payrollReconciliationRoutes = require('./routes/payrollReconciliation.routes');
 
+app.use('/api/payroll-reconciliation', payrollReconciliationRoutes);
 mongoose.plugin(piiMaskingPlugin);
 mongoose.plugin(tenantEnforcementPlugin);
 
