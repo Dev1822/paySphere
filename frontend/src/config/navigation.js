@@ -927,15 +927,19 @@ export const APP_ROUTES = [
   },
   {
     path: '/enterprise/onboarding-lifecycle',
-    component: lazy(
-      () => import('../pages/onboarding/EnterpriseOnboardingLifecyclePage'),
-    ),
+    component: lazy(() => import('../pages/onboarding/EnterpriseOnboardingLifecyclePage')),
+  },
+  {
+    path: '/employee-referrals',
+    component: lazy(() => import('../pages/referrals/EmployeeReferralProgramPage')),
+    label: 'Employee Referrals',
+    group: 'enterprise',
+    icon: 'group_add',
+    employee: true,
   },
   {
     path: '/enterprise/employee-relations',
-    component: lazy(
-      () => import('../pages/enterprise/EmployeeRelationsHubPage'),
-    ),
+    component: lazy(() => import('../pages/enterprise/EmployeeRelationsHubPage')),
     appShell: false,
   },
 
