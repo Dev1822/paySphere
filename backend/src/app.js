@@ -26,9 +26,17 @@ const mongoose = require('mongoose');
 const piiMaskingPlugin = require('./utils/piiMaskingPlugin');
 const tenantEnforcementPlugin = require('./models/plugins/tenantEnforcement.plugin');
 const payrollReconciliationRoutes = require('./routes/payrollReconciliation.routes');
+const checkPayrollRunLocking = require('./middlewares/payrollRunLocking.middleware');
 
 app.use('/api/payroll-reconciliation', payrollReconciliationRoutes);
-mongoose.plugin(piiMaskingPlugin);
+
+// Apply locking check to data modification endpoints
+app.use('/api/attendance', checkPayrollRunLocking);
+app.use('/api/leave', checkPayrollRunLocking);
+app.use('/api/compensation', checkPayrollRunLocking);
+app.use('/api/employee', checkPayrollRunLocking);
+
+app.use('/api/payroll', payrollRoutes);mongoose.plugin(piiMaskingPlugin);
 mongoose.plugin(tenantEnforcementPlugin);
 
 const express = require('express');

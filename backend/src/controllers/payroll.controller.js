@@ -452,7 +452,38 @@ exports.approvePayroll = async (req, res, next) => {
     next(error);
   }
 };
+async function finalizePayroll(req, res) {
+  try {
+    const { payrollRunId, payrollPeriodId } = req.body;
+    const lockingService = require('../services/PayrollRunLockingService');
 
+    // Check lock is still active
+    const activeLock = await lockingService.getActiveLock(payrollPeriodId);
+    if (!activeLock) {
+      return res.status(400).json({
+        message: 'No active payroll lock found. Lock may have been released.',
+      });
+    }
+
+    // ... existing code - finalize payroll
+    
+    // Store lock reference in payroll record
+    const payroll = await Payroll.findByIdAndUpdate(
+      payrollId,
+      {
+        lockedBy: activeLock._id,
+        inputBoundary: activeLock.inputBoundary,
+      },
+      { new: true }
+    );
+
+    // Release lock after finalization
+    await lockingService.releaseLock(activeLock._id, req.userId, {
+      payrollId,
+      recordsProcessed: payroll.employees.length,
+    });
+
+    // ... rest of existing code
 /**
  * POST /api/payroll/reject — checker sends a batch back to the maker.
  *
