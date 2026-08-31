@@ -244,6 +244,13 @@ exports.addEmployee = async (req, res, next) => {
 
     await cacheService.invalidateAnalytics(req.userId);
     await invalidateStatsCaches(req.tenantId);
+    await cacheService.invalidateTags([
+      'dept:analytics',
+      'dashboard',
+      'reports',
+      'analytics',
+      'stats:overview',
+    ]);
     res.status(201).json({ message: 'Employee added successfully', employee });
   } catch (error) {
     if (handleDuplicateEmail(error, res)) return;
@@ -347,7 +354,7 @@ exports.getRecentEmployees = async (req, res, next) => {
   try {
     const employees = await Employee.find({
       createdBy: req.userId,
-      })
+    })
       .sort({ createdAt: -1 })
       .limit(5);
 
@@ -721,6 +728,13 @@ exports.importEmployees = async (req, res, next) => {
 
           if (importedCount > 0) {
             await invalidateStatsCaches(req.tenantId);
+            await cacheService.invalidateTags([
+              'dept:analytics',
+              'dashboard',
+              'reports',
+              'analytics',
+              'stats:overview',
+            ]);
           }
 
           return res.status(200).json({
@@ -994,6 +1008,13 @@ exports.updateEmployee = async (req, res, next) => {
 
     await cacheService.invalidateAnalytics(req.userId);
     await invalidateStatsCaches(req.tenantId);
+    await cacheService.invalidateTags([
+      'dept:analytics',
+      'dashboard',
+      'reports',
+      'analytics',
+      'stats:overview',
+    ]);
     res
       .status(200)
       .json({ message: 'Employee updated successfully', employee });
@@ -1041,6 +1062,13 @@ exports.toggleEmployeeStatus = async (req, res, next) => {
     // changes the analytics aggregates and must clear the cache (#415).
     await cacheService.invalidateAnalytics(req.userId);
     await invalidateStatsCaches(req.tenantId);
+    await cacheService.invalidateTags([
+      'dept:analytics',
+      'dashboard',
+      'reports',
+      'analytics',
+      'stats:overview',
+    ]);
 
     // This was the only employee mutation with no audit event, unlike its
     // create/update/delete siblings.
@@ -1184,6 +1212,13 @@ exports.deleteEmployee = async (req, res, next) => {
 
     await cacheService.invalidateAnalytics(req.userId);
     await invalidateStatsCaches(req.tenantId);
+    await cacheService.invalidateTags([
+      'dept:analytics',
+      'dashboard',
+      'reports',
+      'analytics',
+      'stats:overview',
+    ]);
 
     res.status(200).json({
       message: 'Employee deleted successfully',
@@ -1265,6 +1300,13 @@ exports.restoreEmployee = async (req, res, next) => {
 
     await cacheService.invalidateAnalytics(req.userId);
     await invalidateStatsCaches(req.tenantId);
+    await cacheService.invalidateTags([
+      'dept:analytics',
+      'dashboard',
+      'reports',
+      'analytics',
+      'stats:overview',
+    ]);
 
     res.status(200).json({
       message: 'Employee restored successfully',
@@ -1279,7 +1321,7 @@ exports.exportEmployeesCSV = async (req, res, next) => {
   try {
     const query = {
       createdBy: req.userId,
-      };
+    };
 
     const employees = await Employee.find(query).sort({ createdAt: -1 });
 
