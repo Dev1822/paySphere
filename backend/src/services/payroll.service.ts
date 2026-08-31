@@ -39,6 +39,47 @@ export class PayrollService {
   /**
    * Calculates salary adjustments for a given employee based on activities
    */
+  public static async calculatePayrollWithLocking(
+    employee: EmployeeData,
+    user: UserData | null,
+    activity: Activity,
+    payrollRunId: string,
+    payrollPeriodId: string,
+    userId: string,
+  ) {
+    const lockingService = require('./PayrollRunLockingService');
+
+    // Acquire lock before calculating
+    const lockResult = await lockingService.acquireLock(
+      payrollRunId,
+      payrollPeriodId,
+      [employee._id],
+      userId
+    );
+
+    if (!lockResult.success) {
+      throw new Error(lockResult.error);
+    }
+
+    try {
+      // Perform calculation (existing logic)
+      const result = this.calculatePayroll(employee, user, activity);
+
+      return {
+        ...result,
+        lockId: lockResult.lockId,
+        inputBoundary: lockResult.inputBoundary,
+      };
+    } catch (error) {
+      // Release lock on error
+      await lockingService.forceReleaseLock(
+        lockResult.lockId,
+        error.message
+      );
+      throw error;
+    }
+  }
+
   public static calculatePayroll(
     employee: EmployeeData,
     user: UserData | null,
@@ -48,7 +89,6 @@ export class PayrollService {
       overtimeHours = 0,
       bonus = 0,
       deductions = 0;
-
     for (const tag of activity.tags) {
       const lower = tag.label.toLowerCase();
       const value = this.parseTagValue(tag.label);

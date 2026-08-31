@@ -7,6 +7,7 @@
     "dev": "nodemon src/index.js",
     "build": "tsc",
     "test": "npx jest",
+        "test:locking": "jest payroll-run-locking.test.js",
     "lint": "eslint ."
   },
   "author": "",
