@@ -4,6 +4,7 @@ const {
   taxableWithin,
   validateSlabs,
   taxOn,
+  taxOnBonus,
   effectiveRate,
 } = require('../taxCalculator');
 
@@ -192,6 +193,23 @@ describe('taxOn — the breakdown (#616)', () => {
     const { breakdown } = taxOn(1200000, slabs());
 
     expect(breakdown.at(-1).maxIncome).toBeNull();
+  });
+});
+
+describe('taxOnBonus (#2086)', () => {
+  test('SUPPLEMENTAL method applies a flat rate to the bonus', () => {
+    expect(taxOnBonus(50000, 60000, slabs(), { method: 'SUPPLEMENTAL', supplementalRate: 22 })).toBe(11000);
+  });
+
+  test('SUPPLEMENTAL method defaults to 22% rate if not specified', () => {
+    expect(taxOnBonus(10000, 50000, slabs(), { method: 'SUPPLEMENTAL' })).toBe(2200);
+  });
+
+  test('AGGREGATE method computes marginal tax accurately', () => {
+    // Base salary = 6,00,000 (tax = 12500 + 100000 * 0.2 = 32500)
+    // Base + Bonus = 6,50,000 (tax = 12500 + 150000 * 0.2 = 42500)
+    // Bonus Tax = 42500 - 32500 = 10000 (which is exactly 20% on 50k)
+    expect(taxOnBonus(50000, 600000, slabs(), { method: 'AGGREGATE' })).toBe(10000);
   });
 });
 
