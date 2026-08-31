@@ -1,66 +1,112 @@
 /**
  * @fileoverview WC Premium Engine Utilities
- * @description Calculates estimated premiums, applies executive caps, 
- * and generates annual audit variance reports.
- * Issue: #1570
+ * @description Calculates WC eligible wages by stripping OT premiums, applies EMR, 
+ * and evaluates audit guardrails for misclassifications.
+ * Issue: #2061
  */
+const { NCCI_CLASS_CODES, OT_EXCLUSION_STATES, EMR_THRESHOLDS } = require('../constants/wc.constants');
 
 /**
- * Applies the statutory maximum remuneration limit for corporate officers.
- * If the employee is an officer and the code has a cap, the payroll is capped.
+ * Strips the overtime premium portion from gross wages if the state allows exclusion.
+ * The "premium" is typically the extra 0.5x paid for OT hours.
  * 
- * @param {number} grossPayroll 
- * @param {boolean} isCorporateOfficer 
- * @param {number} officerMaxRemuneration 
- * @returns {number} Capped payroll amount
+ * @param {number} grossWages 
+ * @param {number} otHours 
+ * @param {number} baseHourlyRate 
+ * @param {string} stateCode 
+ * @returns {{ eligibleWages: number, excludedOTPremium: number }}
  */
-function applyExecutiveCap(grossPayroll, isCorporateOfficer, officerMaxRemuneration) {
-    if (isCorporateOfficer && officerMaxRemuneration < Infinity) {
-        return Math.min(grossPayroll, officerMaxRemuneration);
+function stripOvertimePremium(grossWages, otHours, baseHourlyRate, stateCode) {
+    if (!otHours || otHours <= 0 || !baseHourlyRate) {
+        return { eligibleWages: grossWages, excludedOTPremium: 0 };
     }
-    return grossPayroll;
+
+    const allowsExclusion = OT_EXCLUSION_STATES[stateCode.toUpperCase()] || false;
+
+    if (!allowsExclusion) {
+        return { eligibleWages: grossWages, excludedOTPremium: 0 };
+    }
+
+    // Calculate the "premium" portion (the extra 0.5x of the base rate)
+    const otPremium = Math.round((otHours * baseHourlyRate * 0.5) * 100) / 100;
+    const eligibleWages = Math.max(0, Math.round((grossWages - otPremium) * 100) / 100);
+
+    return { eligibleWages, excludedOTPremium: otPremium };
 }
 
 /**
- * Calculates the estimated WC premium for a specific payroll entry.
- * Formula: (Capped Payroll / 100) * Rate
+ * Calculates the estimated WC premium for a specific payroll line item.
+ * Formula: (Eligible Wages / 100) * Base Manual Rate * EMR
  * 
- * @param {number} cappedPayroll 
- * @param {number} ratePer100 
+ * @param {number} eligibleWages 
+ * @param {number} baseManualRate - Rate per $100 of payroll
+ * @param {number} emr - Experience Modification Rate
  * @returns {number} Estimated premium
  */
-function calculatePremium(cappedPayroll, ratePer100) {
-    return Math.round((cappedPayroll / 100) * ratePer100 * 100) / 100;
+function calculateEstimatedPremium(eligibleWages, baseManualRate, emr) {
+    if (eligibleWages <= 0 || baseManualRate <= 0) return 0;
+
+    const basePremium = (eligibleWages / 100) * baseManualRate;
+    const adjustedPremium = basePremium * (emr || 1.0);
+
+    return Math.round(adjustedPremium * 100) / 100;
 }
 
 /**
- * Generates the annual audit variance report.
- * Compares the sum of estimated premiums paid throughout the year against 
- * the actual calculated premium based on finalized annual payroll.
+ * Audit Guardrail: Evaluates employee mappings for potential misclassifications.
+ * Flags employees mapped to low-risk codes (e.g., 8810 Clerical) who have high 
+ * physical hours, or employees missing mappings entirely.
  * 
- * @param {number} totalEstimatedPaid - Sum of all WCPremiumLedger entries for the year
- * @param {number} totalActualCalculated - Recalculated premium using final audited payroll
- * @param {number} experienceModifier - E-Mod multiplier (e.g., 0.90)
- * @returns {{ varianceAmount: number, varianceType: string, finalLiability: number }}
+ * @param {Object} employeeData - { employeeId, primaryNCCI, totalHours, physicalHours }
+ * @returns {{ hasFlag: boolean, flagType: string, message: string }}
  */
-function generateAuditVariance(totalEstimatedPaid, totalActualCalculated, experienceModifier) {
-    // Apply E-Mod to the actual calculated premium
-    const finalLiability = Math.round(totalActualCalculated * experienceModifier * 100) / 100;
+function auditGuardrail(employeeData) {
+    if (!employeeData.primaryNCCI) {
+        return {
+            hasFlag: true,
+            flagType: 'Missing Mapping',
+            message: `Employee ${employeeData.employeeId} has no NCCI code assigned. Defaulting to highest risk rate.`
+        };
+    }
 
-    // Variance = Final Liability - Estimated Paid
-    // If Variance > 0, company owes the insurer more.
-    // If Variance < 0, insurer owes the company a refund.
-    const varianceAmount = Math.round((finalLiability - totalEstimatedPaid) * 100) / 100;
+    const ncciInfo = NCCI_CLASS_CODES[employeeData.primaryNCCI];
+    if (!ncciInfo) {
+        return { hasFlag: false, flagType: 'None', message: '' };
+    }
 
-    let varianceType = 'Balanced';
-    if (varianceAmount > 0.01) varianceType = 'Owed to Insurer';
-    else if (varianceAmount < -0.01) varianceType = 'Refund Due';
+    // Flag if mapped to Clerical (8810) but logged significant physical/field hours
+    if (employeeData.primaryNCCI === '8810' && employeeData.physicalHours > 10) {
+        return {
+            hasFlag: true,
+            flagType: 'High Risk Misclassification',
+            message: `Employee mapped to Clerical (8810) but logged ${employeeData.physicalHours} physical/field hours. Audit risk.`
+        };
+    }
 
-    return {
-        varianceAmount: Math.abs(varianceAmount),
-        varianceType,
-        finalLiability
-    };
+    return { hasFlag: false, flagType: 'None', message: '' };
 }
 
-module.exports = { applyExecutiveCap, calculatePremium, generateAuditVariance };
+/**
+ * Evaluates the company's EMR against industry thresholds.
+ * @param {number} emr 
+ * @returns {{ status: string, multiplierImpact: string }}
+ */
+function evaluateEMRStatus(emr) {
+    if (emr < EMR_THRESHOLDS.EXCELLENT) {
+        return { status: 'Excellent', multiplierImpact: 'Significant Premium Discount' };
+    }
+    if (emr <= EMR_THRESHOLDS.GOOD) {
+        return { status: 'Average', multiplierImpact: 'Standard Industry Rate' };
+    }
+    if (emr <= EMR_THRESHOLDS.POOR) {
+        return { status: 'Below Average', multiplierImpact: 'Premium Surcharge Applied' };
+    }
+    return { status: 'High Risk', multiplierImpact: 'Severe Premium Surcharge' };
+}
+
+module.exports = {
+    stripOvertimePremium,
+    calculateEstimatedPremium,
+    auditGuardrail,
+    evaluateEMRStatus
+};

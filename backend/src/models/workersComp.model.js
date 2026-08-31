@@ -1,91 +1,102 @@
 /**
- * @fileoverview Worker's Compensation & Premium Audit Schemas
- * @description Tracks NCCI risk classifications, premium ledgers, and annual audit reconciliations.
- * Issue: #1570
+ * @fileoverview Workers' Compensation Schemas
+ * @description Tracks NCCI class codes, employee mappings, payroll ledgers, 
+ * and annual premium audit reports for insurance carrier compliance.
+ * Issue: #2061
  */
 const mongoose = require('mongoose');
 
 /**
- * RiskClassification Schema
- * Defines NCCI codes, premium rates, and statutory executive caps.
+ * WCClassCode Schema
+ * Stores the company's specific NCCI codes and their base manual rates.
  */
-const riskClassificationSchema = new mongoose.Schema({
+const wcClassCodeSchema = new mongoose.Schema({
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
-    ncciCode: { type: String, required: true, uppercase: true }, // e.g., "8810" (Clerical), "5183" (Plumbing)
+    ncciCode: { type: String, required: true, trim: true },
     description: { type: String, required: true },
+    baseManualRate: { type: Number, required: true, min: 0 }, // Rate per $100 of payroll
 
-    // Premium Rate per $100 of payroll
-    ratePer100: { type: Number, required: true, min: 0 },
-
-    // State-specific statutory maximum remuneration limit for corporate officers
-    officerMaxRemuneration: { type: Number, default: Infinity },
-    isExecutiveCode: { type: Boolean, default: false },
+    stateCode: { type: String, required: true, uppercase: true },
+    allowsOTExclusion: { type: Boolean, default: true },
 
     isActive: { type: Boolean, default: true }
 }, { timestamps: true });
 
-riskClassificationSchema.index({ tenantId: 1, ncciCode: 1 }, { unique: true });
-const RiskClassification = mongoose.model('RiskClassification', riskClassificationSchema);
+wcClassCodeSchema.index({ tenantId: 1, ncciCode: 1, stateCode: 1 }, { unique: true });
+const WCClassCode = mongoose.model('WCClassCode', wcClassCodeSchema);
 
 /**
- * EmployeeRiskMapping Schema
- * Links an employee to a specific NCCI code for payroll interception.
+ * WCEmployeeMapping Schema
+ * Maps employees to their primary and secondary WC class codes based on job duties.
  */
-const employeeRiskMappingSchema = new mongoose.Schema({
+const wcEmployeeMappingSchema = new mongoose.Schema({
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
-    employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true, unique: true },
-    riskClassificationId: { type: mongoose.Schema.Types.ObjectId, ref: 'RiskClassification', required: true },
-    isCorporateOfficer: { type: Boolean, default: false },
+    employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true, index: true },
 
-    effectiveFrom: { type: Date, default: Date.now },
+    primaryNCCI: { type: String, required: true },
+    secondaryNCCI: { type: String, default: null },
+    splitPercentage: { type: Number, default: 100 }, // % of time spent in primary code
+
+    effectiveFrom: { type: Date, required: true },
     effectiveTo: { type: Date, default: null }
 }, { timestamps: true });
 
-const EmployeeRiskMapping = mongoose.model('EmployeeRiskMapping', employeeRiskMappingSchema);
+wcEmployeeMappingSchema.index({ tenantId: 1, employeeId: 1, effectiveFrom: 1 });
+const WCEmployeeMapping = mongoose.model('WCEmployeeMapping', wcEmployeeMappingSchema);
 
 /**
- * WCPremiumLedger Schema
- * Tracks the estimated WC premium deducted per payroll run.
+ * WCPayrollLedger Schema
+ * Tracks WC-eligible wages per pay period, stripping out excluded OT premiums.
  */
-const wcPremiumLedgerSchema = new mongoose.Schema({
+const wcPayrollLedgerSchema = new mongoose.Schema({
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
+    employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true, index: true },
     payrollRunId: { type: mongoose.Schema.Types.ObjectId, ref: 'PayrollUpdate', required: true },
-    employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true },
-    riskClassificationId: { type: mongoose.Schema.Types.ObjectId, ref: 'RiskClassification', required: true },
 
     ncciCode: { type: String, required: true },
-    grossPayroll: { type: Number, required: true },
-    cappedPayroll: { type: Number, required: true }, // Payroll after applying officer cap
+    grossWages: { type: Number, required: true },
+    overtimePremium: { type: Number, default: 0 },
+    excludedOTPremium: { type: Number, default: 0 },
+    wcEligibleWages: { type: Number, required: true },
 
-    premiumRate: { type: Number, required: true },
-    estimatedPremium: { type: Number, required: true }, // (CappedPayroll / 100) * Rate
-
+    estimatedPremium: { type: Number, required: true }, // (Eligible Wages / 100) * Rate * EMR
     periodMonth: { type: Number, required: true },
     periodYear: { type: Number, required: true }
 }, { timestamps: true });
 
-wcPremiumLedgerSchema.index({ tenantId: 1, periodYear: 1, ncciCode: 1 });
-const WCPremiumLedger = mongoose.model('WCPremiumLedger', wcPremiumLedgerSchema);
+const WCPayrollLedger = mongoose.model('WCPayrollLedger', wcPayrollLedgerSchema);
 
 /**
  * WCAuditReport Schema
- * Stores the annual reconciliation variance report for the insurance auditor.
+ * Stores the annual carrier audit summary and discrepancy flags.
  */
 const wcAuditReportSchema = new mongoose.Schema({
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
-    auditYear: { type: Number, required: true },
-    experienceModifier: { type: Number, default: 1.0 }, // E-Mod (e.g., 0.85 for good safety record)
+    policyYear: { type: Number, required: true },
 
-    totalEstimatedPremiumPaid: { type: Number, required: true },
-    totalActualPremiumCalculated: { type: Number, required: true },
+    totalGrossPayroll: { type: Number, default: 0 },
+    totalWCEligiblePayroll: { type: Number, default: 0 },
+    totalEstimatedPremium: { type: Number, default: 0 },
 
-    varianceAmount: { type: Number, required: true }, // Actual - Estimated
-    varianceType: { type: String, enum: ['Owed to Insurer', 'Refund Due', 'Balanced'], required: true },
+    classCodeBreakdown: [{
+        ncciCode: String,
+        description: String,
+        eligibleWages: Number,
+        manualRate: Number,
+        calculatedPremium: Number
+    }],
 
-    generatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    generatedAt: { type: Date, default: Date.now }
+    auditFlags: [{
+        employeeId: mongoose.Schema.Types.ObjectId,
+        flagType: String, // e.g., 'Missing Mapping', 'High Risk Misclassification'
+        message: String
+    }],
+
+    companyEMR: { type: Number, default: 1.0 },
+    status: { type: String, enum: ['Draft', 'Finalized', 'Submitted to Carrier'], default: 'Draft' }
 }, { timestamps: true });
 
+wcAuditReportSchema.index({ tenantId: 1, policyYear: 1 }, { unique: true });
 const WCAuditReport = mongoose.model('WCAuditReport', wcAuditReportSchema);
 
-module.exports = { RiskClassification, EmployeeRiskMapping, WCPremiumLedger, WCAuditReport };
+module.exports = { WCClassCode, WCEmployeeMapping, WCPayrollLedger, WCAuditReport };
