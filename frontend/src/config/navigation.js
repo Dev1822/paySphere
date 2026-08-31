@@ -770,6 +770,14 @@ export const APP_ROUTES = [
     icon: 'megaphone',
     employee: true,
   },
+  {
+    path: '/wellness-hub',
+    component: lazy(() => import('../pages/wellness/EmployeeWellnessHubPage')),
+    label: 'Wellness Hub',
+    group: 'workplace',
+    icon: 'heart',
+    employee: true,
+  },
 
   {
     path: '/team-health',
