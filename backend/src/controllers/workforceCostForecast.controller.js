@@ -17,17 +17,19 @@ const logger = require('../utils/logger');
 
 // ─── Constants ────────────────────────────────────────────────────────────
 
-const PF_RATE = 0.12;            // 12% employee + 12% employer
-const PF_CEILING = 15000;         // ₹15,000 wage ceiling for PF
-const ESI_RATE = 0.0075;          // 0.75% employee + 3.25% employer (2.25% total)
-const ESI_CEILING = 21000;        // ₹21,000 wage ceiling for ESI
+const PF_RATE = 0.12; // 12% employee + 12% employer
+const PF_CEILING = 15000; // ₹15,000 wage ceiling for PF
+const ESI_RATE = 0.0075; // 0.75% employee + 3.25% employer (2.25% total)
+const ESI_CEILING = 21000; // ₹21,000 wage ceiling for ESI
 const GRATUITY_ACCRUAL_RATE = 4.81 / 100; // 15/26/12 monthly accrual
 const MONTHS_IN_YEAR = 12;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 function monthsBetween(a, b) {
-  return Math.round(Math.abs(new Date(b) - new Date(a)) / (1000 * 60 * 60 * 24 * 30.44));
+  return Math.round(
+    Math.abs(new Date(b) - new Date(a)) / (1000 * 60 * 60 * 24 * 30.44),
+  );
 }
 
 /**
@@ -40,7 +42,12 @@ function projectHeadcount(currentCount, monthlyHires, annualAttritionRate) {
   for (let m = 0; m < 12; m++) {
     const separations = Math.round(hc * monthlyAttritionRate);
     hc = hc - separations + monthlyHires;
-    months.push({ month: m + 1, headcount: Math.max(1, hc), separations, newHires: monthlyHires });
+    months.push({
+      month: m + 1,
+      headcount: Math.max(1, hc),
+      separations,
+      newHires: monthlyHires,
+    });
   }
   return months;
 }
@@ -59,13 +66,19 @@ function applyRevision(salaries, scenario) {
         hikePercent = scenario.uniformPercent || 0;
         break;
       case 'departmentWise':
-        hikePercent = scenario.departmentHikes?.[emp.department] || scenario.defaultHike || 0;
+        hikePercent =
+          scenario.departmentHikes?.[emp.department] ||
+          scenario.defaultHike ||
+          0;
         break;
-      case 'performanceBased':
+      case 'performanceBased': {
         // Map performance rating to hike
-        const band = scenario.performanceBands?.find((b) => b.rating === emp.performanceRating);
-        hikePercent = band ? band.hikePercent : (scenario.defaultHike || 0);
+        const band = scenario.performanceBands?.find(
+          (b) => b.rating === emp.performanceRating,
+        );
+        hikePercent = band ? band.hikePercent : scenario.defaultHike || 0;
         break;
+      }
       default:
         hikePercent = scenario.uniformPercent || 0;
     }
@@ -88,7 +101,8 @@ function computeStatutory(salary) {
   const pfContribution = Math.round(pfWage * PF_RATE);
 
   const esiWage = Math.min(salary, ESI_CEILING);
-  const esiContribution = esiWage <= ESI_CEILING ? Math.round(esiWage * ESI_RATE) : 0;
+  const esiContribution =
+    esiWage <= ESI_CEILING ? Math.round(esiWage * ESI_RATE) : 0;
 
   const gratuityAccrual = Math.round(salary * GRATUITY_ACCRUAL_RATE);
 
@@ -121,7 +135,10 @@ exports.getForecast = async (req, res, next) => {
 
     const clampedMonths = Math.max(1, Math.min(36, Number(months) || 12));
     const clampedHires = Math.max(0, Math.min(50, Number(monthlyHires) || 0));
-    const clampedAttrition = Math.max(0, Math.min(50, Number(annualAttritionRate) || 10));
+    const clampedAttrition = Math.max(
+      0,
+      Math.min(50, Number(annualAttritionRate) || 10),
+    );
 
     // Fetch current employees
     const empFilter = tenantFilter(req, { isActive: true, deletedAt: null });
@@ -137,7 +154,12 @@ exports.getForecast = async (req, res, next) => {
       return res.status(200).json({
         projection: [],
         summary: { totalCost: 0, totalStatutory: 0, headcount: 0 },
-        assumptions: { monthlyHires: clampedHires, annualAttritionRate: clampedAttrition, salaryRevision, months: clampedMonths },
+        assumptions: {
+          monthlyHires: clampedHires,
+          annualAttritionRate: clampedAttrition,
+          salaryRevision,
+          months: clampedMonths,
+        },
       });
     }
 
@@ -154,10 +176,17 @@ exports.getForecast = async (req, res, next) => {
     const revisedEmployees = applyRevision(empData, salaryRevision);
 
     // Current total monthly payroll
-    const currentMonthlyPayroll = revisedEmployees.reduce((s, e) => s + (e.revisedMonthlySalary || e.monthlySalary), 0);
+    const currentMonthlyPayroll = revisedEmployees.reduce(
+      (s, e) => s + (e.revisedMonthlySalary || e.monthlySalary),
+      0,
+    );
 
     // Headcount projection
-    const hcProjection = projectHeadcount(employees.length, clampedHires, clampedAttrition);
+    const hcProjection = projectHeadcount(
+      employees.length,
+      clampedHires,
+      clampedAttrition,
+    );
 
     // Monthly cost projection
     const projection = [];
@@ -172,18 +201,29 @@ exports.getForecast = async (req, res, next) => {
       const monthlyPayroll = Math.round(currentMonthlyPayroll * scale);
 
       // Statutory contributions
-      let statutory = { pfContribution: 0, esiContribution: 0, gratuityAccrual: 0 };
+      let statutory = {
+        pfContribution: 0,
+        esiContribution: 0,
+        gratuityAccrual: 0,
+      };
       if (includeStatutory) {
         const avgSalary = hc > 0 ? monthlyPayroll / hc : 0;
         const perEmployeeStatutory = computeStatutory(avgSalary);
         statutory = {
           pfContribution: Math.round(perEmployeeStatutory.pfContribution * hc),
-          esiContribution: Math.round(perEmployeeStatutory.esiContribution * hc),
-          gratuityAccrual: Math.round(perEmployeeStatutory.gratuityAccrual * hc),
+          esiContribution: Math.round(
+            perEmployeeStatutory.esiContribution * hc,
+          ),
+          gratuityAccrual: Math.round(
+            perEmployeeStatutory.gratuityAccrual * hc,
+          ),
         };
       }
 
-      const totalStatutory = statutory.pfContribution + statutory.esiContribution + statutory.gratuityAccrual;
+      const totalStatutory =
+        statutory.pfContribution +
+        statutory.esiContribution +
+        statutory.gratuityAccrual;
       const totalMonthlyCost = monthlyPayroll + totalStatutory;
 
       cumulativeCost += totalMonthlyCost;
@@ -191,7 +231,9 @@ exports.getForecast = async (req, res, next) => {
 
       projection.push({
         month: m + 1,
-        date: new Date(Date.now() + (m + 1) * 30.44 * 86400000).toISOString().slice(0, 7),
+        date: new Date(Date.now() + (m + 1) * 30.44 * 86400000)
+          .toISOString()
+          .slice(0, 7),
         headcount: hc,
         newHires: hcProjection[m].newHires,
         separations: hcProjection[m].separations,
@@ -207,10 +249,16 @@ exports.getForecast = async (req, res, next) => {
     // Department breakdown
     const deptGroups = {};
     for (const emp of revisedEmployees) {
-      if (!deptGroups[emp.department]) deptGroups[emp.department] = { count: 0, totalSalary: 0, revisedTotalSalary: 0 };
+      if (!deptGroups[emp.department])
+        deptGroups[emp.department] = {
+          count: 0,
+          totalSalary: 0,
+          revisedTotalSalary: 0,
+        };
       deptGroups[emp.department].count += 1;
       deptGroups[emp.department].totalSalary += emp.monthlySalary;
-      deptGroups[emp.department].revisedTotalSalary += emp.revisedMonthlySalary || emp.monthlySalary;
+      deptGroups[emp.department].revisedTotalSalary +=
+        emp.revisedMonthlySalary || emp.monthlySalary;
     }
 
     const departmentBreakdown = Object.entries(deptGroups)
@@ -229,7 +277,8 @@ exports.getForecast = async (req, res, next) => {
       const role = emp.role || 'Unassigned';
       if (!roleGroups[role]) roleGroups[role] = { count: 0, totalSalary: 0 };
       roleGroups[role].count += 1;
-      roleGroups[role].totalSalary += emp.revisedMonthlySalary || emp.monthlySalary;
+      roleGroups[role].totalSalary +=
+        emp.revisedMonthlySalary || emp.monthlySalary;
     }
 
     const roleBreakdown = Object.entries(roleGroups)
@@ -247,12 +296,24 @@ exports.getForecast = async (req, res, next) => {
       roleBreakdown,
       summary: {
         currentMonthlyPayroll,
-        projectedAnnualPayroll: projection.length > 0 ? projection[projection.length - 1].cumulativeCost : 0,
-        projectedAnnualStatutory: projection.length > 0 ? projection[projection.length - 1].cumulativeStatutory : 0,
+        projectedAnnualPayroll:
+          projection.length > 0
+            ? projection[projection.length - 1].cumulativeCost
+            : 0,
+        projectedAnnualStatutory:
+          projection.length > 0
+            ? projection[projection.length - 1].cumulativeStatutory
+            : 0,
         currentHeadcount: employees.length,
         projectedHeadcount: hcProjection[hcProjection.length - 1].headcount,
         peakHeadcount: Math.max(...hcProjection.map((h) => h.headcount)),
-        avgMonthlyCost: projection.length > 0 ? Math.round(projection.reduce((s, p) => s + p.totalMonthlyCost, 0) / projection.length) : 0,
+        avgMonthlyCost:
+          projection.length > 0
+            ? Math.round(
+                projection.reduce((s, p) => s + p.totalMonthlyCost, 0) /
+                  projection.length,
+              )
+            : 0,
       },
       assumptions: {
         monthlyHires: clampedHires,
@@ -289,12 +350,17 @@ exports.compareScenarios = async (req, res, next) => {
     } = req.body || {};
 
     if (scenarios.length === 0) {
-      return res.status(400).json({ message: 'At least one scenario is required' });
+      return res
+        .status(400)
+        .json({ message: 'At least one scenario is required' });
     }
 
     const clampedMonths = Math.max(1, Math.min(36, Number(months) || 12));
     const clampedHires = Math.max(0, Math.min(50, Number(monthlyHires) || 0));
-    const clampedAttrition = Math.max(0, Math.min(50, Number(annualAttritionRate) || 10));
+    const clampedAttrition = Math.max(
+      0,
+      Math.min(50, Number(annualAttritionRate) || 10),
+    );
 
     const employees = await Employee.find(
       tenantFilter(req, { isActive: true, deletedAt: null }),
@@ -316,7 +382,11 @@ exports.compareScenarios = async (req, res, next) => {
     // Baseline (no revision)
     const baseRevised = applyRevision(empData, { type: 'none' });
     const basePayroll = baseRevised.reduce((s, e) => s + e.monthlySalary, 0);
-    const hcProjection = projectHeadcount(employees.length, clampedHires, clampedAttrition);
+    const hcProjection = projectHeadcount(
+      employees.length,
+      clampedHires,
+      clampedAttrition,
+    );
 
     // Build baseline projection
     const baselineProjection = [];
@@ -326,13 +396,21 @@ exports.compareScenarios = async (req, res, next) => {
       const scale = employees.length > 0 ? hc / employees.length : 1;
       const monthlyPayroll = Math.round(basePayroll * scale);
       baseCumulative += monthlyPayroll;
-      baselineProjection.push({ month: m + 1, monthlyPayroll, cumulativeCost: baseCumulative, headcount: hc });
+      baselineProjection.push({
+        month: m + 1,
+        monthlyPayroll,
+        cumulativeCost: baseCumulative,
+        headcount: hc,
+      });
     }
 
     // Compare each scenario
     const comparisons = scenarios.map((scenario) => {
       const revised = applyRevision(empData, scenario);
-      const revisedPayroll = revised.reduce((s, e) => s + (e.revisedMonthlySalary || e.monthlySalary), 0);
+      const revisedPayroll = revised.reduce(
+        (s, e) => s + (e.revisedMonthlySalary || e.monthlySalary),
+        0,
+      );
       const totalHikeCost = revisedPayroll - basePayroll;
 
       const projection = [];
@@ -342,21 +420,36 @@ exports.compareScenarios = async (req, res, next) => {
         const scale = employees.length > 0 ? hc / employees.length : 1;
         const monthlyPayroll = Math.round(revisedPayroll * scale);
         cumulative += monthlyPayroll;
-        projection.push({ month: m + 1, monthlyPayroll, cumulativeCost: cumulative, headcount: hc });
+        projection.push({
+          month: m + 1,
+          monthlyPayroll,
+          cumulativeCost: cumulative,
+          headcount: hc,
+        });
       }
 
-      const finalMonth = projection[projection.length - 1] || { cumulativeCost: 0 };
-      const baseFinal = baselineProjection[baselineProjection.length - 1] || { cumulativeCost: 0 };
+      const finalMonth = projection[projection.length - 1] || {
+        cumulativeCost: 0,
+      };
+      const baseFinal = baselineProjection[baselineProjection.length - 1] || {
+        cumulativeCost: 0,
+      };
 
       return {
         name: scenario.name || 'Untitled Scenario',
         type: scenario.type,
         currentMonthlyHike: totalHikeCost,
-        projectedAnnualIncrement: finalMonth.cumulativeCost - baseFinal.cumulativeCost,
+        projectedAnnualIncrement:
+          finalMonth.cumulativeCost - baseFinal.cumulativeCost,
         projectedAnnualTotal: finalMonth.cumulativeCost,
-        avgHikePercent: empData.length > 0
-          ? Math.round((revised.reduce((s, e) => s + (e.hikePercent || 0), 0) / empData.length) * 100) / 100
-          : 0,
+        avgHikePercent:
+          empData.length > 0
+            ? Math.round(
+                (revised.reduce((s, e) => s + (e.hikePercent || 0), 0) /
+                  empData.length) *
+                  100,
+              ) / 100
+            : 0,
         headcountAtEnd: hcProjection[hcProjection.length - 1].headcount,
         projection,
       };
@@ -365,11 +458,17 @@ exports.compareScenarios = async (req, res, next) => {
     res.status(200).json({
       baseline: {
         monthlyPayroll: basePayroll,
-        annualProjected: baselineProjection[baselineProjection.length - 1]?.cumulativeCost || 0,
+        annualProjected:
+          baselineProjection[baselineProjection.length - 1]?.cumulativeCost ||
+          0,
         headcount: employees.length,
       },
       comparisons,
-      assumptions: { months: clampedMonths, monthlyHires: clampedHires, annualAttritionRate: clampedAttrition },
+      assumptions: {
+        months: clampedMonths,
+        monthlyHires: clampedHires,
+        annualAttritionRate: clampedAttrition,
+      },
     });
   } catch (error) {
     next(error);
@@ -390,11 +489,20 @@ exports.getCostSummary = async (req, res, next) => {
     ).select('department role jobLevel monthlySalary');
 
     if (employees.length === 0) {
-      return res.status(200).json({ summary: { headcount: 0, totalMonthlyPayroll: 0, avgSalary: 0 } });
+      return res
+        .status(200)
+        .json({
+          summary: { headcount: 0, totalMonthlyPayroll: 0, avgSalary: 0 },
+        });
     }
 
-    const totalMonthlyPayroll = employees.reduce((s, e) => s + e.monthlySalary, 0);
-    const salaries = employees.map((e) => e.monthlySalary).sort((a, b) => a - b);
+    const totalMonthlyPayroll = employees.reduce(
+      (s, e) => s + e.monthlySalary,
+      0,
+    );
+    const salaries = employees
+      .map((e) => e.monthlySalary)
+      .sort((a, b) => a - b);
     const avgSalary = Math.round(totalMonthlyPayroll / employees.length);
     const medianSalary = salaries[Math.floor(salaries.length / 2)];
 
@@ -434,7 +542,11 @@ exports.getCostSummary = async (req, res, next) => {
         minSalary: salaries[0],
         maxSalary: salaries[salaries.length - 1],
         statutory: totalStatutory,
-        totalCostWithStatutory: totalMonthlyPayroll + totalStatutory.pf + totalStatutory.esi + totalStatutory.gratuity,
+        totalCostWithStatutory:
+          totalMonthlyPayroll +
+          totalStatutory.pf +
+          totalStatutory.esi +
+          totalStatutory.gratuity,
       },
       departmentCosts,
     });
