@@ -824,6 +824,12 @@ class PayrollEngine {
 
       await cacheService.invalidateAnalytics(userId);
       await cacheService.invalidateDashboardSummary(userId);
+      await cacheService.invalidateTags([
+        'reports',
+        'analytics',
+        'dashboard',
+        'stats:overview',
+      ]);
 
       const resourceIds = results.map((r) => r.payrollId).filter(Boolean);
       eventBus.emit('AUDIT_LOG', {
