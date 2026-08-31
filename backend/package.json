@@ -37,6 +37,7 @@
     "cors": "^2.8.6",
     "csv-parse": "^7.0.1",
     "csv-writer": "^1.6.0",
+    "decimal.js": "^10.4.3",
     "dompurify": "^3.4.13",
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
