@@ -69,7 +69,6 @@ exports.createScheme = async (req, res, next) => {
     }
 
     const scheme = await EsopScheme.create({
-      tenantId: req.tenantId,
       name,
       authorisedPool,
       currency,
@@ -77,7 +76,7 @@ exports.createScheme = async (req, res, next) => {
       defaultVestingDurationMonths,
       defaultVestingFrequency,
       postTerminationExerciseWindowDays,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -109,8 +108,8 @@ exports.createScheme = async (req, res, next) => {
  */
 exports.getSchemes = async (req, res, next) => {
   try {
-    const schemes = await EsopScheme.find({ tenantId: req.tenantId }).lean();
-    const grants = await EsopGrant.find({ tenantId: req.tenantId })
+    const schemes = await EsopScheme.find({}).lean();
+    const grants = await EsopGrant.find({})
       .select('schemeId optionsGranted optionsExercised optionsForfeited')
       .lean();
 
@@ -165,8 +164,7 @@ exports.createGrant = async (req, res, next) => {
     }
 
     const scheme = await EsopScheme.findOne({
-      _id: schemeId,
-      tenantId: req.tenantId,
+      _id: schemeId
     });
     if (!scheme) return res.status(404).json({ message: 'Scheme not found' });
     if (!scheme.isActive) {
@@ -176,15 +174,13 @@ exports.createGrant = async (req, res, next) => {
     }
 
     const employee = await Employee.findOne({
-      _id: employeeId,
-      tenantId: req.tenantId,
+      _id: employeeId
     });
     if (!employee)
       return res.status(404).json({ message: 'Employee not found' });
 
     const siblings = await EsopGrant.find({
-      tenantId: req.tenantId,
-      schemeId,
+      schemeId
     })
       .select('optionsGranted optionsExercised optionsForfeited')
       .lean();
@@ -218,7 +214,6 @@ exports.createGrant = async (req, res, next) => {
     }
 
     const grant = await EsopGrant.create({
-      tenantId: req.tenantId,
       schemeId,
       employeeId,
       grantReference,
@@ -230,7 +225,7 @@ exports.createGrant = async (req, res, next) => {
       vestingDurationMonths: terms.vestingDurationMonths,
       vestingFrequency: terms.vestingFrequency,
       notes,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -258,7 +253,7 @@ exports.createGrant = async (req, res, next) => {
  */
 exports.getGrants = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (
       req.query.employeeId &&
       mongoose.isValidObjectId(req.query.employeeId)
@@ -294,8 +289,7 @@ exports.getVestingSchedule = async (req, res, next) => {
     }
 
     const grant = await EsopGrant.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
     if (!grant) return res.status(404).json({ message: 'Grant not found' });
 
@@ -368,8 +362,7 @@ exports.exerciseOptions = async (req, res, next) => {
     }
 
     const grant = await EsopGrant.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!grant) return res.status(404).json({ message: 'Grant not found' });
 
@@ -414,7 +407,6 @@ exports.exerciseOptions = async (req, res, next) => {
     });
 
     const exercise = await EsopExercise.create({
-      tenantId: req.tenantId,
       grantId: grant._id,
       employeeId: grant.employeeId,
       exerciseDate: when,
@@ -428,7 +420,7 @@ exports.exerciseOptions = async (req, res, next) => {
       capitalGainsCostBasis: valuation.capitalGainsCostBasis,
       payrollMonth: when.getUTCMonth() + 1,
       payrollYear: when.getUTCFullYear(),
-      recordedBy: req.userId,
+      recordedBy: req.userId
     });
 
     grant.optionsExercised += options;
@@ -478,8 +470,7 @@ exports.forfeitGrant = async (req, res, next) => {
     }
 
     const grant = await EsopGrant.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!grant) return res.status(404).json({ message: 'Grant not found' });
 
@@ -490,8 +481,7 @@ exports.forfeitGrant = async (req, res, next) => {
     }
 
     const scheme = await EsopScheme.findOne({
-      _id: grant.schemeId,
-      tenantId: req.tenantId,
+      _id: grant.schemeId
     }).lean();
 
     const exitDate = resolveAsOf(req.body.exitDate);
@@ -545,8 +535,7 @@ exports.forfeitGrant = async (req, res, next) => {
 exports.getMyGrants = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     })
       .select('_id fullName')
       .lean();
@@ -559,13 +548,11 @@ exports.getMyGrants = async (req, res, next) => {
 
     const asOf = resolveAsOf(req.query.asOf);
     const grants = await EsopGrant.find({
-      tenantId: req.tenantId,
-      employeeId: employee._id,
+      employeeId: employee._id
     }).lean();
 
     const exercises = await EsopExercise.find({
-      tenantId: req.tenantId,
-      employeeId: employee._id,
+      employeeId: employee._id
     })
       .sort({ exerciseDate: -1 })
       .lean();
@@ -614,15 +601,13 @@ exports.createTenderOffer = async (req, res, next) => {
     } = req.body;
 
     const scheme = await EsopScheme.findOne({
-      _id: schemeId,
-      tenantId: req.tenantId,
+      _id: schemeId
     });
     if (!scheme) return res.status(404).json({ message: 'ESOP Scheme not found' });
 
     const totalBudget = Number(offerPricePerShare) * Number(totalPoolShares);
 
     const tenderOffer = await EsopTenderOffer.create({
-      tenantId: req.tenantId,
       schemeId: scheme._id,
       title,
       offerPricePerShare,
@@ -630,7 +615,7 @@ exports.createTenderOffer = async (req, res, next) => {
       totalBudget,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
-      status: 'Open',
+      status: 'Open'
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -652,7 +637,7 @@ exports.createTenderOffer = async (req, res, next) => {
  */
 exports.getTenderOffers = async (req, res, next) => {
   try {
-    const offers = await EsopTenderOffer.find({ tenantId: req.tenantId })
+    const offers = await EsopTenderOffer.find({})
       .populate('schemeId', 'name currency')
       .sort({ createdAt: -1 })
       .lean();
@@ -669,8 +654,7 @@ exports.submitTenderBid = async (req, res, next) => {
   try {
     const { sharesOffered, costBasisPerShare } = req.body;
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id');
 
     const employeeId = employee ? employee._id : req.body.employeeId;
@@ -679,8 +663,7 @@ exports.submitTenderBid = async (req, res, next) => {
     }
 
     const offer = await EsopTenderOffer.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!offer) return res.status(404).json({ message: 'Tender offer not found' });
     if (offer.status !== 'Open') {
@@ -688,7 +671,10 @@ exports.submitTenderBid = async (req, res, next) => {
     }
 
     const bid = await EsopTenderBid.findOneAndUpdate(
-      { tenantId: req.tenantId, tenderOfferId: offer._id, employeeId },
+      {
+        tenderOfferId: offer._id,
+        employeeId
+      },
       {
         sharesOffered: Number(sharesOffered),
         costBasisPerShare: Number(costBasisPerShare || 0),
@@ -708,15 +694,13 @@ exports.submitTenderBid = async (req, res, next) => {
 exports.settleTenderOffer = async (req, res, next) => {
   try {
     const offer = await EsopTenderOffer.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!offer) return res.status(404).json({ message: 'Tender offer not found' });
 
     const bids = await EsopTenderBid.find({
-      tenantId: req.tenantId,
       tenderOfferId: offer._id,
-      status: 'Submitted',
+      status: 'Submitted'
     }).lean();
 
     if (!bids.length) {

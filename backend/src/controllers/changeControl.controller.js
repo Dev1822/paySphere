@@ -19,22 +19,30 @@ exports.requestChange = async (req, res, next) => {
         const risk = scoreChangeRisk(changeType, beforeValue, afterValue);
 
         const request = await PayrollChangeRequest.create([{
-            tenantId: req.tenantId, employeeId, changeType, fieldName,
-            beforeValue, afterValue, riskScore: risk.riskScore, reason,
+            employeeId,
+            changeType,
+            fieldName,
+            beforeValue,
+            afterValue,
+            riskScore: risk.riskScore,
+            reason,
             requestedBy: req.userId
         }], { session });
 
         // Create Workflow Stage 1
         const workflow = await ApprovalWorkflow.create([{
-            tenantId: req.tenantId, requestId: request[0]._id,
-            assignedTo: assignedApproverId, stage: 1
+            requestId: request[0]._id,
+            assignedTo: assignedApproverId,
+            stage: 1
         }], { session });
 
         // Audit Log: Created
         const maker = await User.findById(req.userId);
         await ControlAuditLog.create([{
-            tenantId: req.tenantId, requestId: request[0]._id, action: 'Created',
-            userId: req.userId, userRole: maker.role || 'Payroll Admin',
+            requestId: request[0]._id,
+            action: 'Created',
+            userId: req.userId,
+            userRole: maker.role || 'Payroll Admin',
             snapshot: generateAuditSnapshot(request[0], workflow[0]),
             ipAddress: req.ip
         }], { session });
@@ -87,8 +95,10 @@ exports.approveChange = async (req, res, next) => {
 
         // Audit Log: Approved
         await ControlAuditLog.create([{
-            tenantId: req.tenantId, requestId, action: 'Approved',
-            userId: req.userId, userRole: checker.role || 'Manager',
+            requestId,
+            action: 'Approved',
+            userId: req.userId,
+            userRole: checker.role || 'Manager',
             snapshot: generateAuditSnapshot(request, workflow),
             ipAddress: req.ip
         }], { session });
@@ -128,8 +138,10 @@ exports.rejectChange = async (req, res, next) => {
 
         const checker = await User.findById(req.userId);
         await ControlAuditLog.create([{
-            tenantId: req.tenantId, requestId, action: 'Rejected',
-            userId: req.userId, userRole: checker.role || 'Manager',
+            requestId,
+            action: 'Rejected',
+            userId: req.userId,
+            userRole: checker.role || 'Manager',
             snapshot: generateAuditSnapshot(request, workflow),
             ipAddress: req.ip
         }], { session });
@@ -147,7 +159,9 @@ exports.rejectChange = async (req, res, next) => {
 exports.getAuditTrail = async (req, res, next) => {
     try {
         const { requestId } = req.params;
-        const logs = await ControlAuditLog.find({ requestId, tenantId: req.tenantId })
+        const logs = await ControlAuditLog.find({
+            requestId
+        })
             .populate('userId', 'fullName email role')
             .sort({ createdAt: 1 });
 
@@ -158,13 +172,16 @@ exports.getAuditTrail = async (req, res, next) => {
 exports.getDashboard = async (req, res, next) => {
     try {
         // Fetch requests assigned to the current user for approval
-        const myApprovals = await ApprovalWorkflow.find({ assignedTo: req.userId, status: 'Pending Review', tenantId: req.tenantId })
+        const myApprovals = await ApprovalWorkflow.find({
+            assignedTo: req.userId,
+            status: 'Pending Review'
+        })
             .populate({
                 path: 'requestId',
                 populate: { path: 'employeeId', select: 'fullName department' }
             });
 
-        const recentHistory = await PayrollChangeRequest.find({ tenantId: req.tenantId })
+        const recentHistory = await PayrollChangeRequest.find({})
             .populate('employeeId', 'fullName')
             .populate('requestedBy', 'fullName')
             .sort({ createdAt: -1 }).limit(20);

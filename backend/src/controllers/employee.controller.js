@@ -13,7 +13,6 @@ const {
   FULLNAME_MAX_LENGTH,
   ROLE_MAX_LENGTH,
 } = require('../utils/validators');
-const { tenantFilter } = require('../utils/tenantScope');
 const PayrollUpdate = require('../models/payroll.model');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
@@ -283,7 +282,7 @@ exports.getEmployees = async (req, res, next) => {
     const skip = (page - 1) * limit;
 
     const query = req.tenantId
-      ? { tenantId: req.tenantId }
+      ? {}
       : { createdBy: req.userId };
 
     if (!includeDeleted) {
@@ -368,7 +367,7 @@ exports.getRecentEmployees = async (req, res, next) => {
 exports.getOrgChart = async (req, res, next) => {
   try {
     const query = req.tenantId
-      ? { tenantId: req.tenantId }
+      ? {}
       : { createdBy: req.userId };
     query.deletedAt = null;
     query.isActive = true;
@@ -390,7 +389,9 @@ exports.updateEmployeeManager = async (req, res, next) => {
     const { managerId } = req.body;
 
     const query = req.tenantId
-      ? { _id: id, tenantId: req.tenantId }
+      ? {
+      _id: id
+    }
       : { _id: id, createdBy: req.userId };
 
     const employee = await Employee.findOne(query);
@@ -416,7 +417,9 @@ exports.updateEmployeeManager = async (req, res, next) => {
     }
 
     const managerQuery = req.tenantId
-      ? { _id: managerId, tenantId: req.tenantId }
+      ? {
+      _id: managerId
+    }
       : { _id: managerId, createdBy: req.userId };
 
     let cursor = await Employee.findOne(managerQuery);
@@ -439,7 +442,9 @@ exports.updateEmployeeManager = async (req, res, next) => {
 
       cursor = await Employee.findOne(
         req.tenantId
-          ? { _id: nextId, tenantId: req.tenantId }
+          ? {
+          _id: nextId
+        }
           : { _id: nextId, createdBy: req.userId },
       );
     }
@@ -779,7 +784,7 @@ exports.updateEmployee = async (req, res, next) => {
     // `createdBy !== req.userId` here and in `deleteEmployee`,
     // `tenantId.toString() !== req.tenantId` in `toggleActive` — and none of
     // the three was right.
-    const employee = await Employee.findOne(tenantFilter(req, { _id: id }));
+    const employee = await Employee.findOne({ _id: id });
     if (!Number.isInteger(version) || version < 0) {
       return res.status(400).json({
         message: 'A valid employee version is required',
@@ -1037,7 +1042,7 @@ exports.toggleEmployeeStatus = async (req, res, next) => {
     //
     // The comparison fails closed here purely by luck. The same mistake
     // written as `if (a.toString() === b) { allow }` fails open.
-    const employee = await Employee.findOne(tenantFilter(req, { _id: id }));
+    const employee = await Employee.findOne({ _id: id });
 
     if (!employee || employee.deletedAt) {
       return res.status(404).json({ message: 'Employee not found' });
@@ -1095,7 +1100,7 @@ exports.deleteEmployee = async (req, res, next) => {
     // Scoped (#1010). The `createdBy` check below is kept for the reason given
     // in `updateEmployee`: relaxing it is a permission-model decision, not a
     // security fix, and the two should not travel together.
-    const employee = await Employee.findOne(tenantFilter(req, { _id: id }));
+    const employee = await Employee.findOne({ _id: id });
 
     if (!employee || employee.deletedAt) {
       return res.status(404).json({

@@ -64,7 +64,6 @@ exports.createRequisition = async (req, res, next) => {
     }
 
     const requisition = await JobRequisition.create({
-      tenantId: req.tenantId,
       requisitionCode,
       title,
       department,
@@ -74,13 +73,15 @@ exports.createRequisition = async (req, res, next) => {
       ctcBandMin,
       ctcBandMax,
       currency,
+
       hiringManagerId:
         hiringManagerId && mongoose.isValidObjectId(hiringManagerId)
           ? hiringManagerId
           : null,
+
       targetStartDate: targetStartDate ? new Date(targetStartDate) : null,
       justification,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -114,12 +115,12 @@ exports.createRequisition = async (req, res, next) => {
  */
 exports.getRequisitions = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (req.query.status) filter.status = req.query.status;
     if (req.query.department) filter.department = req.query.department;
 
     const requisitions = await JobRequisition.find(filter).lean();
-    const candidates = await Candidate.find({ tenantId: req.tenantId })
+    const candidates = await Candidate.find({})
       .select('requisitionId currentStage')
       .lean();
 
@@ -166,8 +167,7 @@ exports.updateRequisitionStatus = async (req, res, next) => {
     }
 
     const requisition = await JobRequisition.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!requisition) {
       return res.status(404).json({ message: 'Requisition not found' });
@@ -180,8 +180,7 @@ exports.updateRequisitionStatus = async (req, res, next) => {
     }
 
     const candidates = await Candidate.find({
-      tenantId: req.tenantId,
-      requisitionId: requisition._id,
+      requisitionId: requisition._id
     })
       .select('currentStage')
       .lean();
@@ -246,8 +245,7 @@ exports.createCandidate = async (req, res, next) => {
     }
 
     const requisition = await JobRequisition.findOne({
-      _id: requisitionId,
-      tenantId: req.tenantId,
+      _id: requisitionId
     }).lean();
     if (!requisition) {
       return res.status(404).json({ message: 'Requisition not found' });
@@ -260,20 +258,22 @@ exports.createCandidate = async (req, res, next) => {
     }
 
     const candidate = await Candidate.create({
-      tenantId: req.tenantId,
       requisitionId,
       fullName,
       email,
       phone,
       source,
+
       referredByEmployeeId:
         referredByEmployeeId && mongoose.isValidObjectId(referredByEmployeeId)
           ? referredByEmployeeId
           : null,
+
       resumeUrl,
       expectedCtc,
       appliedAt: appliedAt ? new Date(appliedAt) : new Date(),
       currentStage: PIPELINE_STAGES.APPLIED,
+
       stageHistory: [
         {
           stage: PIPELINE_STAGES.APPLIED,
@@ -283,7 +283,8 @@ exports.createCandidate = async (req, res, next) => {
           note: 'Application received',
         },
       ],
-      createdBy: req.userId,
+
+      createdBy: req.userId
     });
 
     return res.status(201).json({ message: 'Candidate added', candidate });
@@ -302,7 +303,7 @@ exports.createCandidate = async (req, res, next) => {
  */
 exports.getCandidates = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (
       req.query.requisitionId &&
       mongoose.isValidObjectId(req.query.requisitionId)
@@ -345,8 +346,7 @@ exports.updateCandidateStage = async (req, res, next) => {
     const { stage, note, offeredCtc, rejectionReason } = req.body;
 
     const candidate = await Candidate.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!candidate)
       return res.status(404).json({ message: 'Candidate not found' });
@@ -365,8 +365,7 @@ exports.updateCandidateStage = async (req, res, next) => {
     }
 
     const requisition = await JobRequisition.findOne({
-      _id: candidate.requisitionId,
-      tenantId: req.tenantId,
+      _id: candidate.requisitionId
     }).lean();
     if (!requisition) {
       return res.status(404).json({ message: 'Requisition not found' });
@@ -392,8 +391,7 @@ exports.updateCandidateStage = async (req, res, next) => {
 
     if (stage === PIPELINE_STAGES.HIRED) {
       const siblings = await Candidate.find({
-        tenantId: req.tenantId,
-        requisitionId: candidate.requisitionId,
+        requisitionId: candidate.requisitionId
       })
         .select('currentStage')
         .lean();
@@ -407,8 +405,7 @@ exports.updateCandidateStage = async (req, res, next) => {
 
       // Decrement the open headcount on the HeadcountRequisition if linked
       const headcountReq = await HeadcountRequisition.findOne({
-        requisitionCode: requisition.requisitionCode,
-        tenantId: req.tenantId,
+        requisitionCode: requisition.requisitionCode
       });
       if (headcountReq && headcountReq.requestedCount > 0) {
         headcountReq.requestedCount -= 1;
@@ -429,14 +426,15 @@ exports.updateCandidateStage = async (req, res, next) => {
       // Assuming positionCode matches requisitionCode or we create a new Position
       const positionCode = `${requisition.requisitionCode}-${Date.now()}`;
       await Position.findOneAndUpdate(
-        { positionCode, tenantId: req.tenantId },
+        {
+          positionCode
+        },
         {
           $setOnInsert: {
-            tenantId: req.tenantId,
             positionCode,
             department: requisition.department,
             title: requisition.title,
-            createdBy: req.userId,
+            createdBy: req.userId
           },
           $set: {
             status: 'Active',
@@ -509,8 +507,7 @@ exports.submitFeedback = async (req, res, next) => {
     }
 
     const candidate = await Candidate.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     })
       .select('_id currentStage')
       .lean();
@@ -518,14 +515,13 @@ exports.submitFeedback = async (req, res, next) => {
       return res.status(404).json({ message: 'Candidate not found' });
 
     const feedback = await InterviewFeedback.create({
-      tenantId: req.tenantId,
       candidateId: candidate._id,
       interviewerId: req.userId,
       round,
       ratings,
       recommendation,
       notes,
-      interviewedOn: interviewedOn ? new Date(interviewedOn) : new Date(),
+      interviewedOn: interviewedOn ? new Date(interviewedOn) : new Date()
     });
 
     return res.status(201).json({ message: 'Feedback recorded', feedback });
@@ -550,8 +546,7 @@ exports.getScorecard = async (req, res, next) => {
     }
 
     const candidate = await Candidate.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     })
       .select('fullName currentStage requisitionId')
       .lean();
@@ -559,8 +554,7 @@ exports.getScorecard = async (req, res, next) => {
       return res.status(404).json({ message: 'Candidate not found' });
 
     const feedback = await InterviewFeedback.find({
-      tenantId: req.tenantId,
-      candidateId: candidate._id,
+      candidateId: candidate._id
     }).lean();
 
     // Weights arrive as `?weights=Coding:3,Communication:1`. Parsed leniently —
@@ -592,7 +586,7 @@ exports.getScorecard = async (req, res, next) => {
  */
 exports.getFunnelAnalytics = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (
       req.query.requisitionId &&
       mongoose.isValidObjectId(req.query.requisitionId)

@@ -12,7 +12,10 @@ exports.createPoolConfig = async (req, res, next) => {
     try {
         const { poolName, jobWeights, allowManagers, allowOwners } = req.body;
         const config = await TipPoolConfiguration.create({
-            tenantId: req.tenantId, poolName, jobWeights, allowManagers, allowOwners
+            poolName,
+            jobWeights,
+            allowManagers,
+            allowOwners
         });
         res.status(201).json({ message: 'Tip pool configuration created', config });
     } catch (error) { next(error); }
@@ -27,7 +30,9 @@ exports.recordDailyTips = async (req, res, next) => {
         const netFOHTips = totalGross - bohTipOutAmount;
 
         const ledger = await DailyGratuityLedger.findOneAndUpdate(
-            { tenantId: req.tenantId, date: new Date(date) },
+            {
+                date: new Date(date)
+            },
             {
                 grossCashTips, grossCreditTips, totalGrossTips: totalGross,
                 bohtipOutPercentage, bohTipOutAmount, netFOHTips,
@@ -51,13 +56,16 @@ exports.calculateDistributionBatch = async (req, res, next) => {
 
         // Fetch all daily ledgers in the period
         const ledgers = await DailyGratuityLedger.find({
-            tenantId: req.tenantId, date: { $gte: start, $lte: end }, status: 'Finalized'
+            date: { $gte: start, $lte: end },
+            status: 'Finalized'
         });
 
         const totalPoolTips = ledgers.reduce((sum, l) => sum + l.netFOHTips, 0);
 
         // Fetch eligible employees and their hours (mocked timesheet data)
-        const allEmployees = await Employee.find({ tenantId: req.tenantId, isActive: true });
+        const allEmployees = await Employee.find({
+            isActive: true
+        });
         const eligibleEmployees = filterEligibleEmployees(allEmployees, poolConfig);
 
         // Mock hours and classifications for demonstration
@@ -99,9 +107,12 @@ exports.calculateDistributionBatch = async (req, res, next) => {
         }
 
         const batch = await TipDistributionBatch.create({
-            tenantId: req.tenantId, periodStart: start, periodEnd: end,
-            totalDistributed: totalPoolTips, makeWholeAdjustments: totalMakeWhole,
-            distributions, status: 'Calculated'
+            periodStart: start,
+            periodEnd: end,
+            totalDistributed: totalPoolTips,
+            makeWholeAdjustments: totalMakeWhole,
+            distributions,
+            status: 'Calculated'
         });
 
         logger.info(`[TipPool] Calculated batch with ${totalMakeWhole} in make-whole adjustments.`);
@@ -111,8 +122,10 @@ exports.calculateDistributionBatch = async (req, res, next) => {
 
 exports.getDashboardData = async (req, res, next) => {
     try {
-        const pools = await TipPoolConfiguration.find({ tenantId: req.tenantId, isActive: true });
-        const recentLedgers = await DailyGratuityLedger.find({ tenantId: req.tenantId })
+        const pools = await TipPoolConfiguration.find({
+            isActive: true
+        });
+        const recentLedgers = await DailyGratuityLedger.find({})
             .sort({ date: -1 }).limit(14);
 
         res.status(200).json({ pools, recentLedgers });

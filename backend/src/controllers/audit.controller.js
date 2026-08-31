@@ -3,7 +3,6 @@ const {
   AUDIT_ACTIONS,
   AUDIT_RESOURCE_TYPES,
 } = require('../models/auditLog.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const cacheService = require('../services/cache.service');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
@@ -122,7 +121,7 @@ function parseDateRange({ startDate, endDate, days }) {
 function buildQuery(req) {
   // Throws MissingTenantError rather than handing back `{}` — see
   // utils/tenantScope.js for why an unscoped audit query is the dangerous case.
-  const query = tenantFilter(req);
+  const query = {};
 
   const parsed = parseDateRange(req.query);
   if (!parsed.ok) return parsed;
@@ -329,7 +328,9 @@ exports.verifyCryptographicChain = async (req, res, next) => {
     }
 
     const Model = mongoose.model(modelName);
-    const doc = await Model.findOne({ _id: id, tenantId: req.tenantId });
+    const doc = await Model.findOne({
+      _id: id
+    });
 
     if (!doc) {
       return res.error('Document not found', null, 'not_found', 404);

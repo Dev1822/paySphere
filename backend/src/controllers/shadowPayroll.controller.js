@@ -23,9 +23,17 @@ exports.createAssignment = async (req, res, next) => {
         const colaAllowance = calculateCOLA(baseSalaryHome, colaIndex || 1.0);
 
         const assignment = await InternationalAssignment.create({
-            tenantId: req.tenantId, employeeId, homeCountry, homeCurrency,
-            hostCountry, hostCurrency, startDate: new Date(startDate), endDate: new Date(endDate),
-            hypotheticalTaxRate, baseSalaryHome, colaIndex, colaAllowance
+            employeeId,
+            homeCountry,
+            homeCurrency,
+            hostCountry,
+            hostCurrency,
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+            hypotheticalTaxRate,
+            baseSalaryHome,
+            colaIndex,
+            colaAllowance
         });
 
         res.status(201).json({ message: 'International assignment created', assignment });
@@ -36,7 +44,9 @@ exports.processShadowPayroll = async (req, res, next) => {
     try {
         const { assignmentId, month, year, hostGrossPay, hostTaxRate, hostSocialSecurityRate, exchangeRate } = req.body;
 
-        const assignment = await InternationalAssignment.findOne({ _id: assignmentId, tenantId: req.tenantId });
+        const assignment = await InternationalAssignment.findOne({
+            _id: assignmentId
+        });
         if (!assignment) return res.status(404).json({ message: 'Assignment not found' });
 
         // 1. Calculate Host Country Shadow Payroll
@@ -45,10 +55,12 @@ exports.processShadowPayroll = async (req, res, next) => {
         const shadowRun = await ShadowPayrollRun.findOneAndUpdate(
             { assignmentId, month, year },
             {
-                tenantId: req.tenantId, hostGrossPay,
+                hostGrossPay,
                 hostTaxDeducted: shadowCalc.hostTax,
                 hostSocialSecurity: shadowCalc.hostSocialSecurity,
-                hostNetPay: shadowCalc.hostNet, exchangeRate, status: 'Finalized'
+                hostNetPay: shadowCalc.hostNet,
+                exchangeRate,
+                status: 'Finalized'
             },
             { upsert: true, new: true }
         );
@@ -70,7 +82,7 @@ exports.processShadowPayroll = async (req, res, next) => {
         const taxEq = await TaxEqualization.findOneAndUpdate(
             { assignmentId, month, year },
             {
-                tenantId: req.tenantId, hypotheticalTaxAmount: hypotheticalTax,
+                hypotheticalTaxAmount: hypotheticalTax,
                 actualHostTaxPaid: actualHostTaxInHomeCurrency,
                 companyTaxCost: reconciliation.companyTaxCost
             },
@@ -84,7 +96,7 @@ exports.processShadowPayroll = async (req, res, next) => {
 
 exports.getAssignments = async (req, res, next) => {
     try {
-        const assignments = await InternationalAssignment.find({ tenantId: req.tenantId })
+        const assignments = await InternationalAssignment.find({})
             .populate('employeeId', 'fullName department')
             .sort({ startDate: -1 });
         res.status(200).json({ assignments });
@@ -94,7 +106,7 @@ exports.getAssignments = async (req, res, next) => {
 exports.getAuditData = async (req, res, next) => {
     try {
         const { assignmentId, year } = req.query;
-        const query = { tenantId: req.tenantId };
+        const query = {};
         if (assignmentId) query.assignmentId = assignmentId;
         if (year) query.year = Number(year);
 

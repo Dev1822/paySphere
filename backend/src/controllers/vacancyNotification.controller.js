@@ -180,8 +180,7 @@ exports.listHeadcounts = async (req, res, next) => {
     const establishment = readEstablishment(req.query.establishment);
 
     const headcounts = await EstablishmentHeadcount.find({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     })
       .sort({ asOn: -1 })
       .limit(200)
@@ -225,7 +224,10 @@ exports.recordHeadcount = async (req, res, next) => {
       : SECTOR.PRIVATE;
 
     const record = await EstablishmentHeadcount.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment, asOn },
+      {
+        establishment,
+        asOn
+      },
       {
         $set: {
           sector,
@@ -269,7 +271,7 @@ exports.recordHeadcount = async (req, res, next) => {
  */
 exports.suggestHeadcount = async (req, res, next) => {
   try {
-    const count = await Employee.countDocuments({ tenantId: req.tenantId });
+    const count = await Employee.countDocuments({});
 
     return res.json({
       suggested: count,
@@ -289,8 +291,7 @@ exports.listDeterminations = async (req, res, next) => {
     const establishment = readEstablishment(req.query.establishment);
 
     const determinations = await VacancyNotifiability.find({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     })
       .sort({ openedOn: -1 })
       .limit(500)
@@ -344,7 +345,9 @@ exports.recordDetermination = async (req, res, next) => {
     }
 
     const determination = await VacancyNotifiability.findOneAndUpdate(
-      { tenantId: req.tenantId, requisitionId: req.body.requisitionId },
+      {
+        requisitionId: req.body.requisitionId
+      },
       {
         $set: {
           establishment: readEstablishment(req.body.establishment),
@@ -436,7 +439,9 @@ exports.recordOutcome = async (req, res, next) => {
     }
 
     const determination = await VacancyNotifiability.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       { $set: update },
       { new: true },
     );
@@ -493,14 +498,13 @@ exports.recordNotification = async (req, res, next) => {
     }
 
     const notification = await ExchangeNotification.create({
-      tenantId: req.tenantId,
       establishment: readEstablishment(req.body.establishment),
       requisitionId: req.body.requisitionId,
       exchange,
       notifiedOn,
       reference: String(req.body.reference || '').trim(),
       vacancyCount: Math.max(1, Number(req.body.vacancyCount) || 1),
-      recordedBy: req.userId,
+      recordedBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -534,8 +538,7 @@ exports.listReturns = async (req, res, next) => {
     const establishment = readEstablishment(req.query.establishment);
 
     const returns = await EmploymentExchangeReturn.find({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     })
       .sort({ asOn: -1 })
       .limit(120)
@@ -588,10 +591,9 @@ exports.recordReturn = async (req, res, next) => {
 
     const record = await EmploymentExchangeReturn.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         establishment: readEstablishment(req.body.establishment),
         kind,
-        asOn,
+        asOn
       },
       {
         $set: {
@@ -651,10 +653,9 @@ exports.getPosition = async (req, res, next) => {
     }
 
     const result = await computePosition({
-      tenantId: req.tenantId,
       establishment,
       period,
-      asAt: new Date(),
+      asAt: new Date()
     });
 
     return res.json({

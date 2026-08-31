@@ -10,13 +10,14 @@ const { calculateCombinedTenure, isEligibleForRehire, shouldRestoreVesting } = r
 exports.createAlumniProfile = async (req, res, next) => {
     try {
         const { employeeId, exitDate, exitReason, exitInterviewSummary } = req.body;
-        const employee = await Employee.findOne({ _id: employeeId, tenantId: req.tenantId });
+        const employee = await Employee.findOne({
+            _id: employeeId
+        });
         if (!employee) return res.status(404).json({ message: 'Employee not found' });
 
         const previousTenureDays = Math.floor((new Date(exitDate) - new Date(employee.joiningDate)) / (1000 * 60 * 60 * 24));
 
         const alumni = await AlumniProfile.create({
-            tenantId: req.tenantId,
             originalEmployeeId: employee._id,
             fullName: employee.fullName,
             email: employee.email,
@@ -46,7 +47,6 @@ exports.searchAlumni = async (req, res, next) => {
         const searchRegex = new RegExp(query, 'i');
 
         const alumni = await AlumniProfile.find({
-            tenantId: req.tenantId,
             $or: [
                 { fullName: searchRegex },
                 { email: searchRegex },
@@ -62,11 +62,15 @@ exports.processBoomerangRehire = async (req, res, next) => {
     try {
         const { alumniProfileId, newEmployeeId } = req.body;
 
-        const alumni = await AlumniProfile.findOne({ _id: alumniProfileId, tenantId: req.tenantId });
+        const alumni = await AlumniProfile.findOne({
+            _id: alumniProfileId
+        });
         if (!alumni) return res.status(404).json({ message: 'Alumni profile not found' });
         if (!alumni.isEligibleForRehire) return res.status(400).json({ message: 'Alumni is not eligible for rehire.' });
 
-        const newEmployee = await Employee.findOne({ _id: newEmployeeId, tenantId: req.tenantId });
+        const newEmployee = await Employee.findOne({
+            _id: newEmployeeId
+        });
         if (!newEmployee) return res.status(404).json({ message: 'New employee record not found' });
 
         // Calculate combined tenure
@@ -83,7 +87,6 @@ exports.processBoomerangRehire = async (req, res, next) => {
 
         // Create reconciliation record
         const rehire = await BoomerangRehire.create({
-            tenantId: req.tenantId,
             alumniProfileId: alumni._id,
             newEmployeeId: newEmployee._id,
             combinedTenureDays: tenureData.totalDays,

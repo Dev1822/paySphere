@@ -36,14 +36,13 @@ const VALID_PLAN_SLUGS = ['basic', 'pro', 'enterprise'];
  */
 async function getSubscription(req, res) {
   try {
-    let sub = await TenantSubscription.findOne({ tenantId: req.tenantId }).lean();
+    let sub = await TenantSubscription.findOne({}).lean();
 
     // Auto-create a basic trial on first access
     if (!sub) {
       sub = await TenantSubscription.create({
-        tenantId: req.tenantId,
         planSlug: 'basic',
-        status: 'trialing',
+        status: 'trialing'
       });
       sub = sub.toObject();
     }
@@ -100,12 +99,11 @@ async function upgradeSubscription(req, res) {
     }
 
     // Get current subscription
-    let sub = await TenantSubscription.findOne({ tenantId: req.tenantId });
+    let sub = await TenantSubscription.findOne({});
     if (!sub) {
       sub = await TenantSubscription.create({
-        tenantId: req.tenantId,
         planSlug: 'basic',
-        status: 'trialing',
+        status: 'trialing'
       });
     }
 
@@ -179,7 +177,7 @@ async function cancelSubscription(req, res) {
   try {
     const { downgrade } = req.body;
 
-    let sub = await TenantSubscription.findOne({ tenantId: req.tenantId });
+    let sub = await TenantSubscription.findOne({});
     if (!sub) {
       return res.status(404).json({ message: 'No active subscription found.' });
     }
@@ -252,7 +250,7 @@ async function getUsageInfo(req, res) {
     const history = await usageCounter.getUsageHistory(tenantId, 6);
 
     // Subscription info
-    const sub = await TenantSubscription.findOne({ tenantId: req.tenantId }).lean();
+    const sub = await TenantSubscription.findOne({}).lean();
     const plan = sub
       ? await Plan.findOne({ slug: sub.planSlug, isActive: true }).lean()
       : null;

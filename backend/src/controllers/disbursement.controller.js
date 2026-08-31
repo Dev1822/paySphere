@@ -22,8 +22,10 @@ const logger = require('../utils/logger');
 exports.configureOriginator = async (req, res, next) => {
   try {
     const config = await NACHABatchConfiguration.findOneAndUpdate(
-      { tenantId: req.tenantId },
-      { ...req.body, tenantId: req.tenantId },
+      {},
+      {
+        ...req.body
+      },
       { upsert: true, new: true },
     );
     res.status(200).json({ message: 'NACHA originator configured', config });
@@ -45,14 +47,13 @@ exports.mapEmployeeBank = async (req, res, next) => {
     } = req.body;
 
     const mapping = await BankAccountMapping.create({
-      tenantId: req.tenantId,
       employeeId,
       accountNickname,
       routingNumber,
       accountNumber,
       accountType,
       splitPercentage,
-      priority,
+      priority
     });
 
     res.status(201).json({ message: 'Bank account mapped', mapping });
@@ -69,9 +70,7 @@ exports.mapEmployeeBank = async (req, res, next) => {
 exports.generateNachaFile = async (req, res, next) => {
   try {
     const { payrollRunId, employeePayouts, effectiveDate } = req.body;
-    const config = await NACHABatchConfiguration.findOne({
-      tenantId: req.tenantId,
-    });
+    const config = await NACHABatchConfiguration.findOne({});
     if (!config)
       return res
         .status(400)
@@ -92,9 +91,8 @@ exports.generateNachaFile = async (req, res, next) => {
 
     for (const payout of employeePayouts) {
       const bankMappings = await BankAccountMapping.find({
-        tenantId: req.tenantId,
         employeeId: payout.employeeId,
-        prenoteStatus: 'Approved',
+        prenoteStatus: 'Approved'
       }).sort({ priority: 1 });
 
       if (bankMappings.length === 0) {
@@ -183,14 +181,13 @@ exports.generateNachaFile = async (req, res, next) => {
 
     const fileName = `NACHA_PPD_${creationDate.toISOString().split('T')[0]}_${batchNumber}.txt`;
     const disbursement = await DisbursementFile.create({
-      tenantId: req.tenantId,
       payrollRunId,
       fileName,
       fileContent,
       batchCount: 1,
       entryCount,
       totalCreditAmount: totalCreditCents / 100,
-      generatedBy: req.userId,
+      generatedBy: req.userId
     });
 
     logger.info(
@@ -206,13 +203,11 @@ exports.generateNachaFile = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
   try {
-    const config = await NACHABatchConfiguration.findOne({
-      tenantId: req.tenantId,
-    });
-    const files = await DisbursementFile.find({ tenantId: req.tenantId })
+    const config = await NACHABatchConfiguration.findOne({});
+    const files = await DisbursementFile.find({})
       .sort({ createdAt: -1 })
       .limit(20);
-    const mappings = await BankAccountMapping.find({ tenantId: req.tenantId })
+    const mappings = await BankAccountMapping.find({})
       .populate('employeeId', 'fullName')
       .sort({ 'employeeId.fullName': 1, priority: 1 });
 
@@ -225,8 +220,7 @@ exports.getDashboard = async (req, res, next) => {
 exports.downloadFile = async (req, res, next) => {
   try {
     const file = await DisbursementFile.findOne({
-      _id: req.params.fileId,
-      tenantId: req.tenantId,
+      _id: req.params.fileId
     });
     if (!file) return res.status(404).json({ message: 'File not found' });
 
@@ -332,10 +326,9 @@ exports.createBatch = async (req, res, next) => {
     }
 
     const payrolls = await PayrollUpdate.find({
-      tenantId: req.tenantId,
       month: Number(month),
       year: Number(year),
-      status: PAYROLL_STATUS.APPROVED,
+      status: PAYROLL_STATUS.APPROVED
     })
       .select('employeeId employeeName netSalary')
       .lean();
@@ -347,8 +340,7 @@ exports.createBatch = async (req, res, next) => {
     }
 
     const employees = await Employee.find({
-      tenantId: req.tenantId,
-      _id: { $in: payrolls.map((row) => row.employeeId) },
+      _id: { $in: payrolls.map((row) => row.employeeId) }
     })
       .select('fullName bankDetails')
       .lean();
@@ -376,9 +368,9 @@ exports.createBatch = async (req, res, next) => {
     const totals = computeControlTotals(partition.valid);
 
     const batch = await DisbursementBatch.create({
-      tenantId: req.tenantId,
       batchReference:
         batchReference || `SAL${String(year)}${String(month).padStart(2, '0')}`,
+
       month: Number(month),
       year: Number(year),
       debitAccountNumber,
@@ -388,13 +380,12 @@ exports.createBatch = async (req, res, next) => {
       status: BATCH_STATUS.DRAFT,
       controlTotals: totals,
       rejectedLines: partition.rejected,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     if (partition.valid.length > 0) {
       await DisbursementLine.insertMany(
         partition.valid.map((line, index) => ({
-          tenantId: req.tenantId,
           batchId: batch._id,
           employeeId: line.employeeId,
           payrollId: candidateLines[line.index]?.payrollId || null,
@@ -406,7 +397,7 @@ exports.createBatch = async (req, res, next) => {
           amountPaise: line.amountPaise,
           paymentMode: line.paymentMode,
           paymentModeReason: line.paymentModeReason,
-          status: LINE_STATUS.PENDING,
+          status: LINE_STATUS.PENDING
         })),
       );
     }
@@ -451,7 +442,7 @@ exports.createBatch = async (req, res, next) => {
  */
 exports.getBatches = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (req.query.status) filter.status = req.query.status;
     if (req.query.year) filter.year = Number(req.query.year);
 
@@ -480,16 +471,14 @@ exports.getBatch = async (req, res, next) => {
     }
 
     const batch = await DisbursementBatch.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
     if (!batch) return res.status(404).json({ message: 'Batch not found' });
 
     // Projected without `accountNumber` rather than relying on `toJSON`: `lean()`
     // returns plain objects, which never pass through the schema transform.
     const lines = await DisbursementLine.find({
-      tenantId: req.tenantId,
-      batchId: batch._id,
+      batchId: batch._id
     })
       .select('-accountNumber')
       .sort({ serial: 1 })
@@ -523,8 +512,7 @@ exports.validateBatchLines = async (req, res, next) => {
     }
 
     const batch = await DisbursementBatch.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!batch) return res.status(404).json({ message: 'Batch not found' });
 
@@ -587,8 +575,7 @@ exports.getBatchFile = async (req, res, next) => {
     }
 
     const batch = await DisbursementBatch.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
     if (!batch) return res.status(404).json({ message: 'Batch not found' });
 
@@ -651,8 +638,7 @@ exports.releaseBatch = async (req, res, next) => {
     }
 
     const batch = await DisbursementBatch.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!batch) return res.status(404).json({ message: 'Batch not found' });
 
@@ -705,7 +691,9 @@ exports.releaseBatch = async (req, res, next) => {
     await batch.save();
 
     await DisbursementLine.updateMany(
-      { tenantId: req.tenantId, batchId: batch._id },
+      {
+        batchId: batch._id
+      },
       { $set: { status: LINE_STATUS.RELEASED } },
     );
 
@@ -751,8 +739,7 @@ exports.recordReturns = async (req, res, next) => {
     }
 
     const batch = await DisbursementBatch.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!batch) return res.status(404).json({ message: 'Batch not found' });
 
@@ -786,7 +773,9 @@ exports.recordReturns = async (req, res, next) => {
     await Promise.all(
       outcome.lines.map((line) =>
         DisbursementLine.updateOne(
-          { _id: line._id, tenantId: req.tenantId },
+          {
+            _id: line._id
+          },
           {
             $set: {
               status: line.status,

@@ -30,7 +30,6 @@ exports.disburseCryptoBatch = async (req, res, next) => {
 
     // Create the batch database record
     const batch = await CryptoPayoutBatch.create({
-      tenantId: req.tenantId,
       walletId,
       tokenSymbol: tokenSymbol || 'USDC-SPL',
       tokenAddress,
@@ -60,7 +59,7 @@ exports.disburseCryptoBatch = async (req, res, next) => {
  */
 exports.getPayoutLogs = async (req, res, next) => {
   try {
-    const logs = await CryptoPayoutBatch.find({ tenantId: req.tenantId }).sort({ createdAt: -1 });
+    const logs = await CryptoPayoutBatch.find({}).sort({ createdAt: -1 });
     res.status(200).json({ success: true, data: logs });
   } catch (error) {
     next(error);

@@ -161,9 +161,8 @@ describe('Impersonate User Controller', () => {
         companyName: 'Acme Corp',
         accountType: 'ADMIN',
         role: { _id: 'role-admin', name: 'SuperAdmin' },
-        tenantId: req.tenantId,
         isActive: true,
-        tokenVersion: 0,
+        tokenVersion: 0
       };
 
       User.findById.mockReturnValue({

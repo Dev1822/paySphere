@@ -157,7 +157,9 @@ async function computeForRequest(req) {
   }
 
   const employee = await Employee.findOne(
-    { _id: employeeId, tenantId: req.tenantId },
+    {
+      _id: employeeId
+    },
     'fullName role dateOfBirth monthlySalary',
   ).lean();
 
@@ -166,7 +168,9 @@ async function computeForRequest(req) {
   }
 
   const structures = await SalaryStructure.find(
-    { tenantId: req.tenantId, employeeId },
+    {
+      employeeId
+    },
     'effectiveFrom grossMonthly components',
   ).lean();
 
@@ -248,39 +252,32 @@ exports.createClaim = async (req, res, next) => {
     const { employee, monthlyWages, accidentDate, assessment } = body;
 
     const claim = await InjuryCompensationClaim.create({
-      tenantId: req.tenantId,
       employeeId: employee._id,
       employeeName: employee.fullName || '',
       designation: employee.role || '',
       dateOfBirth: employee.dateOfBirth || null,
-
       accidentDate,
       place: req.body.place || '',
       circumstances: req.body.circumstances || '',
       injuryType: assessment.injuryType,
-
       assertedBars: assessment.bars.applied.concat(assessment.bars.disapplied),
       appliedBars: assessment.bars.applied,
       disappliedBars: assessment.bars.disapplied,
       barReasons: assessment.bars.reasons,
       payable: assessment.payable,
-
       monthlyWages,
       ageAtAccident: assessment.age,
       ageWarning: assessment.ageWarning || '',
-
       head: assessment.head,
       funeralExpenses: assessment.funeralExpenses,
       compensation: assessment.compensation,
       charges: assessment.charges,
       totalPayable: assessment.totalPayable,
-
       penaltyShare: Number(req.body.penaltyShare) || 0,
       status: CLAIM_STATUS.COMPUTED,
       notes: req.body.notes || '',
-
       createdBy: req.userId,
-      updatedBy: req.userId,
+      updatedBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -311,7 +308,7 @@ exports.createClaim = async (req, res, next) => {
  */
 exports.listClaims = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
 
     if (req.query.status && CLAIM_STATUS[req.query.status]) {
       filter.status = req.query.status;
@@ -373,8 +370,7 @@ exports.getClaim = async (req, res, next) => {
     }
 
     const claim = await InjuryCompensationClaim.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!claim) return res.status(404).json({ message: 'Claim not found' });
@@ -418,8 +414,7 @@ exports.updateStatus = async (req, res, next) => {
     }
 
     const claim = await InjuryCompensationClaim.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!claim) return res.status(404).json({ message: 'Claim not found' });

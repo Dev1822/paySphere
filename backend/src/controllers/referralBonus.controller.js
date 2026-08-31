@@ -68,12 +68,9 @@ async function logActivity(
 
 exports.getConfig = async (req, res, next) => {
   try {
-    let config = await ReferralProgramConfig.findOne({
-      tenantId: req.tenantId,
-    });
+    let config = await ReferralProgramConfig.findOne({});
     if (!config) {
       config = {
-        tenantId: req.tenantId,
         isEnabled: false,
         maxActiveReferrals: 10,
         referralExpiryDays: 90,
@@ -81,7 +78,7 @@ exports.getConfig = async (req, res, next) => {
         blacklistedDomains: [],
         requireManagerApproval: false,
         allowSelfReferrals: false,
-        isNew: true,
+        isNew: true
       };
     }
     return res.status(200).json({ config });
@@ -121,7 +118,7 @@ exports.upsertConfig = async (req, res, next) => {
     update.updatedBy = req.userId;
 
     const config = await ReferralProgramConfig.findOneAndUpdate(
-      { tenantId: req.tenantId },
+      {},
       { $set: update, $setOnInsert: { createdBy: req.userId } },
       { upsert: true, new: true, runValidators: true },
     );
@@ -166,9 +163,7 @@ exports.createReferral = async (req, res, next) => {
       notes,
     } = req.body;
 
-    const config = await ReferralProgramConfig.findOne({
-      tenantId: req.tenantId,
-    });
+    const config = await ReferralProgramConfig.findOne({});
     if (!config || !config.isEnabled) {
       return res
         .status(400)
@@ -186,8 +181,7 @@ exports.createReferral = async (req, res, next) => {
 
     // Find the employee
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id fullName');
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
@@ -195,8 +189,7 @@ exports.createReferral = async (req, res, next) => {
     // Self-referral check
     if (!config.allowSelfReferrals) {
       const empEmail = await Employee.findOne({
-        userId: req.userId,
-        tenantId: req.tenantId,
+        userId: req.userId
       }).select('email');
       if (
         empEmail &&
@@ -217,9 +210,8 @@ exports.createReferral = async (req, res, next) => {
 
     // Active referral limit
     const activeCount = await ReferralSubmission.countDocuments({
-      tenantId: req.tenantId,
       referrerId: employee._id,
-      status: { $in: ['Submitted', 'Screening', 'Interviewing', 'Offered'] },
+      status: { $in: ['Submitted', 'Screening', 'Interviewing', 'Offered'] }
     });
     if (activeCount >= config.maxActiveReferrals) {
       return res.status(400).json({
@@ -229,8 +221,7 @@ exports.createReferral = async (req, res, next) => {
 
     // Duplicate detection
     const existing = await ReferralSubmission.find({
-      tenantId: req.tenantId,
-      status: { $ne: 'Withdrawn' },
+      status: { $ne: 'Withdrawn' }
     })
       .select('candidateEmail status')
       .lean();
@@ -248,7 +239,6 @@ exports.createReferral = async (req, res, next) => {
     expiresAt.setDate(expiresAt.getDate() + config.referralExpiryDays);
 
     const referral = await ReferralSubmission.create({
-      tenantId: req.tenantId,
       referrerId: employee._id,
       candidateName: candidateName.trim(),
       candidateEmail: candidateEmail.toLowerCase().trim(),
@@ -262,7 +252,7 @@ exports.createReferral = async (req, res, next) => {
       notes: notes || '',
       status: 'Submitted',
       submittedAt: new Date(),
-      expiresAt,
+      expiresAt
     });
 
     await logActivity(
@@ -292,13 +282,14 @@ exports.createReferral = async (req, res, next) => {
 exports.getMyReferrals = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id');
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
 
-    const filter = { tenantId: req.tenantId, referrerId: employee._id };
+    const filter = {
+      referrerId: employee._id
+    };
     if (req.query.status) filter.status = req.query.status;
 
     const referrals = await ReferralSubmission.find(filter)
@@ -307,9 +298,7 @@ exports.getMyReferrals = async (req, res, next) => {
       .lean();
 
     // Add bonus eligibility info
-    const config = await ReferralProgramConfig.findOne({
-      tenantId: req.tenantId,
-    });
+    const config = await ReferralProgramConfig.findOne({});
     const enriched = referrals.map((r) => {
       const evaluation = evaluateBonusEligibility(r, config);
       const expiry = checkExpiry(r);
@@ -324,7 +313,7 @@ exports.getMyReferrals = async (req, res, next) => {
 
 exports.getAllReferrals = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (req.query.status) filter.status = req.query.status;
     if (
       req.query.referrerId &&
@@ -366,8 +355,7 @@ exports.getReferralById = async (req, res, next) => {
     }
 
     const referral = await ReferralSubmission.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     })
       .populate('referrerId', 'fullName department email')
       .populate('assignedTo', 'fullName')
@@ -378,17 +366,14 @@ exports.getReferralById = async (req, res, next) => {
 
     // Get activity log
     const activities = await ReferralActivityLog.find({
-      tenantId: req.tenantId,
-      referralId: referral._id,
+      referralId: referral._id
     })
       .populate('performedBy', 'fullName')
       .sort({ timestamp: -1 })
       .lean();
 
     // Get bonus evaluation
-    const config = await ReferralProgramConfig.findOne({
-      tenantId: req.tenantId,
-    });
+    const config = await ReferralProgramConfig.findOne({});
     const bonusEvaluation = evaluateBonusEligibility(referral, config);
 
     return res.status(200).json({ referral, activities, bonusEvaluation });
@@ -410,8 +395,7 @@ exports.updateReferralStatus = async (req, res, next) => {
     const { status, pipelineStage, rejectionReason, interview } = req.body;
 
     const referral = await ReferralSubmission.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!referral)
       return res.status(404).json({ message: 'Referral not found' });
@@ -480,9 +464,7 @@ exports.updateReferralStatus = async (req, res, next) => {
 
     // Auto-trigger bonus evaluation on hire
     if (status === 'Hired') {
-      const config = await ReferralProgramConfig.findOne({
-        tenantId: req.tenantId,
-      });
+      const config = await ReferralProgramConfig.findOne({});
       const evaluation = evaluateBonusEligibility(referral, config);
       if (evaluation.qualifies) {
         await logActivity(
@@ -519,8 +501,7 @@ exports.assignReferral = async (req, res, next) => {
     }
 
     const referral = await ReferralSubmission.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!referral)
       return res.status(404).json({ message: 'Referral not found' });
@@ -558,15 +539,12 @@ exports.triggerBonus = async (req, res, next) => {
     }
 
     const referral = await ReferralSubmission.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!referral)
       return res.status(404).json({ message: 'Referral not found' });
 
-    const config = await ReferralProgramConfig.findOne({
-      tenantId: req.tenantId,
-    });
+    const config = await ReferralProgramConfig.findOne({});
     const evaluation = evaluateBonusEligibility(referral, config);
 
     if (!evaluation.qualifies) {
@@ -575,10 +553,9 @@ exports.triggerBonus = async (req, res, next) => {
 
     // Check if bonus already triggered
     const existingPayout = await ReferralBonusPayout.findOne({
-      tenantId: req.tenantId,
       referralId: referral._id,
       payoutTrigger: evaluation.payoutTrigger,
-      status: { $ne: 'Cancelled' },
+      status: { $ne: 'Cancelled' }
     });
     if (existingPayout) {
       return res
@@ -587,17 +564,18 @@ exports.triggerBonus = async (req, res, next) => {
     }
 
     const payout = await ReferralBonusPayout.create({
-      tenantId: req.tenantId,
       referralId: referral._id,
       referrerId: referral.referrerId,
       tierTargetRole: evaluation.bonusTier.targetRole,
+
       baseBonus:
         evaluation.totalBonus - (evaluation.bonusTier.channelBonus || 0),
+
       channelBonus: evaluation.bonusTier.channelBonus || 0,
       totalBonus: evaluation.totalBonus,
       payoutTrigger: evaluation.payoutTrigger,
       status: 'Pending',
-      triggeredAt: new Date(),
+      triggeredAt: new Date()
     });
 
     await logActivity(
@@ -632,8 +610,7 @@ exports.approveBonus = async (req, res, next) => {
     }
 
     const payout = await ReferralBonusPayout.findOne({
-      _id: req.params.payoutId,
-      tenantId: req.tenantId,
+      _id: req.params.payoutId
     });
     if (!payout) return res.status(404).json({ message: 'Payout not found' });
     if (payout.status !== 'Pending') {
@@ -679,8 +656,7 @@ exports.markBonusPaid = async (req, res, next) => {
     const { paymentMethod, payrollRecordId, notes } = req.body;
 
     const payout = await ReferralBonusPayout.findOne({
-      _id: req.params.payoutId,
-      tenantId: req.tenantId,
+      _id: req.params.payoutId
     });
     if (!payout) return res.status(404).json({ message: 'Payout not found' });
     if (payout.status !== 'Approved') {
@@ -723,7 +699,7 @@ exports.markBonusPaid = async (req, res, next) => {
 
 exports.getPayouts = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (req.query.status) filter.status = req.query.status;
     if (
       req.query.referrerId &&
@@ -754,9 +730,8 @@ exports.expireReferrals = async (req, res, next) => {
     const now = new Date();
     const expired = await ReferralSubmission.updateMany(
       {
-        tenantId: req.tenantId,
         status: { $in: ['Submitted', 'Screening', 'Interviewing'] },
-        expiresAt: { $lte: now },
+        expiresAt: { $lte: now }
       },
       { $set: { status: 'Expired' } },
     );
@@ -785,9 +760,9 @@ exports.expireReferrals = async (req, res, next) => {
 exports.getDashboard = async (req, res, next) => {
   try {
     const [submissions, payouts, config] = await Promise.all([
-      ReferralSubmission.find({ tenantId: req.tenantId }).lean(),
-      ReferralBonusPayout.find({ tenantId: req.tenantId }).lean(),
-      ReferralProgramConfig.findOne({ tenantId: req.tenantId }),
+      ReferralSubmission.find({}).lean(),
+      ReferralBonusPayout.find({}).lean(),
+      ReferralProgramConfig.findOne({}),
     ]);
 
     const metrics = computeReferralMetrics(submissions, payouts);
@@ -796,15 +771,13 @@ exports.getDashboard = async (req, res, next) => {
     const in7Days = new Date();
     in7Days.setDate(in7Days.getDate() + 7);
     const expiringSoon = await ReferralSubmission.countDocuments({
-      tenantId: req.tenantId,
       status: { $in: ['Submitted', 'Screening', 'Interviewing'] },
-      expiresAt: { $lte: in7Days, $gt: new Date() },
+      expiresAt: { $lte: in7Days, $gt: new Date() }
     });
 
     // Pending approvals
     const pendingApprovals = await ReferralBonusPayout.countDocuments({
-      tenantId: req.tenantId,
-      status: 'Pending',
+      status: 'Pending'
     });
 
     return res.status(200).json({
@@ -826,20 +799,17 @@ exports.getDashboard = async (req, res, next) => {
 exports.getMyStats = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id');
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
 
     const referrals = await ReferralSubmission.find({
-      tenantId: req.tenantId,
-      referrerId: employee._id,
+      referrerId: employee._id
     }).lean();
 
     const payouts = await ReferralBonusPayout.find({
-      tenantId: req.tenantId,
-      referrerId: employee._id,
+      referrerId: employee._id
     }).lean();
 
     const totalReferrals = referrals.length;

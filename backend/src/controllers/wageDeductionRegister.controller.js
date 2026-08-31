@@ -405,12 +405,13 @@ exports.updateRules = async (req, res, next) => {
     }
 
     const before = await WageDeductionRules.findOne({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     }).lean();
 
     const rules = await WageDeductionRules.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment },
+      {
+        establishment
+      },
       { $set: { ...update, updatedBy: req.userId } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -493,9 +494,8 @@ exports.commitRegister = async (req, res, next) => {
 
     const register = await WageDeductionRegister.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         establishment,
-        periodStart: period.periodStart,
+        periodStart: period.periodStart
       },
       {
         $set: {
@@ -569,9 +569,8 @@ exports.commitRegister = async (req, res, next) => {
     // set. A register corrected twice would otherwise carry the same instalment
     // forward twice, and the employee would be recovered from twice.
     await DeferredDeduction.deleteMany({
-      tenantId: req.tenantId,
       deferredFromPeriodStart: period.periodStart,
-      status: 'outstanding',
+      status: 'outstanding'
     });
 
     const deferrals = [];
@@ -581,12 +580,11 @@ exports.commitRegister = async (req, res, next) => {
         if (!entry.carryForward || entry.carryForward <= 0) continue;
 
         deferrals.push({
-          tenantId: req.tenantId,
           employeeId: employee.employeeId,
           label: entry.label,
           kind: entry.kind || DEDUCTION_KIND.UNAUTHORISED,
           deferredFromPeriodStart: period.periodStart,
-          amount: entry.carryForward,
+          amount: entry.carryForward
         });
       }
     }
@@ -625,7 +623,7 @@ exports.commitRegister = async (req, res, next) => {
  */
 exports.listRegisters = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (typeof req.query.establishment === 'string') {
       filter.establishment = req.query.establishment.trim();
     }
@@ -654,8 +652,7 @@ exports.getRegister = async (req, res, next) => {
     }
 
     const register = await WageDeductionRegister.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!register) {
@@ -681,7 +678,9 @@ exports.getRegister = async (req, res, next) => {
  */
 exports.listDeferred = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId, status: 'outstanding' };
+    const filter = {
+      status: 'outstanding'
+    };
 
     if (mongoose.isValidObjectId(req.query.employeeId)) {
       filter.employeeId = req.query.employeeId;
@@ -728,7 +727,10 @@ exports.writeOffDeferred = async (req, res, next) => {
     }
 
     const deferral = await DeferredDeduction.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId, status: 'outstanding' },
+      {
+        _id: req.params.id,
+        status: 'outstanding'
+      },
       { $set: { status: 'written_off', writeOffReason: reason } },
       { new: true },
     );

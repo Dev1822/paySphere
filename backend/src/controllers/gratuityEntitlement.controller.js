@@ -190,15 +190,13 @@ exports.recordNomination = async (req, res, next) => {
     // years after both were filed.
     await GratuityNomination.updateMany(
       {
-        tenantId: req.tenantId,
         employeeId: req.body.employeeId,
-        supersededOn: null,
+        supersededOn: null
       },
       { $set: { supersededOn: madeOn } },
     );
 
     const nomination = await GratuityNomination.create({
-      tenantId: req.tenantId,
       employeeId: req.body.employeeId,
       madeOn,
       nominees,
@@ -206,7 +204,7 @@ exports.recordNomination = async (req, res, next) => {
       acquiredFamilyOn: readDate(req.body.acquiredFamilyOn),
       freshNominationMade: Boolean(req.body.freshNominationMade),
       documentRef: String(req.body.documentRef || '').trim(),
-      recordedBy: req.userId,
+      recordedBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -284,7 +282,9 @@ exports.openClaim = async (req, res, next) => {
     }
 
     const claim = await GratuityClaim.findOneAndUpdate(
-      { tenantId: req.tenantId, employeeId: req.body.employeeId },
+      {
+        employeeId: req.body.employeeId
+      },
       {
         $set: {
           ground,
@@ -313,8 +313,7 @@ exports.openClaim = async (req, res, next) => {
     );
 
     const nominations = await GratuityNomination.find({
-      tenantId: req.tenantId,
-      employeeId: req.body.employeeId,
+      employeeId: req.body.employeeId
     }).lean();
 
     const assessment = assessClaim(
@@ -374,8 +373,7 @@ exports.recordNotices = async (req, res, next) => {
     }
 
     const claim = await GratuityClaim.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!claim) {
       return res.status(404).json({ message: 'Claim not found' });
@@ -439,16 +437,14 @@ exports.recordForfeiture = async (req, res, next) => {
     }
 
     const claim = await GratuityClaim.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!claim) {
       return res.status(404).json({ message: 'Claim not found' });
     }
 
     const nominations = await GratuityNomination.find({
-      tenantId: req.tenantId,
-      employeeId: claim.employeeId,
+      employeeId: claim.employeeId
     }).lean();
 
     const before = assessClaim(
@@ -480,7 +476,9 @@ exports.recordForfeiture = async (req, res, next) => {
     const verdict = assessForfeiture(candidate, before.terms.amount);
 
     const forfeiture = await GratuityForfeiture.findOneAndUpdate(
-      { tenantId: req.tenantId, claimId: claim._id },
+      {
+        claimId: claim._id
+      },
       {
         $set: {
           ground,
@@ -549,8 +547,7 @@ exports.recordPayment = async (req, res, next) => {
     }
 
     const claim = await GratuityClaim.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!claim) {
       return res.status(404).json({ message: 'Claim not found' });
@@ -618,12 +615,10 @@ exports.recordPayment = async (req, res, next) => {
 async function assess(req, claim) {
   const [nominations, forfeiture] = await Promise.all([
     GratuityNomination.find({
-      tenantId: req.tenantId,
-      employeeId: claim.employeeId,
+      employeeId: claim.employeeId
     }).lean(),
     GratuityForfeiture.findOne({
-      tenantId: req.tenantId,
-      claimId: claim._id,
+      claimId: claim._id
     }).lean(),
   ]);
 
@@ -650,18 +645,16 @@ async function assess(req, claim) {
  */
 exports.getQueue = async (req, res, next) => {
   try {
-    const claims = await GratuityClaim.find({ tenantId: req.tenantId }).lean();
+    const claims = await GratuityClaim.find({}).lean();
     const claimIds = claims.map((claim) => claim._id);
     const employeeIds = claims.map((claim) => claim.employeeId);
 
     const [nominations, forfeitures] = await Promise.all([
       GratuityNomination.find({
-        tenantId: req.tenantId,
-        employeeId: { $in: employeeIds },
+        employeeId: { $in: employeeIds }
       }).lean(),
       GratuityForfeiture.find({
-        tenantId: req.tenantId,
-        claimId: { $in: claimIds },
+        claimId: { $in: claimIds }
       }).lean(),
     ]);
 
@@ -728,8 +721,7 @@ exports.getPosition = async (req, res, next) => {
     }
 
     const claim = await GratuityClaim.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!claim) {
       return res.status(404).json({ message: 'Claim not found' });
@@ -737,14 +729,12 @@ exports.getPosition = async (req, res, next) => {
 
     const [nominations, forfeiture] = await Promise.all([
       GratuityNomination.find({
-        tenantId: req.tenantId,
-        employeeId: claim.employeeId,
+        employeeId: claim.employeeId
       })
         .sort({ madeOn: -1 })
         .lean(),
       GratuityForfeiture.findOne({
-        tenantId: req.tenantId,
-        claimId: claim._id,
+        claimId: claim._id
       }).lean(),
     ]);
 

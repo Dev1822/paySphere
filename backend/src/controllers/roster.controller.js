@@ -11,8 +11,8 @@ const logger = require('../utils/logger');
 
 exports.getConstraints = async (req, res, next) => {
     try {
-        let constraints = await RosterConstraint.findOne({ tenantId: req.tenantId });
-        if (!constraints) constraints = await RosterConstraint.create({ tenantId: req.tenantId });
+        let constraints = await RosterConstraint.findOne({});
+        if (!constraints) constraints = await RosterConstraint.create({});
         res.status(200).json({ constraints });
     } catch (error) { next(error); }
 };
@@ -20,7 +20,7 @@ exports.getConstraints = async (req, res, next) => {
 exports.updateConstraints = async (req, res, next) => {
     try {
         const constraints = await RosterConstraint.findOneAndUpdate(
-            { tenantId: req.tenantId },
+            {},
             { ...req.body },
             { upsert: true, new: true }
         );
@@ -34,16 +34,17 @@ exports.triggerAutoGeneration = async (req, res, next) => {
         const start = new Date(startDate);
         const end = new Date(endDate);
 
-        const employees = await Employee.find({ tenantId: req.tenantId, isActive: true }).limit(50); // Limit for demo
-        const templates = await ShiftTemplate.find({ tenantId: req.tenantId });
-        const constraints = await RosterConstraint.findOne({ tenantId: req.tenantId });
+        const employees = await Employee.find({
+            isActive: true
+        }).limit(50); // Limit for demo
+        const templates = await ShiftTemplate.find({});
+        const constraints = await RosterConstraint.findOne({});
 
         if (templates.length === 0) return res.status(400).json({ message: 'No shift templates defined.' });
         if (!constraints) return res.status(400).json({ message: 'Constraints not configured.' });
 
         // Clear existing drafts for this period to prevent duplicates
         await GeneratedRoster.deleteMany({
-            tenantId: req.tenantId,
             date: { $gte: start, $lte: end },
             status: 'Draft'
         });
@@ -66,7 +67,6 @@ exports.getCalendar = async (req, res, next) => {
         const end = new Date(year, month, 0, 23, 59, 59);
 
         const roster = await GeneratedRoster.find({
-            tenantId: req.tenantId,
             date: { $gte: start, $lte: end }
         })
             .populate('employeeId', 'fullName department')
@@ -80,8 +80,12 @@ exports.getCalendar = async (req, res, next) => {
 exports.swapShifts = async (req, res, next) => {
     try {
         const { rosterId1, rosterId2 } = req.body;
-        const r1 = await GeneratedRoster.findOne({ _id: rosterId1, tenantId: req.tenantId });
-        const r2 = await GeneratedRoster.findOne({ _id: rosterId2, tenantId: req.tenantId });
+        const r1 = await GeneratedRoster.findOne({
+            _id: rosterId1
+        });
+        const r2 = await GeneratedRoster.findOne({
+            _id: rosterId2
+        });
 
         if (!r1 || !r2) return res.status(404).json({ message: 'One or both roster entries not found.' });
 

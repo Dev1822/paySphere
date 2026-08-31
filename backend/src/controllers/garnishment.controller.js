@@ -13,9 +13,15 @@ exports.createOrder = async (req, res, next) => {
         const { employeeId, type, agencyName, agencyRemittanceEmail, caseNumber, totalAmountOwed, monthlyDeductionAmount, priority, startDate } = req.body;
 
         const order = await GarnishmentOrder.create({
-            tenantId: req.tenantId,
-            employeeId, type, agencyName, agencyRemittanceEmail, caseNumber,
-            totalAmountOwed, monthlyDeductionAmount, priority, startDate: new Date(startDate)
+            employeeId,
+            type,
+            agencyName,
+            agencyRemittanceEmail,
+            caseNumber,
+            totalAmountOwed,
+            monthlyDeductionAmount,
+            priority,
+            startDate: new Date(startDate)
         });
 
         res.status(201).json({ message: 'Garnishment order created', order });
@@ -27,7 +33,9 @@ exports.createOrder = async (req, res, next) => {
 
 exports.getActiveOrders = async (req, res, next) => {
     try {
-        const orders = await GarnishmentOrder.find({ tenantId: req.tenantId, status: 'Active' })
+        const orders = await GarnishmentOrder.find({
+            status: 'Active'
+        })
             .populate('employeeId', 'fullName department')
             .sort({ priority: 1 });
         res.status(200).json({ orders });
@@ -49,7 +57,6 @@ exports.processPayrollInterceptor = async (req, res, next) => {
 
             const activeOrders = await GarnishmentOrder.find({
                 employeeId: entry.employeeId,
-                tenantId: req.tenantId,
                 status: 'Active'
             });
 
@@ -94,14 +101,17 @@ exports.processPayrollInterceptor = async (req, res, next) => {
 exports.recordRemittance = async (req, res, next) => {
     try {
         const { orderId, deductionMonth, deductionYear, amountRemitted } = req.body;
-        const order = await GarnishmentOrder.findOne({ _id: orderId, tenantId: req.tenantId });
+        const order = await GarnishmentOrder.findOne({
+            _id: orderId
+        });
         if (!order) return res.status(404).json({ message: 'Order not found' });
 
         await RemittanceLedger.create({
-            tenantId: req.tenantId,
             orderId: order._id,
             employeeId: order.employeeId,
-            deductionMonth, deductionYear, amountRemitted,
+            deductionMonth,
+            deductionYear,
+            amountRemitted,
             processedBy: req.userId
         });
 
@@ -119,7 +129,10 @@ exports.recordRemittance = async (req, res, next) => {
 exports.generateRemittanceReport = async (req, res, next) => {
     try {
         const { month, year } = req.query;
-        const ledger = await RemittanceLedger.find({ tenantId: req.tenantId, deductionMonth: month, deductionYear: year })
+        const ledger = await RemittanceLedger.find({
+            deductionMonth: month,
+            deductionYear: year
+        })
             .populate('orderId', 'agencyName agencyRemittanceEmail caseNumber type');
 
         // Group by Agency for bulk payment file generation

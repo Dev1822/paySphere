@@ -12,7 +12,6 @@
 
 const Employee = require('../models/employee.model');
 const SalaryHistory = require('../models/salaryHistory.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 // ─── Constants ────────────────────────────────────────────────────────────
@@ -141,7 +140,7 @@ exports.getForecast = async (req, res, next) => {
     );
 
     // Fetch current employees
-    const empFilter = tenantFilter(req, { isActive: true, deletedAt: null });
+    const empFilter = { isActive: true, deletedAt: null };
     if (departmentFilter.length > 0) {
       empFilter.department = { $in: departmentFilter };
     }
@@ -363,7 +362,7 @@ exports.compareScenarios = async (req, res, next) => {
     );
 
     const employees = await Employee.find(
-      tenantFilter(req, { isActive: true, deletedAt: null }),
+      { isActive: true, deletedAt: null },
     ).select('fullName department role jobLevel monthlySalary joiningDate');
 
     if (employees.length === 0) {
@@ -485,7 +484,7 @@ exports.compareScenarios = async (req, res, next) => {
 exports.getCostSummary = async (req, res, next) => {
   try {
     const employees = await Employee.find(
-      tenantFilter(req, { isActive: true, deletedAt: null }),
+      { isActive: true, deletedAt: null },
     ).select('department role jobLevel monthlySalary');
 
     if (employees.length === 0) {

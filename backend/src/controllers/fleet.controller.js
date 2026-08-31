@@ -10,14 +10,16 @@ const logger = require('../utils/logger');
 
 exports.addVehicle = async (req, res, next) => {
     try {
-        const vehicle = await Vehicle.create({ ...req.body, tenantId: req.tenantId });
+        const vehicle = await Vehicle.create({
+            ...req.body
+        });
         res.status(201).json({ message: 'Vehicle added to fleet', vehicle });
     } catch (error) { next(error); }
 };
 
 exports.getFleet = async (req, res, next) => {
     try {
-        const vehicles = await Vehicle.find({ tenantId: req.tenantId })
+        const vehicles = await Vehicle.find({})
             .populate('assignedTo', 'fullName')
             .sort({ status: 1 });
 
@@ -49,7 +51,9 @@ exports.logTrip = async (req, res, next) => {
     try {
         const { vehicleId, date, startOdometer, endOdometer, fuelAddedLiters, fuelCost, fuelReceiptUrl, purpose, notes } = req.body;
 
-        const vehicle = await Vehicle.findOne({ _id: vehicleId, tenantId: req.tenantId });
+        const vehicle = await Vehicle.findOne({
+            _id: vehicleId
+        });
         if (!vehicle) return res.status(404).json({ message: 'Vehicle not found' });
 
         if (endOdometer < startOdometer) {
@@ -57,10 +61,11 @@ exports.logTrip = async (req, res, next) => {
         }
 
         const distanceKm = endOdometer - startOdometer;
-        const driver = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+        const driver = await Employee.findOne({
+            userId: req.userId
+        });
 
         const log = await TripLog.create({
-            tenantId: req.tenantId,
             vehicleId,
             driverId: driver._id,
             date: new Date(date),
@@ -92,7 +97,7 @@ exports.logTrip = async (req, res, next) => {
 exports.getTripLogs = async (req, res, next) => {
     try {
         const { vehicleId } = req.query;
-        const query = { tenantId: req.tenantId };
+        const query = {};
         if (vehicleId) query.vehicleId = vehicleId;
 
         const logs = await TripLog.find(query)

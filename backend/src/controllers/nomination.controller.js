@@ -11,7 +11,6 @@ const {
   NominationComment,
 } = require('../models/nomination.model');
 const Employee = require('../models/employee.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
 
@@ -28,7 +27,6 @@ exports.createCategory = async (req, res, next) => {
     const { name, description, icon, color, pointsPerNomination, maxNominationsPerMonth, requiresManagerApproval } = req.body;
 
     const category = await NominationCategory.create({
-      tenantId: req.tenantId,
       name,
       description: description || '',
       icon: icon || 'star',
@@ -36,7 +34,7 @@ exports.createCategory = async (req, res, next) => {
       pointsPerNomination: pointsPerNomination || 10,
       maxNominationsPerMonth: maxNominationsPerMonth || 3,
       requiresManagerApproval: requiresManagerApproval || false,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -61,7 +59,7 @@ exports.createCategory = async (req, res, next) => {
 exports.getCategories = async (req, res, next) => {
   try {
     const categories = await NominationCategory.find(
-      tenantFilter(req, { isActive: true }),
+      { isActive: true },
     ).sort({ name: 1 }).lean();
 
     res.status(200).json({ categories });
@@ -80,7 +78,7 @@ exports.updateCategory = async (req, res, next) => {
     const { name, description, icon, color, pointsPerNomination, maxNominationsPerMonth, requiresManagerApproval } = req.body;
 
     const category = await NominationCategory.findOneAndUpdate(
-      tenantFilter(req, { _id: categoryId }),
+      { _id: categoryId },
       {
         $set: {
           ...(name !== undefined && { name }),
@@ -118,7 +116,7 @@ exports.createNomination = async (req, res, next) => {
     const { categoryId, nomineeId, title, reason, impactDescription, isPublic } = req.body;
 
     const category = await NominationCategory.findOne(
-      tenantFilter(req, { _id: categoryId, isActive: true }),
+      { _id: categoryId, isActive: true },
     );
     if (!category) {
       return res.status(404).json({ message: 'Nomination category not found or inactive' });
@@ -126,7 +124,7 @@ exports.createNomination = async (req, res, next) => {
 
     // Check nominee exists
     const nominee = await Employee.findOne(
-      tenantFilter(req, { _id: nomineeId }),
+      { _id: nomineeId },
     );
     if (!nominee) {
       return res.status(404).json({ message: 'Nominee not found' });
@@ -135,11 +133,11 @@ exports.createNomination = async (req, res, next) => {
     // Check nominator hasn't exceeded monthly limit for this category
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const monthlyCount = await Nomination.countDocuments(
-      tenantFilter(req, {
+      {
         categoryId,
         nominatorId: req.userId,
         createdAt: { $gte: startOfMonth },
-      }),
+      },
     );
 
     if (monthlyCount >= category.maxNominationsPerMonth) {
@@ -152,7 +150,6 @@ exports.createNomination = async (req, res, next) => {
     const pointsAwarded = status === 'APPROVED' ? category.pointsPerNomination : 0;
 
     const nomination = await Nomination.create({
-      tenantId: req.tenantId,
       categoryId,
       nomineeId,
       nominatorId: req.userId,
@@ -163,7 +160,7 @@ exports.createNomination = async (req, res, next) => {
       isPublic: isPublic !== false,
       pointsAwarded,
       status,
-      cycleId: null,
+      cycleId: null
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -190,10 +187,10 @@ exports.getFeed = async (req, res, next) => {
     const { page = 1, limit = 20, categoryId } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
-    const filter = tenantFilter(req, {
+    const filter = {
       isPublic: true,
       status: { $in: ['APPROVED', 'PENDING_APPROVAL'] },
-    });
+    };
 
     if (categoryId) filter.categoryId = categoryId;
 
@@ -229,13 +226,13 @@ exports.getFeed = async (req, res, next) => {
 exports.getMyNominations = async (req, res, next) => {
   try {
     const [given, received] = await Promise.all([
-      Nomination.find(tenantFilter(req, { nominatorId: req.userId }))
+      Nomination.find({ nominatorId: req.userId })
         .populate('categoryId', 'name icon color')
         .populate('nomineeId', 'fullName')
         .sort({ createdAt: -1 })
         .limit(20)
         .lean(),
-      Nomination.find(tenantFilter(req, { nomineeId: req.userId }))
+      Nomination.find({ nomineeId: req.userId })
         .populate('categoryId', 'name icon color')
         .populate('nominatorId', 'fullName')
         .sort({ createdAt: -1 })
@@ -259,7 +256,7 @@ exports.approveNomination = async (req, res, next) => {
     const { approvalNote } = req.body;
 
     const nomination = await Nomination.findOne(
-      tenantFilter(req, { _id: nominationId, status: 'PENDING_APPROVAL' }),
+      { _id: nominationId, status: 'PENDING_APPROVAL' },
     );
     if (!nomination) {
       return res.status(404).json({ message: 'Pending nomination not found' });
@@ -298,7 +295,7 @@ exports.rejectNomination = async (req, res, next) => {
     const { reason } = req.body;
 
     const nomination = await Nomination.findOne(
-      tenantFilter(req, { _id: nominationId, status: 'PENDING_APPROVAL' }),
+      { _id: nominationId, status: 'PENDING_APPROVAL' },
     );
     if (!nomination) {
       return res.status(404).json({ message: 'Pending nomination not found' });
@@ -339,18 +336,17 @@ exports.addComment = async (req, res, next) => {
     const { content, isManagerComment } = req.body;
 
     const nomination = await Nomination.findOne(
-      tenantFilter(req, { _id: nominationId }),
+      { _id: nominationId },
     );
     if (!nomination) {
       return res.status(404).json({ message: 'Nomination not found' });
     }
 
     const comment = await NominationComment.create({
-      tenantId: req.tenantId,
       nominationId,
       authorId: req.userId,
       content,
-      isManagerComment: isManagerComment || false,
+      isManagerComment: isManagerComment || false
     });
 
     await Nomination.findByIdAndUpdate(nominationId, {
@@ -372,7 +368,7 @@ exports.getComments = async (req, res, next) => {
     const { nominationId } = req.params;
 
     const comments = await NominationComment.find(
-      tenantFilter(req, { nominationId }),
+      { nominationId },
     )
       .populate('authorId', 'name email')
       .sort({ createdAt: -1 })
@@ -400,13 +396,12 @@ exports.createCycle = async (req, res, next) => {
     const endDate = new Date(year, month, 0, 23, 59, 59);
 
     const cycle = await RecognitionCycle.create({
-      tenantId: req.tenantId,
       title: title || `Recognition Cycle - ${startDate.toLocaleString('en-US', { month: 'long' })} ${year}`,
       month,
       year,
       startDate,
       endDate,
-      status: 'DRAFT',
+      status: 'DRAFT'
     });
 
     res.status(201).json({ cycle });
@@ -427,7 +422,7 @@ exports.finalizeCycle = async (req, res, next) => {
     const { cycleId } = req.params;
 
     const cycle = await RecognitionCycle.findOne(
-      tenantFilter(req, { _id: cycleId, status: { $ne: 'FINALIZED' } }),
+      { _id: cycleId, status: { $ne: 'FINALIZED' } },
     );
     if (!cycle) {
       return res.status(404).json({ message: 'Cycle not found or already finalized' });
@@ -435,7 +430,7 @@ exports.finalizeCycle = async (req, res, next) => {
 
     const [totalNominations, totalPoints] = await Promise.all([
       Nomination.countDocuments(
-        tenantFilter(req, { cycleId: cycle._id, status: 'APPROVED' }),
+        { cycleId: cycle._id, status: 'APPROVED' },
       ),
       Nomination.aggregate([
         { $match: { tenantId: cycle.tenantId, cycleId: cycle._id, status: 'APPROVED' } },
@@ -479,9 +474,8 @@ exports.getLeaderboard = async (req, res, next) => {
     const leaderboard = await Nomination.aggregate([
       {
         $match: {
-          tenantId: req.tenantId,
           status: 'APPROVED',
-          ...dateFilter,
+          ...dateFilter
         },
       },
       {
@@ -538,20 +532,19 @@ exports.getDashboard = async (req, res, next) => {
       topNominee,
       recentNominations,
     ] = await Promise.all([
-      Nomination.countDocuments(tenantFilter(req, { status: 'APPROVED' })),
+      Nomination.countDocuments({ status: 'APPROVED' }),
       Nomination.countDocuments(
-        tenantFilter(req, { status: 'APPROVED', createdAt: { $gte: startOfMonth } }),
+        { status: 'APPROVED', createdAt: { $gte: startOfMonth } },
       ),
       Nomination.countDocuments(
-        tenantFilter(req, { status: 'PENDING_APPROVAL' }),
+        { status: 'PENDING_APPROVAL' },
       ),
-      NominationCategory.countDocuments(tenantFilter(req, { isActive: true })),
+      NominationCategory.countDocuments({ isActive: true }),
       Nomination.aggregate([
         {
           $match: {
-            tenantId: req.tenantId,
             status: 'APPROVED',
-            createdAt: { $gte: startOfMonth },
+            createdAt: { $gte: startOfMonth }
           },
         },
         {
@@ -573,7 +566,7 @@ exports.getDashboard = async (req, res, next) => {
         },
         { $unwind: { path: '$employee', preserveNullAndEmptyArrays: true } },
       ]),
-      Nomination.find(tenantFilter(req, { isPublic: true }))
+      Nomination.find({ isPublic: true })
         .populate('categoryId', 'name icon color')
         .populate('nomineeId', 'fullName')
         .populate('nominatorId', 'fullName')

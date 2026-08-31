@@ -85,8 +85,7 @@ exports.getSalaryHistory = async (req, res, next) => {
     const stats = await SalaryHistory.aggregate([
       {
         $match: {
-          employeeId: employee._id,
-          tenantId: req.tenantId,
+          employeeId: employee._id
         },
       },
       {
@@ -231,10 +230,9 @@ exports.createSalaryHistoryManual = async (req, res, next) => {
       newSalary: newSalaryNum,
       changedBy: req.userId,
       changedByName: user.fullName || user.email,
-      tenantId: req.tenantId,
       reason: reason || 'other',
       note: sanitizeText(note || ''),
-      currency: employee.currency || 'INR',
+      currency: employee.currency || 'INR'
     });
 
     // Emit audit event
@@ -257,17 +255,18 @@ exports.createSalaryHistoryManual = async (req, res, next) => {
 
     await lifecycleEventService.recordEvent({
       employeeId: employee._id,
-      tenantId: req.tenantId,
       eventType: 'SALARY_CHANGED',
       category: 'Compensation',
       recordedBy: req.userId,
+
       previousValues: {
         salary: prevSalaryNum,
         currency: employee.currency || 'INR',
       },
+
       newValues: { salary: newSalaryNum, currency: employee.currency || 'INR' },
       sourceId: history._id,
-      note: history.reason || 'Salary updated',
+      note: history.reason || 'Salary updated'
     });
 
     logger.info('Salary history created manually', {
@@ -314,9 +313,7 @@ exports.exportSalaryHistory = async (req, res, next) => {
     const { employeeId, startDate, endDate } = req.query;
 
     // Build the query filter
-    const query = {
-      tenantId: req.tenantId,
-    };
+    const query = {};
 
     // Filter by employee if specified
     if (employeeId) {
@@ -482,8 +479,7 @@ exports.deleteSalaryHistory = async (req, res, next) => {
 
     // Find the history entry
     const history = await SalaryHistory.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
 
     if (!history) {
@@ -507,7 +503,9 @@ exports.deleteSalaryHistory = async (req, res, next) => {
     // the caller's tenant — but the delete restated the id without the
     // tenant, so the safety lived in the distance between two statements
     // rather than in the statement doing the damage. Cheap to make local.
-    await SalaryHistory.deleteOne({ _id: id, tenantId: req.tenantId });
+    await SalaryHistory.deleteOne({
+      _id: id
+    });
 
     // Emit audit event
     eventBus.emit('AUDIT_LOG', {
@@ -572,8 +570,7 @@ exports.getSalaryStatistics = async (req, res, next) => {
 
     // Build the match query
     const matchQuery = {
-      tenantId: req.tenantId,
-      createdAt: { $gte: startDate },
+      createdAt: { $gte: startDate }
     };
 
     // If department filter is specified, we need to join with employees

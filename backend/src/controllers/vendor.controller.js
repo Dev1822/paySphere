@@ -27,13 +27,12 @@ exports.createVendor = async (req, res, next) => {
     }
 
     const vendor = await Vendor.create({
-      tenantId: req.tenantId,
       name,
       pan,
       gstin,
       vendorType,
       address,
-      contactEmail,
+      contactEmail
     });
 
     res.status(201).json({ message: 'Vendor registered', vendor });
@@ -49,7 +48,9 @@ exports.createVendor = async (req, res, next) => {
 exports.createInvoice = async (req, res, next) => {
   try {
     const { invoiceNumber, invoiceDate, grossAmount, section = '194C' } = req.body;
-    const vendor = await Vendor.findOne({ _id: req.params.id, tenantId: req.tenantId });
+    const vendor = await Vendor.findOne({
+      _id: req.params.id
+    });
 
     if (!vendor) return res.status(404).json({ message: 'Vendor not found' });
 
@@ -63,7 +64,6 @@ exports.createInvoice = async (req, res, next) => {
     const tdsCalc = await calculateTDS(vendor, Number(grossAmount), financialYear, req.tenantId, section);
 
     const invoice = await VendorInvoice.create({
-      tenantId: req.tenantId,
       vendorId: vendor._id,
       invoiceNumber,
       invoiceDate: date,
@@ -71,7 +71,7 @@ exports.createInvoice = async (req, res, next) => {
       grossAmount: Number(grossAmount),
       tdsRate: tdsCalc.tdsRate,
       tdsAmount: tdsCalc.tdsAmount,
-      netPayable: tdsCalc.netPayable,
+      netPayable: tdsCalc.netPayable
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -105,13 +105,14 @@ exports.getVendorLedger = async (req, res, next) => {
     const currentMonth = new Date().getMonth();
     const financialYear = currentMonth >= 3 ? currentYear : currentYear - 1;
 
-    const invoices = await VendorInvoice.find({ tenantId: req.tenantId, vendorId })
+    const invoices = await VendorInvoice.find({
+      vendorId
+    })
       .sort({ invoiceDate: -1 })
       .lean();
 
     const payments = await VendorPayment.find({
-      tenantId: req.tenantId,
-      invoiceId: { $in: invoices.map((i) => i._id) },
+      invoiceId: { $in: invoices.map((i) => i._id) }
     })
       .sort({ paymentDate: -1 })
       .lean();
@@ -134,7 +135,9 @@ exports.getVendorLedger = async (req, res, next) => {
 exports.getForm16ASummary = async (req, res, next) => {
   try {
     const vendorId = req.params.id;
-    const vendor = await Vendor.findOne({ _id: vendorId, tenantId: req.tenantId });
+    const vendor = await Vendor.findOne({
+      _id: vendorId
+    });
     if (!vendor) return res.status(404).json({ message: 'Vendor not found' });
 
     const currentYear = new Date().getFullYear();
@@ -143,9 +146,8 @@ exports.getForm16ASummary = async (req, res, next) => {
     const financialYear = req.query.financialYear ? Number(req.query.financialYear) : defaultFY;
 
     const invoices = await VendorInvoice.find({
-      tenantId: req.tenantId,
       vendorId: vendor._id,
-      financialYear,
+      financialYear
     })
       .sort({ invoiceDate: 1 })
       .lean();

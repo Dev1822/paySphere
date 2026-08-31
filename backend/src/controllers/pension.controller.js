@@ -14,7 +14,6 @@ exports.createPolicy = async (req, res, next) => {
     }
 
     const policy = await PensionPolicy.create({
-      tenantId: req.tenantId,
       region: region.toUpperCase(),
       planName,
       employeeContributionRate,
@@ -34,7 +33,9 @@ exports.createPolicy = async (req, res, next) => {
  */
 exports.getPolicies = async (req, res, next) => {
   try {
-    const policies = await PensionPolicy.find({ tenantId: req.tenantId, isActive: true });
+    const policies = await PensionPolicy.find({
+      isActive: true
+    });
     res.status(200).json({ success: true, data: policies });
   } catch (error) {
     next(error);
@@ -49,10 +50,14 @@ exports.getEmployeePensionSetting = async (req, res, next) => {
   try {
     const { employeeId } = req.params;
 
-    let setting = await EmployeePensionSetting.findOne({ employeeId, tenantId: req.tenantId }).populate('pensionPolicyId');
+    let setting = await EmployeePensionSetting.findOne({
+      employeeId
+    }).populate('pensionPolicyId');
     if (!setting) {
       // If no setting, check if employee exists
-      const employee = await Employee.findOne({ _id: employeeId, tenantId: req.tenantId });
+      const employee = await Employee.findOne({
+        _id: employeeId
+      });
       if (!employee) {
         return res.status(404).json({ message: 'Employee not found' });
       }
@@ -88,18 +93,24 @@ exports.updateEmployeePensionSetting = async (req, res, next) => {
       return res.status(400).json({ message: 'pensionPolicyId is required' });
     }
 
-    const employee = await Employee.findOne({ _id: employeeId, tenantId: req.tenantId });
+    const employee = await Employee.findOne({
+      _id: employeeId
+    });
     if (!employee) {
       return res.status(404).json({ message: 'Employee not found' });
     }
 
-    const policy = await PensionPolicy.findOne({ _id: pensionPolicyId, tenantId: req.tenantId });
+    const policy = await PensionPolicy.findOne({
+      _id: pensionPolicyId
+    });
     if (!policy) {
       return res.status(404).json({ message: 'Pension policy not found' });
     }
 
     const setting = await EmployeePensionSetting.findOneAndUpdate(
-      { employeeId, tenantId: req.tenantId },
+      {
+        employeeId
+      },
       {
         $set: {
           pensionPolicyId,

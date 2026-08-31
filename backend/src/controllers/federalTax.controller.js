@@ -14,12 +14,15 @@ exports.calculateLookback = async (req, res, next) => {
         const result = determineDepositorType(lookbackTotalLiability);
 
         const schedule = await TaxDepositSchedule.findOneAndUpdate(
-            { tenantId: req.tenantId, calendarYear },
             {
-                tenantId: req.tenantId, calendarYear,
+                calendarYear
+            },
+            {
+                calendarYear,
                 lookbackStartDate: new Date(`${calendarYear - 2}-07-01`),
                 lookbackEndDate: new Date(`${calendarYear - 1}-06-30`),
-                lookbackTotalLiability, depositorType: result.depositorType
+                lookbackTotalLiability,
+                depositorType: result.depositorType
             },
             { upsert: true, new: true }
         );
@@ -33,7 +36,9 @@ exports.recordLiability = async (req, res, next) => {
         const { payrollRunId, liabilityDate, federalIncomeTax, socialSecurityTax, medicareTax } = req.body;
         const year = new Date(liabilityDate).getFullYear();
 
-        const schedule = await TaxDepositSchedule.findOne({ tenantId: req.tenantId, calendarYear: year });
+        const schedule = await TaxDepositSchedule.findOne({
+            calendarYear: year
+        });
         if (!schedule) return res.status(400).json({ message: 'Deposit schedule not configured for this year.' });
 
         const totalLiability = federalIncomeTax + socialSecurityTax + medicareTax;
@@ -42,8 +47,13 @@ exports.recordLiability = async (req, res, next) => {
         const nextDayCheck = checkNextDayDepositRule(totalLiability);
 
         const ledger = await FederalTaxLiabilityLedger.create({
-            tenantId: req.tenantId, payrollRunId, liabilityDate: new Date(liabilityDate),
-            quarter, federalIncomeTax, socialSecurityTax, medicareTax, totalLiability,
+            payrollRunId,
+            liabilityDate: new Date(liabilityDate),
+            quarter,
+            federalIncomeTax,
+            socialSecurityTax,
+            medicareTax,
+            totalLiability,
             depositDueDate: nextDayCheck.requiresNextDayDeposit ? new Date(liabilityDate.getTime() + 86400000) : dueDate
         });
 
@@ -59,7 +69,10 @@ exports.generateForm941 = async (req, res, next) => {
     try {
         const { taxYear, quarter } = req.body;
 
-        const ledgers = await FederalTaxLiabilityLedger.find({ tenantId: req.tenantId, quarter, liabilityDate: { $gte: new Date(`${taxYear}-01-01`), $lt: new Date(`${taxYear}-12-31`) } });
+        const ledgers = await FederalTaxLiabilityLedger.find({
+            quarter,
+            liabilityDate: { $gte: new Date(`${taxYear}-01-01`), $lt: new Date(`${taxYear}-12-31`) }
+        });
 
         const totals = ledgers.reduce((acc, l) => {
             acc.incomeTax += l.federalIncomeTax;
@@ -71,7 +84,10 @@ exports.generateForm941 = async (req, res, next) => {
         }, { incomeTax: 0, ssTax: 0, medTax: 0, totalLiability: 0, totalDeposits: 0 });
 
         const filing = await Form941Filing.findOneAndUpdate(
-            { tenantId: req.tenantId, taxYear, quarter },
+            {
+                taxYear,
+                quarter
+            },
             {
                 totalIncomeTaxWithheld: totals.incomeTax,
                 totalSSTax: totals.ssTax,
@@ -90,8 +106,12 @@ exports.generateForm941 = async (req, res, next) => {
 exports.getDashboard = async (req, res, next) => {
     try {
         const currentYear = new Date().getFullYear();
-        const schedule = await TaxDepositSchedule.findOne({ tenantId: req.tenantId, calendarYear: currentYear });
-        const filings = await Form941Filing.find({ tenantId: req.tenantId, taxYear: currentYear }).sort({ quarter: 1 });
+        const schedule = await TaxDepositSchedule.findOne({
+            calendarYear: currentYear
+        });
+        const filings = await Form941Filing.find({
+            taxYear: currentYear
+        }).sort({ quarter: 1 });
         res.status(200).json({ schedule, filings });
     } catch (error) { next(error); }
 };

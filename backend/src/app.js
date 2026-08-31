@@ -24,7 +24,10 @@
 
 const mongoose = require('mongoose');
 const piiMaskingPlugin = require('./utils/piiMaskingPlugin');
+const tenantEnforcementPlugin = require('./models/plugins/tenantEnforcement.plugin');
+
 mongoose.plugin(piiMaskingPlugin);
+mongoose.plugin(tenantEnforcementPlugin);
 
 const express = require('express');
 const cors = require('cors');
@@ -58,7 +61,6 @@ const payrollRoutes = require('./routes/payroll.routes');
 const forecastRoutes = require('./routes/forecast.routes');
 const retroactiveRoutes = require('./routes/retroactive.routes');
 const sandboxRoutes = require('./routes/sandbox.routes');
-
 const payrollApprovalRoutes = require('./routes/payrollApproval.routes');
 const payrollComparisonRoutes = require('./routes/payrollComparison.routes');
 const employeeCompensationRoutes = require('./routes/employeeCompensation.routes');
@@ -314,7 +316,6 @@ const ltaRoutes = require('./routes/lta.routes');
 const gratuityEntitlementRoutes = require('./routes/gratuityEntitlement.routes');
 const appraisalRoutes = require('./routes/appraisal.routes');
 const contractRoutes = require('./routes/contract.routes');
-
 const accountingRoutes = require('./routes/accounting.routes');
 const clientInvoiceRoutes = require('./routes/clientInvoice.routes');
 const intercompanyBillingRoutes = require('./routes/intercompanyBilling.routes');

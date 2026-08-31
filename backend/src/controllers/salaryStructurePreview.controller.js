@@ -8,7 +8,6 @@
 
 const SalaryStructure    = require('../models/salaryStructure.model');
 const { evaluateAll, validateComponents } = require('../services/formulaEngine.service');
-const { tenantFilter }   = require('../utils/tenantScope');
 const logger             = require('../utils/logger');
 
 async function previewStructure(req, res) {
@@ -34,7 +33,7 @@ async function previewStructure(req, res) {
 
 async function validateStructure(req, res) {
   try {
-    const structure = await SalaryStructure.findOne({ _id: req.params.id, ...tenantFilter(req) });
+    const structure = await SalaryStructure.findOne({ _id: req.params.id, ...{} });
     if (!structure) return res.status(404).json({ message: 'Salary structure not found.' });
 
     return res.json(validateComponents(structure.components || []));

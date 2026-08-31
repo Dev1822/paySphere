@@ -34,8 +34,7 @@ const eventBus = require('../services/event.service');
  */
 async function callerEmployee(req) {
   return Employee.findOne({
-    userId: req.userId,
-    tenantId: req.tenantId,
+    userId: req.userId
   }).lean();
 }
 
@@ -91,8 +90,7 @@ exports.submitClaim = async (req, res, next) => {
       }
 
       employee = await Employee.findOne({
-        _id: req.body.employeeId,
-        tenantId: req.tenantId,
+        _id: req.body.employeeId
       }).lean();
     } else {
       employee = await callerEmployee(req);
@@ -123,7 +121,6 @@ exports.submitClaim = async (req, res, next) => {
     }
 
     const claim = await LtaClaim.create({
-      tenantId: req.tenantId,
       employeeId: employee._id,
       journeyDate: req.body.journeyDate,
       returnDate: req.body.returnDate || null,
@@ -135,9 +132,11 @@ exports.submitClaim = async (req, res, next) => {
       claimedFare: Number(req.body.claimedFare) || 0,
       fareCeilings: req.body.fareCeilings || {},
       travellers: Array.isArray(req.body.travellers) ? req.body.travellers : [],
+
       documentUrls: Array.isArray(req.body.documentUrls)
         ? req.body.documentUrls
         : [],
+
       blockLabel: assessment.block.label,
       blockStartYear: assessment.block.startYear,
       blockEndYear: assessment.block.endYear,
@@ -147,15 +146,19 @@ exports.submitClaim = async (req, res, next) => {
       ltaComponentPaid: resolveLtaComponent(req.body),
       refusals: assessment.refusals,
       notes: assessment.notes,
+
       // A claim the engine has already refused goes straight to rejected. There
       // is nothing for HR to decide and leaving it in the queue would be a
       // queue of decisions nobody can make differently.
       status: assessment.allowed ? CLAIM_STATUS.PENDING : CLAIM_STATUS.REJECTED,
+
       reviewedAt: assessment.allowed ? null : new Date(),
+
       reviewNote: assessment.allowed
         ? ''
         : assessment.refusals.map((refusal) => refusal.message).join('; '),
-      createdBy: req.userId,
+
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -196,11 +199,10 @@ exports.previewClaim = async (req, res, next) => {
   try {
     const employee = req.body.employeeId
       ? await Employee.findOne({
-          _id: mongoose.Types.ObjectId.isValid(req.body.employeeId)
-            ? req.body.employeeId
-            : null,
-          tenantId: req.tenantId,
-        }).lean()
+      _id: mongoose.Types.ObjectId.isValid(req.body.employeeId)
+        ? req.body.employeeId
+        : null
+    }).lean()
       : await callerEmployee(req);
 
     if (!employee) {
@@ -270,8 +272,7 @@ exports.getMyClaims = async (req, res, next) => {
     }
 
     const claims = await LtaClaim.find({
-      tenantId: req.tenantId,
-      employeeId: employee._id,
+      employeeId: employee._id
     })
       .sort({ journeyDate: -1 })
       .lean();
@@ -293,7 +294,9 @@ exports.getQueue = async (req, res, next) => {
       ? req.query.status
       : CLAIM_STATUS.PENDING;
 
-    const claims = await LtaClaim.find({ tenantId: req.tenantId, status })
+    const claims = await LtaClaim.find({
+      status
+    })
       .populate('employeeId', 'fullName department role email')
       .sort({ createdAt: 1 })
       .limit(Math.min(Number(req.query.limit) || 100, 200))
@@ -328,8 +331,7 @@ exports.verifyClaim = async (req, res, next) => {
     }
 
     const claim = await LtaClaim.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!claim) {
@@ -447,8 +449,7 @@ exports.getBlockSummary = async (req, res, next) => {
     }
 
     const employee = await Employee.findOne({
-      _id: req.params.employeeId,
-      tenantId: req.tenantId,
+      _id: req.params.employeeId
     })
       .select('fullName department')
       .lean();
@@ -460,9 +461,8 @@ exports.getBlockSummary = async (req, res, next) => {
     const year = Number(req.query.year) || new Date().getUTCFullYear();
 
     const claims = await LtaClaim.find({
-      tenantId: req.tenantId,
       employeeId: employee._id,
-      status: CLAIM_STATUS.APPROVED,
+      status: CLAIM_STATUS.APPROVED
     })
       .select('journeyDate exemptAmount origin destination mode blockLabel')
       .lean();

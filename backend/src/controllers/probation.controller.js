@@ -18,7 +18,6 @@ exports.createPolicy = async (req, res, next) => {
     } = req.body;
 
     const policy = await ProbationPolicy.create({
-      tenantId: req.tenantId,
       name: sanitizeText(name),
       department: sanitizeText(department || ''),
       role: sanitizeText(role || ''),
@@ -27,7 +26,7 @@ exports.createPolicy = async (req, res, next) => {
       maxTotalMonths,
       salaryStepUpType,
       salaryStepUpValue,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     res.status(201).json({ message: 'Probation policy created', policy });
@@ -38,7 +37,7 @@ exports.createPolicy = async (req, res, next) => {
 
 exports.getPolicies = async (req, res, next) => {
   try {
-    const policies = await ProbationPolicy.find({ tenantId: req.tenantId });
+    const policies = await ProbationPolicy.find({});
     res.status(200).json({ policies });
   } catch (err) {
     next(err);
@@ -48,8 +47,7 @@ exports.getPolicies = async (req, res, next) => {
 exports.getDashboardStats = async (req, res, next) => {
   try {
     const activeTrackers = await ProbationTracker.find({
-      tenantId: req.tenantId,
-      status: { $in: ['active', 'extended'] },
+      status: { $in: ['active', 'extended'] }
     }).populate('employeeId', 'fullName role department');
     const overdueReviews = activeTrackers.filter((t) => new Date() > t.endDate);
     const upcomingExpiries = activeTrackers.filter((t) => {
@@ -75,11 +73,13 @@ exports.submitReview = async (req, res, next) => {
     const { recommendation, notes } = req.body;
 
     const tracker = await ProbationTrackerService.submitReview({
-      tenantId: req.tenantId,
       trackerId,
-      managerId: req.userId, // assuming the manager is the logged-in user
+
+      // assuming the manager is the logged-in user
+      managerId: req.userId,
+
       recommendation,
-      notes: sanitizeText(notes || ''),
+      notes: sanitizeText(notes || '')
     });
 
     res.status(200).json({ message: 'Review submitted', tracker });
@@ -94,10 +94,9 @@ exports.extendProbation = async (req, res, next) => {
     const { extensionMonths } = req.body;
 
     const tracker = await ProbationTrackerService.extendProbation({
-      tenantId: req.tenantId,
       trackerId,
       extensionMonths,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     res.status(200).json({ message: 'Probation extended', tracker });
@@ -111,9 +110,8 @@ exports.confirmProbation = async (req, res, next) => {
     const { trackerId } = req.params;
 
     const tracker = await ProbationTrackerService.confirmProbation({
-      tenantId: req.tenantId,
       trackerId,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     res.status(200).json({ message: 'Probation confirmed', tracker });
@@ -126,8 +124,7 @@ exports.getEmployeeTracker = async (req, res, next) => {
   try {
     const { employeeId } = req.params;
     const tracker = await ProbationTracker.findOne({
-      tenantId: req.tenantId,
-      employeeId,
+      employeeId
     })
       .populate('policyId')
       .populate('reviews.managerId', 'fullName');

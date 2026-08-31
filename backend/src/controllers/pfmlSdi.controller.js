@@ -12,8 +12,15 @@ const logger = require('../utils/logger');
 exports.createPolicy = async (req, res, next) => {
     try {
         const policy = await PFMLPolicy.findOneAndUpdate(
-            { tenantId: req.tenantId, stateCode: req.body.stateCode.toUpperCase(), programType: req.body.programType, taxYear: req.body.taxYear },
-            { ...req.body, tenantId: req.tenantId, stateCode: req.body.stateCode.toUpperCase() },
+            {
+                stateCode: req.body.stateCode.toUpperCase(),
+                programType: req.body.programType,
+                taxYear: req.body.taxYear
+            },
+            {
+                ...req.body,
+                stateCode: req.body.stateCode.toUpperCase()
+            },
             { upsert: true, new: true }
         );
         res.status(200).json({ message: 'PFML/SDI policy saved', policy });
@@ -32,8 +39,9 @@ exports.processPayrollWithholdings = async (req, res, next) => {
 
         for (const payout of employeePayouts) {
             const policy = await PFMLPolicy.findOne({
-                tenantId: req.tenantId, stateCode: payout.stateCode.toUpperCase(),
-                taxYear: year, isActive: true
+                stateCode: payout.stateCode.toUpperCase(),
+                taxYear: year,
+                isActive: true
             }).session(session);
 
             if (!policy) continue; // No policy for this state
@@ -53,10 +61,15 @@ exports.processPayrollWithholdings = async (req, res, next) => {
             if (calc.taxableWage <= 0 && calc.employeeWithholding <= 0) continue;
 
             const ledger = await SDIContributionLedger.create([{
-                tenantId: req.tenantId, employeeId: payout.employeeId, policyId: policy._id,
-                periodMonth: month, periodYear: year, grossPay: payout.grossPay,
-                taxableWage: calc.taxableWage, employeeWithholding: calc.employeeWithholding,
-                employerLiability: calc.employerLiability, ytdTaxableWages: calc.ytdWages,
+                employeeId: payout.employeeId,
+                policyId: policy._id,
+                periodMonth: month,
+                periodYear: year,
+                grossPay: payout.grossPay,
+                taxableWage: calc.taxableWage,
+                employeeWithholding: calc.employeeWithholding,
+                employerLiability: calc.employerLiability,
+                ytdTaxableWages: calc.ytdWages,
                 ytdContributions: (lastLedger ? lastLedger.ytdContributions : 0) + calc.employeeWithholding,
                 hitWageCap: calc.hitWageCap
             }], { session });
@@ -90,14 +103,21 @@ exports.startLeaveProtection = async (req, res, next) => {
         const { employeeId, stateCode, leaveStartDate } = req.body;
         const year = new Date(leaveStartDate).getFullYear();
 
-        const policy = await PFMLPolicy.findOne({ tenantId: req.tenantId, stateCode: stateCode.toUpperCase(), taxYear: year, isActive: true });
+        const policy = await PFMLPolicy.findOne({
+            stateCode: stateCode.toUpperCase(),
+            taxYear: year,
+            isActive: true
+        });
         if (!policy) return res.status(400).json({ message: 'No active PFML policy for this state/year.' });
 
         const protectionEndDate = new Date(leaveStartDate);
         protectionEndDate.setDate(protectionEndDate.getDate() + (policy.maxProtectedWeeks * 7));
 
         const protection = await LeaveJobProtection.findOneAndUpdate(
-            { employeeId, tenantId: req.tenantId, status: 'Active' },
+            {
+                employeeId,
+                status: 'Active'
+            },
             {
                 policyId: policy._id, leaveStartDate: new Date(leaveStartDate),
                 maxProtectedWeeks: policy.maxProtectedWeeks, protectionEndDate, status: 'Active'
@@ -112,7 +132,7 @@ exports.startLeaveProtection = async (req, res, next) => {
 exports.runProtectionAudit = async (req, res, next) => {
     try {
         const activeProtections = await LeaveJobProtection.find({
-            tenantId: req.tenantId, status: { $in: ['Active', 'Expiring Soon'] }
+            status: { $in: ['Active', 'Expiring Soon'] }
         }).populate('employeeId', 'fullName');
 
         let alertsTriggered = 0;
@@ -137,14 +157,20 @@ exports.runProtectionAudit = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const policies = await PFMLPolicy.find({ tenantId: req.tenantId, isActive: true }).sort({ stateCode: 1 });
-        const protections = await LeaveJobProtection.find({ tenantId: req.tenantId, status: { $ne: 'Returned to Work' } })
+        const policies = await PFMLPolicy.find({
+            isActive: true
+        }).sort({ stateCode: 1 });
+        const protections = await LeaveJobProtection.find({
+            status: { $ne: 'Returned to Work' }
+        })
             .populate('employeeId', 'fullName department');
 
         // Aggregate YTD caps
         const currentYear = new Date().getFullYear();
         const capStatus = await SDIContributionLedger.aggregate([
-            { $match: { tenantId: req.tenantId, periodYear: currentYear } },
+            { $match: {
+                periodYear: currentYear
+            } },
             { $group: { _id: '$employeeId', ytdWages: { $max: '$ytdTaxableWages' }, hitCap: { $max: '$hitWageCap' } } }
         ]);
 

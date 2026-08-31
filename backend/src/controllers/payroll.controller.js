@@ -52,7 +52,6 @@ const {
   resolveStructureForPeriod,
   computeComponentAmounts,
 } = require('../utils/salaryStructure');
-const { requireTenant } = require('../utils/tenantScope');
 const {
   parseDepartments,
   resolveDepartmentEmployeeIds,
@@ -284,8 +283,7 @@ exports.getPendingApprovals = async (req, res, next) => {
     const skip = (page - 1) * limit;
 
     const query = {
-      tenantId: req.tenantId,
-      status: PAYROLL_STATUS.PENDING_APPROVAL,
+      status: PAYROLL_STATUS.PENDING_APPROVAL
     };
 
     // Optional period narrowing, so a checker can review one month at a time
@@ -362,7 +360,6 @@ exports.approvePayroll = async (req, res, next) => {
 
     const { applied, notFound, invalidTransition, versionConflicts } =
       await transitionPayrollBatch({
-        tenantId: req.tenantId,
         ids: batch.ids,
         targetStatus: PAYROLL_STATUS.APPROVED,
         expectedVersions: submittedVersions,
@@ -388,18 +385,17 @@ exports.approvePayroll = async (req, res, next) => {
       const finalizedAt = new Date();
 
       const approvedPayrolls = await PayrollUpdate.find({
-        _id: { $in: applied.map((item) => item.payrollId) },
-        tenantId: req.tenantId,
+        _id: { $in: applied.map((item) => item.payrollId) }
       });
 
       const finalizedSnapshotUpdates = approvedPayrolls.map((payroll) => ({
         updateOne: {
           filter: {
             _id: payroll._id,
-            tenantId: req.tenantId,
+
             'calculationSnapshot.finalizedAt': {
               $exists: false,
-            },
+            }
           },
           update: {
             $set: {
@@ -496,15 +492,13 @@ exports.rejectPayroll = async (req, res, next) => {
     const rejectedAt = new Date();
     const payrollsToApprove = await PayrollUpdate.find({
       _id: { $in: batch.ids },
-      tenantId: req.tenantId,
-      status: PAYROLL_STATUS.PENDING_APPROVAL,
+      status: PAYROLL_STATUS.PENDING_APPROVAL
     }).select('_id employeeId calculationSnapshot.employee.version');
 
     const employeeIds = payrollsToApprove.map((payroll) => payroll.employeeId);
 
     const employees = await Employee.find({
-      _id: { $in: employeeIds },
-      tenantId: req.tenantId,
+      _id: { $in: employeeIds }
     }).select('_id __v');
 
     const employeeVersions = new Map(
@@ -534,16 +528,16 @@ exports.rejectPayroll = async (req, res, next) => {
     }
     const { applied, notFound, invalidTransition, versionConflicts } =
       await transitionPayrollBatch({
-        tenantId: req.tenantId,
         ids: batch.ids,
         targetStatus: PAYROLL_STATUS.REJECTED,
+
         extraFields: {
           rejectionReason: reason,
           rejectedBy: req.userId,
           rejectedAt,
           approvedBy: undefined,
           approvedAt: undefined,
-        },
+        }
       });
 
     if (versionConflicts && versionConflicts.length > 0) {
@@ -637,10 +631,9 @@ exports.markPayrollPaid = async (req, res, next) => {
 
     const { applied, notFound, invalidTransition, versionConflicts } =
       await transitionPayrollBatch({
-        tenantId: req.tenantId,
         ids: batch.ids,
         targetStatus: PAYROLL_STATUS.PAID,
-        extraFields: { paidAt },
+        extraFields: { paidAt }
       });
 
     if (versionConflicts && versionConflicts.length > 0) {
@@ -708,8 +701,8 @@ exports.parsePayrollCSV = async (req, res, next) => {
     const leaveIdx = headers.findIndex((h) => h.includes('leave'));
 
     const employees = await Employee.find({
-      tenantId: req.tenantId,
-      isDeleted: { $ne: true }, // Filter soft-deleted - Issue #526
+      // Filter soft-deleted - Issue #526
+      isDeleted: { $ne: true }
     });
     const activities = [];
     // `require('uuid')` threw MODULE_NOT_FOUND — uuid is not a dependency of
@@ -944,8 +937,7 @@ exports.sendPayslipEmailHandler = async (req, res, next) => {
     }
 
     await PayrollExportService.sendPayslipEmail(req, {
-      payrollId,
-      tenantId: req.tenantId,
+      payrollId
     });
     res.status(200).json({ message: 'Payslip email sent successfully' });
   } catch (error) {
@@ -990,9 +982,8 @@ exports.sendAllPayslipsEmailHandler = async (req, res, next) => {
     }
 
     const data = await PayrollExportService.sendAllPayslipsEmail(req, {
-      tenantId: req.tenantId,
       month,
-      year,
+      year
     });
     res.status(200).json({
       message: `Bulk email dispatch complete. Sent: ${data.sentCount}, Skipped: ${data.skippedCount}, Failed: ${data.failedCount}`,

@@ -17,8 +17,13 @@ exports.createSnapshot = async (req, res, next) => {
         const aggregateNet = lineItems.reduce((sum, i) => sum + (i.netPay || 0), 0);
 
         const snapshot = await PayrollRegisterSnapshot.create({
-            tenantId: req.tenantId, payrollRunId, periodMonth, periodYear,
-            lineItems, aggregateGross, aggregateNet, totalEmployees: lineItems.length
+            payrollRunId,
+            periodMonth,
+            periodYear,
+            lineItems,
+            aggregateGross,
+            aggregateNet,
+            totalEmployees: lineItems.length
         });
 
         res.status(201).json({ message: 'Payroll register snapshot created', snapshot });
@@ -41,14 +46,16 @@ exports.runReconciliationDiff = async (req, res, next) => {
         const threshold = varianceThreshold || 0.10; // Default 10%
 
         // Fetch the most recent finalized snapshot
-        const lastSnapshot = await PayrollRegisterSnapshot.findOne({ tenantId: req.tenantId })
+        const lastSnapshot = await PayrollRegisterSnapshot.findOne({})
             .sort({ createdAt: -1 }).session(session);
 
         const previousLineItems = lastSnapshot ? lastSnapshot.lineItems : [];
 
         // Enrich current register with HRIS status for Ghost Employee Guardrail
         const empIds = currentRegister.map(r => r.employeeId);
-        const employees = await Employee.find({ _id: { $in: empIds }, tenantId: req.tenantId }).select('_id status');
+        const employees = await Employee.find({
+            _id: { $in: empIds }
+        }).select('_id status');
         const empMap = new Map(employees.map(e => [e._id.toString(), e.status || 'Active']));
 
         const enrichedRegister = currentRegister.map(r => ({
@@ -59,16 +66,22 @@ exports.runReconciliationDiff = async (req, res, next) => {
         const exceptions = diffRegisters(enrichedRegister, previousLineItems, threshold);
 
         const batch = await ReconciliationBatch.create([{
-            tenantId: req.tenantId, currentRunId, previousSnapshotId: lastSnapshot?._id,
-            periodMonth, periodYear, totalExceptions: exceptions.length
+            currentRunId,
+            previousSnapshotId: lastSnapshot?._id,
+            periodMonth,
+            periodYear,
+            totalExceptions: exceptions.length
         }], { session });
 
         if (exceptions.length > 0) {
             const exceptionDocs = exceptions.map(ex => ({
-                tenantId: req.tenantId, batchId: batch[0]._id,
-                employeeId: ex.employeeId, exceptionType: ex.exceptionType,
-                previousNetPay: ex.previousNetPay || 0, currentNetPay: ex.currentNetPay || 0,
-                varianceAmount: ex.varianceAmount || 0, variancePercent: ex.variancePercent || 0,
+                batchId: batch[0]._id,
+                employeeId: ex.employeeId,
+                exceptionType: ex.exceptionType,
+                previousNetPay: ex.previousNetPay || 0,
+                currentNetPay: ex.currentNetPay || 0,
+                varianceAmount: ex.varianceAmount || 0,
+                variancePercent: ex.variancePercent || 0,
                 hrisStatus: ex.hrisStatus || ''
             }));
             await VarianceException.insertMany(exceptionDocs, { session });
@@ -124,10 +137,12 @@ exports.signOffBatch = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const batches = await ReconciliationBatch.find({ tenantId: req.tenantId })
+        const batches = await ReconciliationBatch.find({})
             .sort({ createdAt: -1 }).limit(10);
 
-        const pendingExceptions = await VarianceException.find({ tenantId: req.tenantId, isResolved: false })
+        const pendingExceptions = await VarianceException.find({
+            isResolved: false
+        })
             .populate('employeeId', 'fullName')
             .sort({ createdAt: -1 });
 

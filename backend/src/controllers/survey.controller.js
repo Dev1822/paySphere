@@ -9,7 +9,6 @@ const {
   PulseCheck,
   PulseCheckResponse,
 } = require('../models/survey.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
 
@@ -22,7 +21,6 @@ exports.createSurvey = async (req, res, next) => {
     const { title, description, type, questions, isAnonymous, targetDepartments, targetAll, startDate, endDate } = req.body;
 
     const survey = await Survey.create({
-      tenantId: req.tenantId,
       title,
       description: description || '',
       type: type || 'PULSE',
@@ -33,7 +31,7 @@ exports.createSurvey = async (req, res, next) => {
       status: 'DRAFT',
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -54,7 +52,7 @@ exports.createSurvey = async (req, res, next) => {
 exports.getSurveys = async (req, res, next) => {
   try {
     const { status, type } = req.query;
-    const filter = tenantFilter(req, {});
+    const filter = {};
     if (status) filter.status = status;
     if (type) filter.type = type;
 
@@ -72,7 +70,7 @@ exports.getSurveys = async (req, res, next) => {
 exports.getSurvey = async (req, res, next) => {
   try {
     const { surveyId } = req.params;
-    const survey = await Survey.findOne(tenantFilter(req, { _id: surveyId }))
+    const survey = await Survey.findOne({ _id: surveyId })
       .populate('createdBy', 'name email')
       .lean();
 
@@ -86,7 +84,7 @@ exports.getSurvey = async (req, res, next) => {
 exports.publishSurvey = async (req, res, next) => {
   try {
     const { surveyId } = req.params;
-    const survey = await Survey.findOne(tenantFilter(req, { _id: surveyId }));
+    const survey = await Survey.findOne({ _id: surveyId });
     if (!survey) return res.status(404).json({ message: 'Survey not found' });
 
     if (survey.questions.length === 0) {
@@ -115,7 +113,7 @@ exports.publishSurvey = async (req, res, next) => {
 exports.closeSurvey = async (req, res, next) => {
   try {
     const { surveyId } = req.params;
-    const survey = await Survey.findOne(tenantFilter(req, { _id: surveyId }));
+    const survey = await Survey.findOne({ _id: surveyId });
     if (!survey) return res.status(404).json({ message: 'Survey not found' });
 
     survey.status = 'CLOSED';
@@ -137,13 +135,13 @@ exports.submitSurveyResponse = async (req, res, next) => {
     const { surveyId } = req.params;
     const { answers, completionTime } = req.body;
 
-    const survey = await Survey.findOne(tenantFilter(req, { _id: surveyId, status: 'ACTIVE' }));
+    const survey = await Survey.findOne({ _id: surveyId, status: 'ACTIVE' });
     if (!survey) return res.status(404).json({ message: 'Active survey not found' });
 
     // Check for duplicate response (unless anonymous)
     if (!survey.isAnonymous) {
       const existing = await SurveyResponse.findOne(
-        tenantFilter(req, { surveyId, respondentId: req.userId }),
+        { surveyId, respondentId: req.userId },
       );
       if (existing) {
         return res.status(409).json({ message: 'You have already responded to this survey' });
@@ -163,13 +161,12 @@ exports.submitSurveyResponse = async (req, res, next) => {
     });
 
     const response = await SurveyResponse.create({
-      tenantId: req.tenantId,
       surveyId,
       respondentId: survey.isAnonymous ? null : req.userId,
       isAnonymous: survey.isAnonymous,
       answers: enrichedAnswers,
       department: req.body.department || '',
-      completionTime: completionTime || 0,
+      completionTime: completionTime || 0
     });
 
     // Update survey counters
@@ -191,8 +188,8 @@ exports.getSurveyAnalytics = async (req, res, next) => {
     const { surveyId } = req.params;
 
     const [survey, responses] = await Promise.all([
-      Survey.findOne(tenantFilter(req, { _id: surveyId })).lean(),
-      SurveyResponse.find(tenantFilter(req, { surveyId })).lean(),
+      Survey.findOne({ _id: surveyId }).lean(),
+      SurveyResponse.find({ surveyId }).lean(),
     ]);
 
     if (!survey) return res.status(404).json({ message: 'Survey not found' });
@@ -259,14 +256,13 @@ exports.createPulseCheck = async (req, res, next) => {
     const { title, question, questionType, endDate } = req.body;
 
     const pulse = await PulseCheck.create({
-      tenantId: req.tenantId,
       title,
       question,
       questionType: questionType || 'EMOJI_1_5',
       status: 'ACTIVE',
       startDate: new Date(),
       endDate: endDate ? new Date(endDate) : null,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -287,7 +283,7 @@ exports.createPulseCheck = async (req, res, next) => {
 exports.getPulseChecks = async (req, res, next) => {
   try {
     const { status } = req.query;
-    const filter = tenantFilter(req, {});
+    const filter = {};
     if (status) filter.status = status;
 
     const pulses = await PulseCheck.find(filter)
@@ -307,12 +303,12 @@ exports.respondToPulse = async (req, res, next) => {
     const { value, emoji } = req.body;
 
     const pulse = await PulseCheck.findOne(
-      tenantFilter(req, { _id: pulseCheckId, status: 'ACTIVE' }),
+      { _id: pulseCheckId, status: 'ACTIVE' },
     );
     if (!pulse) return res.status(404).json({ message: 'Active pulse check not found' });
 
     const response = await PulseCheckResponse.findOneAndUpdate(
-      tenantFilter(req, { pulseCheckId, respondentId: req.userId }),
+      { pulseCheckId, respondentId: req.userId },
       {
         $set: {
           value,
@@ -326,7 +322,7 @@ exports.respondToPulse = async (req, res, next) => {
 
     // Recalculate avg score
     const allResponses = await PulseCheckResponse.find(
-      tenantFilter(req, { pulseCheckId }),
+      { pulseCheckId },
     );
     const avgScore = allResponses.length > 0
       ? Math.round((allResponses.reduce((s, r) => s + r.value, 0) / allResponses.length) * 100) / 100
@@ -356,8 +352,8 @@ exports.getPulseAnalytics = async (req, res, next) => {
     const { pulseCheckId } = req.params;
 
     const [pulse, responses] = await Promise.all([
-      PulseCheck.findOne(tenantFilter(req, { _id: pulseCheckId })).lean(),
-      PulseCheckResponse.find(tenantFilter(req, { pulseCheckId })).lean(),
+      PulseCheck.findOne({ _id: pulseCheckId }).lean(),
+      PulseCheckResponse.find({ pulseCheckId }).lean(),
     ]);
 
     if (!pulse) return res.status(404).json({ message: 'Pulse check not found' });
@@ -412,17 +408,17 @@ exports.getDashboard = async (req, res, next) => {
       recentSurveys,
       recentPulses,
     ] = await Promise.all([
-      Survey.countDocuments(tenantFilter(req, {})),
-      Survey.countDocuments(tenantFilter(req, { status: 'ACTIVE' })),
-      PulseCheck.countDocuments(tenantFilter(req, {})),
-      PulseCheck.countDocuments(tenantFilter(req, { status: 'ACTIVE' })),
-      SurveyResponse.countDocuments(tenantFilter(req, {})),
-      Survey.find(tenantFilter(req, {}))
+      Survey.countDocuments({}),
+      Survey.countDocuments({ status: 'ACTIVE' }),
+      PulseCheck.countDocuments({}),
+      PulseCheck.countDocuments({ status: 'ACTIVE' }),
+      SurveyResponse.countDocuments({}),
+      Survey.find({})
         .populate('createdBy', 'name')
         .sort({ createdAt: -1 })
         .limit(5)
         .lean(),
-      PulseCheck.find(tenantFilter(req, {}))
+      PulseCheck.find({})
         .populate('createdBy', 'name')
         .sort({ createdAt: -1 })
         .limit(5)

@@ -4,7 +4,7 @@ const User = require('../models/user.model');
 
 exports.listInvites = async (req, res) => {
   try {
-    const invites = await TeamInvite.find({ tenantId: req.tenantId }).populate('role', 'name').sort('-createdAt');
+    const invites = await TeamInvite.find({}).populate('role', 'name').sort('-createdAt');
     res.json(invites);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -13,7 +13,7 @@ exports.listInvites = async (req, res) => {
 
 exports.listMembers = async (req, res) => {
   try {
-    const members = await User.find({ tenantId: req.tenantId }).populate('role', 'name').select('-password -passwordHistory');
+    const members = await User.find({}).populate('role', 'name').select('-password -passwordHistory');
     res.json(members);
   } catch (error) {
     res.status(500).json({ message: error.message });

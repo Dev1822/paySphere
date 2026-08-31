@@ -13,7 +13,9 @@ const logger = require('../utils/logger');
 
 exports.createGrant = async (req, res, next) => {
     try {
-        const grant = await EquityGrant.create({ ...req.body, tenantId: req.tenantId });
+        const grant = await EquityGrant.create({
+            ...req.body
+        });
 
         // Generate initial ASC 718 ledger entries for the vesting period
         const totalValue = grant.totalSharesGranted * grant.grantDateFairValue;
@@ -27,7 +29,11 @@ exports.createGrant = async (req, res, next) => {
             const amort = calculateASC718Amortization(totalValue, grant.totalVestingMonths, i + 1);
 
             await ASC718ExpenseLedger.findOneAndUpdate(
-                { tenantId: req.tenantId, grantId: grant._id, periodYear: year, periodMonth: month },
+                {
+                    grantId: grant._id,
+                    periodYear: year,
+                    periodMonth: month
+                },
                 {
                     totalGrantValue: totalValue, monthlyAmortization: amort.monthlyAmortization,
                     ytdAmortization: amort.ytdAmortization, glAccountCode: '6500-Stock-Based-Comp'
@@ -50,14 +56,22 @@ exports.executeVesting = async (req, res, next) => {
         if (!grant || grant.status !== 'Active') throw new Error('Grant not found or inactive.');
 
         // Check Blackout Guardrail
-        const blackouts = await BlackoutPeriod.find({ tenantId: req.tenantId, isActive: true }).session(session);
+        const blackouts = await BlackoutPeriod.find({
+            isActive: true
+        }).session(session);
         const blackoutCheck = checkBlackoutPeriod(vestingDate, blackouts);
 
         if (blackoutCheck.isBlocked) {
             const event = await VestingEvent.create([{
-                tenantId: req.tenantId, grantId, employeeId: grant.employeeId,
-                vestingDate: new Date(vestingDate), sharesVested, fairMarketValue: fmv,
-                grossProceeds: 0, sharesLiquidated: 0, taxWithholdingAmount: 0, netSharesDelivered: 0,
+                grantId,
+                employeeId: grant.employeeId,
+                vestingDate: new Date(vestingDate),
+                sharesVested,
+                fairMarketValue: fmv,
+                grossProceeds: 0,
+                sharesLiquidated: 0,
+                taxWithholdingAmount: 0,
+                netSharesDelivered: 0,
                 status: 'Blocked (Blackout)'
             }], { session });
 
@@ -69,10 +83,15 @@ exports.executeVesting = async (req, res, next) => {
         const stc = calculateSellToCover(sharesVested, fmv, ytdWages);
 
         const event = await VestingEvent.create([{
-            tenantId: req.tenantId, grantId, employeeId: grant.employeeId,
-            vestingDate: new Date(vestingDate), sharesVested, fairMarketValue: fmv,
-            grossProceeds: stc.grossProceeds, sharesLiquidated: stc.sharesLiquidated,
-            taxWithholdingAmount: stc.taxWithholdingAmount, netSharesDelivered: stc.netSharesDelivered,
+            grantId,
+            employeeId: grant.employeeId,
+            vestingDate: new Date(vestingDate),
+            sharesVested,
+            fairMarketValue: fmv,
+            grossProceeds: stc.grossProceeds,
+            sharesLiquidated: stc.sharesLiquidated,
+            taxWithholdingAmount: stc.taxWithholdingAmount,
+            netSharesDelivered: stc.netSharesDelivered,
             status: 'Executed'
         }], { session });
 
@@ -99,13 +118,19 @@ exports.executeVesting = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const grants = await EquityGrant.find({ tenantId: req.tenantId, status: 'Active' })
+        const grants = await EquityGrant.find({
+            status: 'Active'
+        })
             .populate('employeeId', 'fullName department').sort({ grantDate: -1 });
 
-        const upcomingVestings = await VestingEvent.find({ tenantId: req.tenantId, status: 'Pending' })
+        const upcomingVestings = await VestingEvent.find({
+            status: 'Pending'
+        })
             .populate('employeeId', 'fullName').sort({ vestingDate: 1 }).limit(20);
 
-        const blackouts = await BlackoutPeriod.find({ tenantId: req.tenantId, isActive: true }).sort({ startDate: 1 });
+        const blackouts = await BlackoutPeriod.find({
+            isActive: true
+        }).sort({ startDate: 1 });
 
         res.status(200).json({ grants, upcomingVestings, blackouts });
     } catch (error) { next(error); }

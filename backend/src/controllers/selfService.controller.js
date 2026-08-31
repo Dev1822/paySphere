@@ -12,13 +12,12 @@
 const PayrollUpdate    = require('../models/payroll.model');
 const EmployeeDocument = require('../models/employeeDocument.model');
 const LeaveBalance     = require('../models/leaveBalance.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger           = require('../utils/logger');
 
 async function getMyPayslips(req, res) {
   try {
     const payslips = await PayrollUpdate.find({
-      ...tenantFilter(req),
+      ...{},
       employeeId: req.employeeId,
     })
       .sort({ year: -1, month: -1 })
@@ -37,7 +36,7 @@ async function getMyDocuments(req, res) {
   try {
     // fileKey is excluded by default (select: false on the model).
     const documents = await EmployeeDocument.find({
-      ...tenantFilter(req),
+      ...{},
       employeeId: req.employeeId,
     })
       .sort({ createdAt: -1 })
@@ -57,7 +56,7 @@ async function downloadDocument(req, res) {
     const doc = await EmployeeDocument.findOne({
       _id:        req.params.id,
       employeeId: req.employeeId,
-      ...tenantFilter(req),
+      ...{},
     }).select('+fileKey'); // explicitly include the storage path for this one query
 
     if (!doc) {
@@ -80,7 +79,7 @@ async function downloadDocument(req, res) {
 async function getMyLeaveBalance(req, res) {
   try {
     const balance = await LeaveBalance.findOne({
-      ...tenantFilter(req),
+      ...{},
       employeeId: req.employeeId,
     }).lean();
 

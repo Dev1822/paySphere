@@ -9,7 +9,6 @@ import { Request, Response } from 'express';
 
 const FringeBenefitRecord = require('../models/fringeBenefitRecord.model');
 const { calculateFbtMetrics } = require('../services/fbtCalculator.service');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 export interface AuthenticatedRequest extends Request {
@@ -172,7 +171,7 @@ export const getRecords = async (
 ): Promise<Response> => {
   try {
     const query = req.query as GetRecordsQueryParams;
-    const filter: Record<string, unknown> = { ...tenantFilter(req) };
+    const filter: Record<string, unknown> = { ...{} };
     if (query.quarter) filter.quarter = query.quarter;
     if (query.benefitCategory) filter.benefitCategory = query.benefitCategory;
     if (query.employeeId) filter.employeeId = query.employeeId;
@@ -204,7 +203,7 @@ export const getQuarterlySummaryReport = async (
     }
 
     const records = await FringeBenefitRecord.find({
-      ...tenantFilter(req),
+      ...{},
       quarter,
     }).lean();
 

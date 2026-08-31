@@ -1,6 +1,5 @@
 const Competency = require('../models/competency.model');
 const Employee = require('../models/employee.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
 
@@ -15,15 +14,14 @@ const PROFICIENCY_RANK = { Beginner: 1, Intermediate: 2, Advanced: 3, Expert: 4 
 exports.getMyCompetency = async (req, res, next) => {
   try {
     const employee = await Employee.findOne(
-      tenantFilter(req, { createdBy: req.userId }),
+      { createdBy: req.userId },
     );
     if (!employee) {
       return res.status(404).json({ message: 'Employee profile not found' });
     }
 
     let profile = await Competency.findOne({
-      employeeId: employee._id,
-      tenantId: req.tenantId,
+      employeeId: employee._id
     });
 
     if (!profile) {
@@ -31,8 +29,7 @@ exports.getMyCompetency = async (req, res, next) => {
         employeeId: employee._id,
         department: employee.department || '',
         skills: [],
-        createdBy: req.userId,
-        tenantId: req.tenantId,
+        createdBy: req.userId
       });
     }
 
@@ -51,7 +48,7 @@ exports.getCompetencyByEmployee = async (req, res, next) => {
   try {
     const { employeeId } = req.params;
     const profile = await Competency.findOne(
-      tenantFilter(req, { employeeId }),
+      { employeeId },
     ).populate('employeeId', 'fullName role department');
 
     if (!profile) {
@@ -89,19 +86,18 @@ exports.addSkill = async (req, res, next) => {
     }
 
     let profile = await Competency.findOne(
-      tenantFilter(req, { employeeId }),
+      { employeeId },
     );
 
     if (!profile) {
       const employee = await Employee.findOne(
-        tenantFilter(req, { _id: employeeId }),
+        { _id: employeeId },
       );
       profile = await Competency.create({
         employeeId,
         department: employee?.department || '',
         skills: [],
-        createdBy: req.userId,
-        tenantId: req.tenantId,
+        createdBy: req.userId
       });
     }
 
@@ -157,7 +153,7 @@ exports.updateSkill = async (req, res, next) => {
     const { proficiency, yearsOfExperience, notes, assessedBy, category } = req.body;
 
     const profile = await Competency.findOne(
-      tenantFilter(req, { employeeId }),
+      { employeeId },
     );
     if (!profile) {
       return res.status(404).json({ message: 'Competency profile not found' });
@@ -209,7 +205,7 @@ exports.removeSkill = async (req, res, next) => {
     const { employeeId, skillId } = req.params;
 
     const profile = await Competency.findOne(
-      tenantFilter(req, { employeeId }),
+      { employeeId },
     );
     if (!profile) {
       return res.status(404).json({ message: 'Competency profile not found' });
@@ -247,7 +243,7 @@ exports.removeSkill = async (req, res, next) => {
 exports.getDepartmentSkillMatrix = async (req, res, next) => {
   try {
     const { department } = req.query;
-    const filter = tenantFilter(req);
+    const filter = {};
     if (department) {
       filter.department = department;
     }
@@ -322,14 +318,14 @@ exports.getSkillGapAnalysis = async (req, res, next) => {
     const { employeeId } = req.params;
 
     const employee = await Employee.findOne(
-      tenantFilter(req, { _id: employeeId }),
+      { _id: employeeId },
     );
     if (!employee) {
       return res.status(404).json({ message: 'Employee not found' });
     }
 
     const profile = await Competency.findOne(
-      tenantFilter(req, { employeeId }),
+      { employeeId },
     );
     if (!profile) {
       return res.status(404).json({ message: 'Competency profile not found' });
@@ -337,7 +333,7 @@ exports.getSkillGapAnalysis = async (req, res, next) => {
 
     // Get all profiles in the same department for comparison
     const deptProfiles = await Competency.find(
-      tenantFilter(req, { department: employee.department || profile.department }),
+      { department: employee.department || profile.department },
     );
 
     // Build department skill averages

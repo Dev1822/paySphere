@@ -8,7 +8,6 @@ const {
   calculateParentalLeaveTopUp,
   calculateReconciliationAdjustment,
 } = require('../services/parentalLeaveCalculator.service');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 async function previewTopUp(req, res) {
@@ -56,7 +55,6 @@ async function submitClaim(req, res) {
     });
 
     const claim = await ParentalLeaveClaim.create({
-      tenantId: req.tenantId,
       employeeId,
       leaveType,
       startDate,
@@ -67,7 +65,7 @@ async function submitClaim(req, res) {
       statutoryDailyInsuranceRate: Number(statutoryDailyInsuranceRate) || 0,
       totalStatutoryBenefitEstimated: metrics.totalStatutoryBenefitEstimated,
       employerTopUpAmount: metrics.employerTopUpAmount,
-      status: 'submitted',
+      status: 'submitted'
     });
 
     return res.status(201).json({ message: 'Parental leave claim submitted successfully.', claim });
@@ -79,7 +77,7 @@ async function submitClaim(req, res) {
 
 async function getClaims(req, res) {
   try {
-    const filter = { ...tenantFilter(req) };
+    const filter = { ...{} };
     if (req.query.employeeId) filter.employeeId = req.query.employeeId;
     if (req.query.leaveType) filter.leaveType = req.query.leaveType;
     if (req.query.status) filter.status = req.query.status;
@@ -105,7 +103,7 @@ async function reconcileClaim(req, res) {
       return res.status(400).json({ message: 'actualStatutoryBenefitReceived is required.' });
     }
 
-    const claim = await ParentalLeaveClaim.findOne({ _id: id, ...tenantFilter(req) });
+    const claim = await ParentalLeaveClaim.findOne({ _id: id, ...{} });
     if (!claim) {
       return res.status(404).json({ message: 'Parental leave claim not found.' });
     }

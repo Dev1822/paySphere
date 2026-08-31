@@ -190,13 +190,12 @@ exports.updateAssumptions = async (req, res, next) => {
     }
 
     const record = await GratuityAssumption.findOneAndUpdate(
-      { tenantId: req.tenantId },
+      {},
       {
         $set: {
           assumptions,
           basisNote: req.body.basisNote || '',
-          updatedBy: req.userId,
-          tenantId: req.tenantId,
+          updatedBy: req.userId
         },
       },
       {
@@ -341,10 +340,11 @@ exports.commitValuation = async (req, res, next) => {
     });
 
     const valuation = await GratuityValuation.findOneAndUpdate(
-      { tenantId: req.tenantId, valuationDate },
+      {
+        valuationDate
+      },
       {
         $set: {
-          tenantId: req.tenantId,
           valuationDate,
           periodLabel: req.body.periodLabel || '',
           assumptions: report.assumptions,
@@ -358,15 +358,17 @@ exports.commitValuation = async (req, res, next) => {
           unvestedObligation: report.unvestedObligation,
           expenseForPeriod: report.expenseForPeriod,
           rollForward: report.rollForward,
+
           fundedStatus: {
             ...report.fundedStatus,
             openingPlanAssets: Number(req.body.openingPlanAssets) || 0,
             contributions: Number(req.body.contributions) || 0,
           },
+
           sensitivities: report.sensitivities,
           schedule: report.schedule,
           skipped: report.skipped,
-          createdBy: req.userId,
+          createdBy: req.userId
         },
       },
       {
@@ -405,7 +407,7 @@ exports.commitValuation = async (req, res, next) => {
  */
 exports.listValuations = async (req, res, next) => {
   try {
-    const valuations = await GratuityValuation.find({ tenantId: req.tenantId })
+    const valuations = await GratuityValuation.find({})
       .select('-schedule -skipped')
       .sort({ valuationDate: -1 })
       .limit(Math.min(Number(req.query.limit) || 24, 100))
@@ -431,8 +433,7 @@ exports.getValuation = async (req, res, next) => {
     // across tenants, because the comparison is easy to forget and nothing
     // fails when it is.
     const valuation = await GratuityValuation.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!valuation) {
@@ -462,8 +463,7 @@ exports.getEmployeeObligation = async (req, res, next) => {
     }
 
     const employee = await Employee.findOne({
-      _id: req.params.employeeId,
-      tenantId: req.tenantId,
+      _id: req.params.employeeId
     })
       .select('fullName department joiningDate dateOfBirth monthlySalary')
       .lean();

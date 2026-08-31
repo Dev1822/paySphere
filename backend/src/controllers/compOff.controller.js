@@ -106,8 +106,7 @@ exports.submitRequest = async (req, res, next) => {
 
     // Resolve employee from authenticated user
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     });
     if (!employee) {
       return res.status(404).json({ message: 'Employee profile not found' });
@@ -133,8 +132,7 @@ exports.submitRequest = async (req, res, next) => {
 exports.getMyRequests = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     });
     if (!employee) {
       return res.status(404).json({ message: 'Employee profile not found' });
@@ -258,8 +256,7 @@ exports.cancelRequest = async (req, res, next) => {
 exports.getBalance = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     });
     if (!employee) {
       return res.status(404).json({ message: 'Employee profile not found' });
@@ -311,8 +308,7 @@ exports.getEmployeeBalance = async (req, res, next) => {
 exports.getLedger = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     });
     if (!employee) {
       return res.status(404).json({ message: 'Employee profile not found' });

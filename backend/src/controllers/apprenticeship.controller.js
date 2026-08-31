@@ -261,7 +261,9 @@ exports.updateRules = async (req, res, next) => {
     }
 
     const rules = await ApprenticeshipRules.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment },
+      {
+        establishment
+      },
       { $set: { ...update, updatedBy: req.userId } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -324,14 +326,17 @@ exports.recordStrength = async (req, res, next) => {
     }
 
     const before = await EstablishmentStrength.findOne({
-      tenantId: req.tenantId,
       establishment,
       month,
-      year,
+      year
     }).lean();
 
     const strength = await EstablishmentStrength.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment, month, year },
+      {
+        establishment,
+        month,
+        year
+      },
       { $set: { ...counts, countedBy: req.userId } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -370,7 +375,7 @@ exports.recordStrength = async (req, res, next) => {
  */
 exports.listStrength = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (typeof req.query.establishment === 'string') {
       filter.establishment = req.query.establishment.trim();
     }
@@ -391,7 +396,7 @@ exports.listStrength = async (req, res, next) => {
  */
 exports.listApprentices = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (typeof req.query.establishment === 'string') {
       filter.establishment = req.query.establishment.trim();
     }
@@ -433,8 +438,7 @@ exports.createApprentice = async (req, res, next) => {
 
     const apprentice = await Apprentice.create({
       ...req.body,
-      tenantId: req.tenantId,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -488,7 +492,9 @@ exports.registerApprentice = async (req, res, next) => {
     }
 
     const apprentice = await Apprentice.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       {
         $set: {
           registeredOn,
@@ -578,7 +584,9 @@ exports.recordMonth = async (req, res, next) => {
     // Replace the month rather than push it, so re-recording March corrects
     // March instead of producing a second one.
     const updated = await Apprentice.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       { $pull: { months: { month, calendarYear } } },
       { new: true },
     );
@@ -588,7 +596,9 @@ exports.recordMonth = async (req, res, next) => {
     }
 
     const apprentice = await Apprentice.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       { $push: { months: row } },
       { new: true },
     );
@@ -612,9 +622,8 @@ exports.previewAssessment = async (req, res, next) => {
         : '';
 
     const assessment = await buildAssessment({
-      tenantId: req.tenantId,
       establishment,
-      query: req.query,
+      query: req.query
     });
 
     return res.json(assessment);
@@ -634,16 +643,14 @@ exports.commitAssessment = async (req, res, next) => {
         : '';
 
     const { period, rules, result } = await buildAssessment({
-      tenantId: req.tenantId,
       establishment,
-      query: req.body,
+      query: req.body
     });
 
     const assessment = await ApprenticeshipAssessment.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         establishment,
-        periodStart: period.periodStart,
+        periodStart: period.periodStart
       },
       {
         $set: {
@@ -714,7 +721,9 @@ exports.commitAssessment = async (req, res, next) => {
       .filter((entry) => entry.apprenticeId)
       .map((entry) => ({
         updateOne: {
-          filter: { _id: entry.apprenticeId, tenantId: req.tenantId },
+          filter: {
+            _id: entry.apprenticeId
+          },
           update: { $set: { registrationStatus: entry.registration.status } },
         },
       }));
@@ -750,7 +759,7 @@ exports.commitAssessment = async (req, res, next) => {
  */
 exports.listAssessments = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (typeof req.query.establishment === 'string') {
       filter.establishment = req.query.establishment.trim();
     }

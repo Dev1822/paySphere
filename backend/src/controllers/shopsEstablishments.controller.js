@@ -129,7 +129,9 @@ exports.recordRegistration = async (req, res, next) => {
     const rules = resolveRules(state);
 
     const registration = await EstablishmentRegistration.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment },
+      {
+        establishment
+      },
       {
         $set: {
           state,
@@ -217,8 +219,7 @@ exports.recordParticular = async (req, res, next) => {
     }
 
     const registration = await EstablishmentRegistration.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
     if (!registration) {
       return res.status(404).json({ message: 'Registration not found' });
@@ -226,9 +227,8 @@ exports.recordParticular = async (req, res, next) => {
 
     const record = await CertificateParticular.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         registrationId: registration._id,
-        particular: req.body.particular,
+        particular: req.body.particular
       },
       {
         $set: {
@@ -282,8 +282,7 @@ exports.syncHeadcount = async (req, res, next) => {
     }
 
     const registration = await EstablishmentRegistration.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
     if (!registration) {
       return res.status(404).json({ message: 'Registration not found' });
@@ -296,13 +295,12 @@ exports.syncHeadcount = async (req, res, next) => {
       });
     }
 
-    const headcount = await Employee.countDocuments({ tenantId: req.tenantId });
+    const headcount = await Employee.countDocuments({});
     const band = headcountBand(headcount, rules);
 
     const existing = await CertificateParticular.findOne({
-      tenantId: req.tenantId,
       registrationId: registration._id,
-      particular: PARTICULAR.HEADCOUNT_BAND,
+      particular: PARTICULAR.HEADCOUNT_BAND
     });
 
     const changedOn =
@@ -314,9 +312,8 @@ exports.syncHeadcount = async (req, res, next) => {
 
     const record = await CertificateParticular.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         registrationId: registration._id,
-        particular: PARTICULAR.HEADCOUNT_BAND,
+        particular: PARTICULAR.HEADCOUNT_BAND
       },
       {
         $set: { current: band?.label || String(headcount), changedOn },
@@ -366,8 +363,7 @@ exports.recordClosure = async (req, res, next) => {
     }
 
     const registration = await EstablishmentRegistration.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
     if (!registration) {
       return res.status(404).json({ message: 'Registration not found' });
@@ -379,7 +375,9 @@ exports.recordClosure = async (req, res, next) => {
     }
 
     const closure = await EstablishmentClosure.findOneAndUpdate(
-      { tenantId: req.tenantId, registrationId: registration._id },
+      {
+        registrationId: registration._id
+      },
       {
         $set: {
           closedOn,
@@ -426,8 +424,7 @@ exports.listExpiring = async (req, res, next) => {
     const horizon = new Date(Date.now() + withinDays * 86400000);
 
     const registrations = await EstablishmentRegistration.find({
-      tenantId: req.tenantId,
-      validTo: { $ne: null, $lte: horizon },
+      validTo: { $ne: null, $lte: horizon }
     })
       .sort({ validTo: 1 })
       .lean();
@@ -460,8 +457,7 @@ exports.getPosition = async (req, res, next) => {
     const establishment = String(req.query.establishment || '').trim();
 
     const registration = await EstablishmentRegistration.findOne({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     }).lean();
 
     if (!registration) {
@@ -475,13 +471,11 @@ exports.getPosition = async (req, res, next) => {
     }
 
     const particulars = await CertificateParticular.find({
-      tenantId: req.tenantId,
-      registrationId: registration._id,
+      registrationId: registration._id
     }).lean();
 
     const closure = await EstablishmentClosure.findOne({
-      tenantId: req.tenantId,
-      registrationId: registration._id,
+      registrationId: registration._id
     }).lean();
 
     const result = assessEstablishment({

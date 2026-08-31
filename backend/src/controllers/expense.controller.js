@@ -62,11 +62,10 @@ function pinnedEmployeeId(req) {
  */
 exports.getPolicy = async (req, res, next) => {
   try {
-    let policy = await ExpensePolicy.findOne({ tenantId: req.tenantId });
+    let policy = await ExpensePolicy.findOne({});
     if (!policy) {
       // Initialize default policy if none exists
       policy = await ExpensePolicy.create({
-        tenantId: req.tenantId,
         categories: [
           {
             category: 'Meals',
@@ -92,7 +91,7 @@ exports.getPolicy = async (req, res, next) => {
             receiptThreshold: 500,
             weekendAllowed: false,
           },
-        ],
+        ]
       });
     }
     res.status(200).json({ policy });
@@ -109,7 +108,7 @@ exports.updatePolicy = async (req, res, next) => {
   try {
     const { categories, autoApprovalThreshold, currency } = req.body;
     const policy = await ExpensePolicy.findOneAndUpdate(
-      { tenantId: req.tenantId },
+      {},
       { categories, autoApprovalThreshold, currency, updatedAt: new Date() },
       { upsert: true, new: true },
     );
@@ -132,14 +131,13 @@ exports.submitClaim = async (req, res, next) => {
     const { category, amount, expenseDate, description, receiptUrl } = req.body;
 
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     });
     if (!employee) {
       return res.status(404).json({ message: 'Employee profile not found' });
     }
 
-    const policy = await ExpensePolicy.findOne({ tenantId: req.tenantId });
+    const policy = await ExpensePolicy.findOne({});
     if (!policy) {
       return res
         .status(400)
@@ -181,16 +179,14 @@ exports.submitClaim = async (req, res, next) => {
     // Find category ID
     const ExpenseCategory = require('../models/expenseCategory.model');
     const categoryDoc = await ExpenseCategory.findOne({
-      tenantId: req.tenantId,
       $or: [
         { name: category },
         { _id: mongoose.Types.ObjectId.isValid(category) ? category : null },
-      ],
+      ]
     });
     const categoryId = categoryDoc ? categoryDoc._id : null;
 
     const claimData = {
-      tenantId: req.tenantId,
       employeeId: employee._id,
       category,
       categoryId,
@@ -204,7 +200,7 @@ exports.submitClaim = async (req, res, next) => {
       ocrRawText,
       imageHash,
       ocrMetadata,
-      submittedBy: req.userId,
+      submittedBy: req.userId
     };
 
     // Save initial claim
@@ -253,16 +249,14 @@ exports.submitClaim = async (req, res, next) => {
 exports.getMyClaims = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     });
     if (!employee) {
       return res.status(404).json({ message: 'Employee profile not found' });
     }
 
     const claims = await ExpenseClaim.find({
-      employeeId: employee._id,
-      tenantId: req.tenantId,
+      employeeId: employee._id
     }).sort({ createdAt: -1 });
 
     res.status(200).json({ claims });
@@ -285,8 +279,7 @@ exports.adjudicateClaimStatus = async (req, res, next) => {
     }
 
     const claim = await ExpenseClaim.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!claim) {
       return res.status(404).json({ message: 'Expense claim not found' });
@@ -382,8 +375,7 @@ exports.submitExpense = async (req, res, next) => {
     // Verify employee belongs to tenant
     const employee = await Employee.findOne({
       _id: employeeId,
-      tenantId: req.tenantId,
-      isDeleted: { $ne: true },
+      isDeleted: { $ne: true }
     });
     if (!employee)
       return res.status(404).json({ message: 'Employee not found' });
@@ -391,8 +383,7 @@ exports.submitExpense = async (req, res, next) => {
     // Verify category belongs to tenant
     const category = await ExpenseCategory.findOne({
       _id: categoryId,
-      tenantId: req.tenantId,
-      isActive: true,
+      isActive: true
     });
     if (!category)
       return res
@@ -410,9 +401,8 @@ exports.submitExpense = async (req, res, next) => {
             ? 'pdf'
             : file.mimetype.split('/')[1];
           const key = createObjectKey({
-            tenantId: req.tenantId,
             area: 'expenses/receipts',
-            extension,
+            extension
           });
           const stored = await putObject({
             key,
@@ -430,17 +420,16 @@ exports.submitExpense = async (req, res, next) => {
       );
 
         const claim = await ExpenseClaim.create({
-        tenantId: req.tenantId,
-        employeeId,
-        categoryId,
-        amount: parsedAmount,
-        currency: employee.currency || 'INR',
-        expenseDate: parsedDate,
-        description: sanitizeText(String(description).slice(0, 1000)),
-        receipts,
-        status: PENDING,
-        submittedBy: req.userId,
-      });
+          employeeId,
+          categoryId,
+          amount: parsedAmount,
+          currency: employee.currency || 'INR',
+          expenseDate: parsedDate,
+          description: sanitizeText(String(description).slice(0, 1000)),
+          receipts,
+          status: PENDING,
+          submittedBy: req.userId
+        });
 
       eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
@@ -488,7 +477,7 @@ async function hydrateReceiptUrls(claim) {
 exports.getExpenses = async (req, res, next) => {
   try {
     const { status, employeeId, page = 1, limit = 20 } = req.query;
-    const query = { tenantId: req.tenantId };
+    const query = {};
 
     if (status) query.status = status;
 
@@ -572,8 +561,7 @@ exports.updateExpenseStatus = async (req, res, next) => {
     }
 
     const claim = await ExpenseClaim.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!claim)
       return res.status(404).json({ message: 'Expense claim not found' });
@@ -642,7 +630,7 @@ exports.updateExpenseStatus = async (req, res, next) => {
 exports.getCategories = async (req, res, next) => {
   try {
     const includeInactive = req.query.includeInactive === 'true';
-    const query = { tenantId: req.tenantId };
+    const query = {};
 
     if (!includeInactive) query.isActive = true;
 
@@ -668,15 +656,17 @@ exports.createCategory = async (req, res, next) => {
     }
 
     const category = await ExpenseCategory.create({
-      tenantId: req.tenantId,
       name: sanitizeText(String(name).trim().slice(0, 100)),
+
       description: description
         ? sanitizeText(String(description).slice(0, 500))
         : '',
+
       // Defaults to tax-free, matching the model: most reimbursements are the
       // employee being made whole rather than being paid.
       isTaxable: isTaxable === true || isTaxable === 'true',
-      createdBy: req.userId,
+
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -719,8 +709,7 @@ exports.updateCategory = async (req, res, next) => {
     }
 
     const category = await ExpenseCategory.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!category)
       return res.status(404).json({ message: 'Expense category not found' });
@@ -750,10 +739,9 @@ exports.updateCategory = async (req, res, next) => {
       // are outstanding.
       if (next !== category.isTaxable) {
         const waiting = await ExpenseClaim.countDocuments({
-          tenantId: req.tenantId,
           categoryId: category._id,
           status: { $in: [PENDING, 'approved'] },
-          payrollId: null,
+          payrollId: null
         });
 
         if (waiting > 0) {
@@ -846,8 +834,7 @@ exports.createCustomReport = async (req, res, next) => {
         employeeId = req.body.employeeId;
       } else {
         const emp = await Employee.findOne({
-          userId: req.userId,
-          tenantId: req.tenantId,
+          userId: req.userId
         });
         employeeId = emp?._id || req.userId;
       }
@@ -857,8 +844,7 @@ exports.createCustomReport = async (req, res, next) => {
     let totalAmount = 0;
     if (Array.isArray(claimIds) && claimIds.length > 0) {
       claims = await ExpenseClaim.find({
-        _id: { $in: claimIds },
-        tenantId: req.tenantId,
+        _id: { $in: claimIds }
       });
       totalAmount = claims.reduce((sum, c) => sum + (c.amount || 0), 0);
     }
@@ -868,10 +854,9 @@ exports.createCustomReport = async (req, res, next) => {
       description: description ? sanitizeText(description) : '',
       employeeId,
       userId: req.userId,
-      tenantId: req.tenantId,
       claimIds: claims.map((c) => c._id),
       totalAmount,
-      status: 'submitted',
+      status: 'submitted'
     });
 
     res
@@ -893,8 +878,7 @@ exports.createCustomReport = async (req, res, next) => {
 exports.getMyReports = async (req, res, next) => {
   try {
     const reports = await ExpenseReport.find({
-      tenantId: req.tenantId,
-      userId: req.userId,
+      userId: req.userId
     })
       .populate('claimIds')
       .sort({ createdAt: -1 });
@@ -916,7 +900,7 @@ exports.getMyReports = async (req, res, next) => {
 exports.exportExpenseReport = async (req, res, next) => {
   try {
     const { startDate, endDate, category, status } = req.query;
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
 
     if (pinnedEmployeeId(req)) {
       filter.employeeId = pinnedEmployeeId(req);
@@ -976,8 +960,7 @@ exports.updateReportStatus = async (req, res, next) => {
     }
 
     const report = await ExpenseReport.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!report) {
       return res.status(404).json({ message: 'Expense report not found' });
@@ -1006,8 +989,7 @@ exports.updateReportStatus = async (req, res, next) => {
 exports.getFraudClaims = async (req, res, next) => {
   try {
     const claims = await ExpenseClaim.find({
-      tenantId: req.tenantId,
-      isPossibleFraud: true,
+      isPossibleFraud: true
     }).populate('employeeId', 'fullName email department');
     res.status(200).json({ success: true, data: claims });
   } catch (error) {

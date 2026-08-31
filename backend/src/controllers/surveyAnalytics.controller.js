@@ -12,7 +12,6 @@
 
 const PulseSurvey = require('../models/pulseSurvey.model');
 const Employee = require('../models/employee.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -123,7 +122,7 @@ function bucketByDate(responses) {
  */
 exports.getOverview = async (req, res, next) => {
   try {
-    const filter = tenantFilter(req);
+    const filter = {};
     const surveys = await PulseSurvey.find(filter).select(
       'title status responses publishedAt createdAt questions targetDepartments',
     );
@@ -136,7 +135,7 @@ exports.getOverview = async (req, res, next) => {
     const totalResponses = surveys.reduce((sum, s) => sum + (s.responses?.length || 0), 0);
 
     const totalEmployees = await Employee.countDocuments(
-      tenantFilter(req, { isActive: true, deletedAt: null }),
+      { isActive: true, deletedAt: null },
     );
 
     // Average response rate across surveys that have been published
@@ -253,14 +252,14 @@ exports.getOverview = async (req, res, next) => {
  */
 exports.getDepartmentBreakdown = async (req, res, next) => {
   try {
-    const filter = tenantFilter(req);
+    const filter = {};
     const surveys = await PulseSurvey.find(filter).select(
       'title status responses questions targetDepartments',
     );
 
     // Gather all unique departments from employees
     const employees = await Employee.find(
-      tenantFilter(req, { isActive: true, deletedAt: null }),
+      { isActive: true, deletedAt: null },
     ).select('department');
 
     const deptCounts = {};
@@ -344,7 +343,7 @@ exports.getDepartmentBreakdown = async (req, res, next) => {
 exports.getQuestionAnalytics = async (req, res, next) => {
   try {
     const survey = await PulseSurvey.findOne(
-      tenantFilter(req, { _id: req.params.surveyId }),
+      { _id: req.params.surveyId },
     );
 
     if (!survey) {
@@ -352,7 +351,7 @@ exports.getQuestionAnalytics = async (req, res, next) => {
     }
 
     const totalEmployees = await Employee.countDocuments(
-      tenantFilter(req, { isActive: true, deletedAt: null }),
+      { isActive: true, deletedAt: null },
     );
 
     const results = survey.questions.map((question) => {
@@ -482,7 +481,7 @@ exports.getQuestionAnalytics = async (req, res, next) => {
  */
 exports.getResponseHeatmap = async (req, res, next) => {
   try {
-    const filter = tenantFilter(req);
+    const filter = {};
     const allResponses = [];
 
     const surveys = await PulseSurvey.find(filter).select('responses');
@@ -537,7 +536,7 @@ exports.getResponseHeatmap = async (req, res, next) => {
  */
 exports.getSentimentTrend = async (req, res, next) => {
   try {
-    const filter = tenantFilter(req);
+    const filter = {};
     const surveys = await PulseSurvey.find(filter).select('responses questions');
 
     // Collect all rating answers with timestamps
@@ -613,13 +612,13 @@ exports.getSentimentTrend = async (req, res, next) => {
  */
 exports.getSurveyComparison = async (req, res, next) => {
   try {
-    const filter = tenantFilter(req);
+    const filter = {};
     const surveys = await PulseSurvey.find(filter).select(
       'title status responses questions publishedAt closesAt createdAt targetDepartments',
     );
 
     const totalEmployees = await Employee.countDocuments(
-      tenantFilter(req, { isActive: true, deletedAt: null }),
+      { isActive: true, deletedAt: null },
     );
 
     const published = surveys.filter((s) => s.status !== 'draft');
@@ -688,13 +687,13 @@ exports.getSurveyComparison = async (req, res, next) => {
  */
 exports.getEngagementScorecard = async (req, res, next) => {
   try {
-    const filter = tenantFilter(req);
+    const filter = {};
     const surveys = await PulseSurvey.find(filter).select(
       'responses questions publishedAt status',
     );
 
     const totalEmployees = await Employee.countDocuments(
-      tenantFilter(req, { isActive: true, deletedAt: null }),
+      { isActive: true, deletedAt: null },
     );
 
     const now = new Date();

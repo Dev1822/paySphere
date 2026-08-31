@@ -181,7 +181,9 @@ exports.initiateExit = async (req, res, next) => {
     const nextStatus = EMPLOYMENT_STATUS.NOTICE_PERIOD;
 
     await Employee.updateOne(
-      { _id: employee._id, tenantId: req.tenantId },
+      {
+        _id: employee._id
+      },
       {
         $set: {
           employmentStatus: nextStatus,
@@ -205,17 +207,18 @@ exports.initiateExit = async (req, res, next) => {
 
     const ExitClearance = require('../models/exitClearance.model');
     await ExitClearance.findOneAndUpdate(
-      { employeeId: employee._id, tenantId: req.tenantId },
+      {
+        employeeId: employee._id
+      },
       {
         $setOnInsert: {
           employeeId: employee._id,
-          tenantId: req.tenantId,
           status: 'Pending',
           itClearance: { status: 'Pending', notes: '' },
           hrClearance: { status: 'Pending', notes: '' },
           adminClearance: { status: 'Pending', notes: '' },
           hasTrainingAgreement: Boolean(body.hasTrainingAgreement),
-          trainingClawbackAmount: Number(body.trainingClawbackAmount) || 0,
+          trainingClawbackAmount: Number(body.trainingClawbackAmount) || 0
         },
       },
       { upsert: true, new: true },
@@ -309,11 +312,12 @@ exports.createSettlement = async (req, res, next) => {
       created = await Settlement.create({
         employeeId: employee._id,
         employeeName: employee.fullName,
+
         // Both: `createdBy` records who opened the settlement, `tenantId`
         // decides who can see it. #585 dropped the first while the schema still
         // required it, so this create() threw on every call (#613).
         createdBy: req.userId,
-        tenantId: req.tenantId,
+
         lastWorkingDay: lwd,
         joiningDate: employee.joiningDate,
         exitType: employee.exitDetails?.exitType || EXIT_TYPE.RESIGNATION,
@@ -327,9 +331,11 @@ exports.createSettlement = async (req, res, next) => {
         explanations: computed.explanations,
         policySnapshot: computed.policy,
         status: SETTLEMENT_STATUS.DRAFT,
+
         negativeOverride:
           Boolean(body.allowNegative) && computed.netSettlement < 0,
-        notes: sanitizeText(body.notes || ''),
+
+        notes: sanitizeText(body.notes || '')
       });
     } catch (error) {
       if (error && error.code === 11000) {
@@ -491,7 +497,9 @@ function makeTransitionHandler(target, decorate = () => ({})) {
       // Marking an F&F paid is the moment the employee actually leaves.
       if (target === SETTLEMENT_STATUS.PAID) {
         await Employee.updateOne(
-          { _id: settlement.employeeId, tenantId: req.tenantId },
+          {
+            _id: settlement.employeeId
+          },
           {
             $set: {
               employmentStatus: EMPLOYMENT_STATUS.EXITED,
@@ -502,7 +510,9 @@ function makeTransitionHandler(target, decorate = () => ({})) {
 
         const Position = require('../models/position.model');
         await Position.updateOne(
-          { employeeId: settlement.employeeId, tenantId: req.tenantId },
+          {
+            employeeId: settlement.employeeId
+          },
           {
             $set: {
               status: 'Vacant',
@@ -600,7 +610,7 @@ exports.getSettlements = async (req, res, next) => {
     let limit = parseInt(req.query.limit, 10);
     if (isNaN(limit) || limit < 1 || limit > 100) limit = 20;
 
-    const query = { tenantId: req.tenantId };
+    const query = {};
 
     if (req.query.status) {
       if (!Object.values(SETTLEMENT_STATUS).includes(req.query.status)) {
@@ -648,8 +658,7 @@ exports.getSettlementById = async (req, res, next) => {
     // The payroll history the exit deliberately preserves — the thing
     // `deleteEmployee` would have destroyed.
     const payrollHistoryCount = await PayrollUpdate.countDocuments({
-      employeeId: owned.settlement.employeeId,
-      tenantId: req.tenantId,
+      employeeId: owned.settlement.employeeId
     });
 
     res.status(200).json({
@@ -665,8 +674,7 @@ exports.getClearanceStatus = async (req, res, next) => {
   try {
     const ExitClearance = require('../models/exitClearance.model');
     const clearance = await ExitClearance.findOne({
-      employeeId: req.params.employeeId,
-      tenantId: req.tenantId,
+      employeeId: req.params.employeeId
     }).populate('employeeId', 'fullName email department');
 
     if (!clearance) {
@@ -693,8 +701,7 @@ exports.submitClearanceSignoff = async (req, res, next) => {
 
     const ExitClearance = require('../models/exitClearance.model');
     const clearance = await ExitClearance.findOne({
-      employeeId,
-      tenantId: req.tenantId,
+      employeeId
     });
     if (!clearance) {
       return res

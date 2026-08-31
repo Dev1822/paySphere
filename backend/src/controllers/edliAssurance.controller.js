@@ -183,7 +183,7 @@ exports.getRules = async (req, res, next) => {
  */
 exports.listNominations = async (req, res, next) => {
   try {
-    const nominations = await EpfNomination.find({ tenantId: req.tenantId })
+    const nominations = await EpfNomination.find({})
       .populate('employeeId', 'name email')
       .sort({ updatedAt: -1 })
       .limit(500)
@@ -235,7 +235,9 @@ exports.upsertNomination = async (req, res, next) => {
     }
 
     const nomination = await EpfNomination.findOneAndUpdate(
-      { tenantId: req.tenantId, employeeId: req.params.employeeId },
+      {
+        employeeId: req.params.employeeId
+      },
       {
         $set: {
           uan: String(req.body.uan || '').trim(),
@@ -290,8 +292,7 @@ exports.getExemption = async (req, res, next) => {
     const establishment = readEstablishment(req.query.establishment);
 
     const exemption = await EdliExemption.findOne({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     }).lean();
 
     return res.json({
@@ -333,7 +334,9 @@ exports.upsertExemption = async (req, res, next) => {
     }
 
     const exemption = await EdliExemption.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment },
+      {
+        establishment
+      },
       {
         $set: {
           exempted,
@@ -410,17 +413,18 @@ exports.recordPriorService = async (req, res, next) => {
     }
 
     const record = await EdliPriorService.create({
-      tenantId: req.tenantId,
       employeeId: req.body.employeeId,
+
       previousEstablishment: String(
         req.body.previousEstablishment || '',
       ).trim(),
+
       previousEpfCode: String(req.body.previousEpfCode || '').trim(),
       months,
       gapBetween: Boolean(req.body.gapBetween),
       basis,
       documentReference: String(req.body.documentReference || '').trim(),
-      recordedBy: req.userId,
+      recordedBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -464,12 +468,11 @@ exports.previewClaim = async (req, res, next) => {
     }
 
     const claim = await computeClaim({
-      tenantId: req.tenantId,
       establishment: readEstablishment(req.query.establishment),
       employeeId: req.query.employeeId,
       dateOfDeath,
       monthsHere: Number(req.query.monthsHere) || undefined,
-      balances: [],
+      balances: []
     });
 
     return res.json({
@@ -489,8 +492,7 @@ exports.listClaims = async (req, res, next) => {
     const establishment = readEstablishment(req.query.establishment);
 
     const claims = await EdliClaim.find({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     })
       .populate('employeeId', 'name')
       .sort({ dateOfDeath: -1 })
@@ -524,12 +526,11 @@ exports.commitClaim = async (req, res, next) => {
     const establishment = readEstablishment(req.body.establishment);
 
     const claim = await computeClaim({
-      tenantId: req.tenantId,
       establishment,
       employeeId: req.body.employeeId,
       dateOfDeath,
       monthsHere: Number(req.body.monthsHere) || undefined,
-      balances: Array.isArray(req.body.balances) ? req.body.balances : [],
+      balances: Array.isArray(req.body.balances) ? req.body.balances : []
     });
 
     if (claim.payees.limb === PAYEE_LIMB.UNRESOLVED) {
@@ -541,7 +542,10 @@ exports.commitClaim = async (req, res, next) => {
     }
 
     const record = await EdliClaim.findOneAndUpdate(
-      { tenantId: req.tenantId, employeeId: req.body.employeeId, dateOfDeath },
+      {
+        employeeId: req.body.employeeId,
+        dateOfDeath
+      },
       {
         $set: {
           establishment,

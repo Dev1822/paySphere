@@ -15,7 +15,9 @@ exports.createAdjustment = async (req, res, next) => {
       return res.status(400).json({ message: 'employeeId, effectiveMonth, effectiveYear, and newSalaryRate are required' });
     }
 
-    const employee = await Employee.findOne({ _id: employeeId, tenantId: req.tenantId });
+    const employee = await Employee.findOne({
+      _id: employeeId
+    });
     if (!employee) {
       return res.status(404).json({ message: 'Employee not found' });
     }
@@ -33,7 +35,6 @@ exports.createAdjustment = async (req, res, next) => {
 
     // 2. Create the SalaryAdjustment record for the delta
     const adjustment = await SalaryAdjustment.create({
-      tenantId: req.tenantId,
       employeeId,
       effectiveMonth: Number(effectiveMonth),
       effectiveYear: Number(effectiveYear),
@@ -57,8 +58,7 @@ exports.createAdjustment = async (req, res, next) => {
       percentageChange: oldSalary > 0 ? ((Number(newSalaryRate) - oldSalary) / oldSalary) * 100 : 100,
       changedBy: req.userId,
       changedByName: req.user ? req.user.fullName : 'HR Administrator',
-      reason: 'annual_revision',
-      tenantId: req.tenantId
+      reason: 'annual_revision'
     });
 
     res.status(201).json({
@@ -78,7 +78,7 @@ exports.createAdjustment = async (req, res, next) => {
  */
 exports.getAdjustments = async (req, res, next) => {
   try {
-    const adjustments = await SalaryAdjustment.find({ tenantId: req.tenantId })
+    const adjustments = await SalaryAdjustment.find({})
       .populate('employeeId', 'fullName email')
       .sort({ createdAt: -1 });
 

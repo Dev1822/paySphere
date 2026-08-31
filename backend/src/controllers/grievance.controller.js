@@ -22,7 +22,6 @@ const {
   generateCaseNumber,
   generateTrackingToken,
 } = require('../utils/cryptoAnonymizer');
-const { tenantFilter } = require('../utils/tenantScope');
 const {
   evaluateGrievanceSLA,
   tallyICCVotes,
@@ -52,8 +51,7 @@ exports.fileGrievance = async (req, res, next) => {
     // Count existing cases this year to generate sequential case number
     const currentYear = new Date().getFullYear();
     const yearCount = await Grievance.countDocuments({
-      tenantId: req.tenantId,
-      filedAt: { $gte: new Date(`${currentYear}-01-01`) },
+      filedAt: { $gte: new Date(`${currentYear}-01-01`) }
     });
 
     const caseNumber = generateCaseNumber(yearCount);
@@ -64,14 +62,19 @@ exports.fileGrievance = async (req, res, next) => {
     const { encrypted, iv, authTag } = encrypt(description);
 
     const grievance = await Grievance.create({
-      tenantId: req.tenantId,
       caseNumber,
-      complainantId: isAnonymous ? null : req.userId, // Nullify if anonymous
+
+      // Nullify if anonymous
+      complainantId: isAnonymous ? null : req.userId,
+
       respondentId: respondentId || null,
       incidentDate: new Date(incidentDate),
-      encryptedDescription: `${encrypted}:${authTag}`, // Store auth tag with ciphertext
+
+      // Store auth tag with ciphertext
+      encryptedDescription: `${encrypted}:${authTag}`,
+
       encryptionIV: iv,
-      slaDeadline,
+      slaDeadline
     });
 
     // Emit strict audit log (does NOT include the description)
@@ -100,7 +103,7 @@ exports.fileGrievance = async (req, res, next) => {
  */
 exports.getCases = async (req, res, next) => {
   try {
-    const cases = await Grievance.find({ tenantId: req.tenantId })
+    const cases = await Grievance.find({})
       .select('-encryptedDescription -encryptionIV') // Do not send encrypted blobs in list view
       .populate('respondentId', 'fullName department')
       .sort({ filedAt: -1 })
@@ -135,13 +138,13 @@ exports.decryptCase = async (req, res, next) => {
     const { pin } = req.body;
 
     const grievance = await Grievance.findOne(
-      tenantFilter(req, { _id: req.params.id }),
+      { _id: req.params.id },
     );
 
     if (!grievance) return res.status(404).json({ message: 'Case not found' });
 
     const iccMember = await ICCCommittee.findOne(
-      tenantFilter(req, { userId: req.userId, isActive: true }),
+      { userId: req.userId, isActive: true },
     );
 
     if (!iccMember) {
@@ -207,7 +210,7 @@ exports.recordICCVote = async (req, res, next) => {
   try {
     const { verdict, comments = '' } = req.body;
     const grievance = await Grievance.findOne(
-      tenantFilter(req, { _id: req.params.id }),
+      { _id: req.params.id },
     );
 
     if (!grievance)
@@ -220,17 +223,15 @@ exports.recordICCVote = async (req, res, next) => {
 
     const vote = await ICCVote.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         grievanceId: grievance._id,
-        voterId: req.userId,
+        voterId: req.userId
       },
       { verdict, comments, votedAt: new Date() },
       { upsert: true, new: true },
     );
 
     const allVotes = await ICCVote.find({
-      tenantId: req.tenantId,
-      grievanceId: grievance._id,
+      grievanceId: grievance._id
     }).lean();
     const tally = tallyICCVotes(allVotes);
 
@@ -257,7 +258,7 @@ exports.resolveGrievance = async (req, res, next) => {
   try {
     const { finalVerdict, inquiryReport } = req.body;
     const grievance = await Grievance.findOne(
-      tenantFilter(req, { _id: req.params.id }),
+      { _id: req.params.id },
     );
 
     if (!grievance)
@@ -268,7 +269,7 @@ exports.resolveGrievance = async (req, res, next) => {
     // worst possible moment. Checked here rather than only at voting time
     // (#1157).
     const committee = await ICCCommittee.find(
-      tenantFilter(req, { isActive: true }),
+      { isActive: true },
     );
 
     const composition = validateCommitteeComposition(committee);
@@ -312,7 +313,7 @@ exports.resolveGrievance = async (req, res, next) => {
 exports.getSLADashboard = async (req, res, next) => {
   try {
     const openCases = await Grievance.find(
-      tenantFilter(req, { status: { $in: ['Filed', 'Under Inquiry'] } }),
+      { status: { $in: ['Filed', 'Under Inquiry'] } },
     ).lean();
 
     const now = new Date();
@@ -360,7 +361,7 @@ exports.getSLADashboard = async (req, res, next) => {
 exports.getEscalationStatus = async (req, res, next) => {
   try {
     const grievance = await Grievance.findOne(
-      tenantFilter(req, { _id: req.params.id }),
+      { _id: req.params.id },
     );
 
     if (!grievance) {
@@ -451,7 +452,7 @@ exports.extendInquiry = async (req, res, next) => {
     }
 
     const grievance = await Grievance.findOne(
-      tenantFilter(req, { _id: req.params.id }),
+      { _id: req.params.id },
     );
 
     if (!grievance) {
@@ -523,7 +524,7 @@ exports.extendInquiry = async (req, res, next) => {
 exports.recordInterimRelief = async (req, res, next) => {
   try {
     const grievance = await Grievance.findOne(
-      tenantFilter(req, { _id: req.params.id }),
+      { _id: req.params.id },
     );
 
     if (!grievance) {
@@ -610,7 +611,7 @@ exports.recordInterimRelief = async (req, res, next) => {
 exports.validateCommittee = async (req, res, next) => {
   try {
     const members = await ICCCommittee.find(
-      tenantFilter(req, { isActive: true }),
+      { isActive: true },
     ).populate('userId', 'name email');
 
     const composition = validateCommitteeComposition(members);
@@ -646,7 +647,7 @@ exports.validateCommittee = async (req, res, next) => {
 exports.getCaseAgeingReport = async (req, res, next) => {
   try {
     const openCases = await Grievance.find(
-      tenantFilter(req, { status: { $in: ['Filed', 'Under Inquiry'] } }),
+      { status: { $in: ['Filed', 'Under Inquiry'] } },
     ).lean();
 
     res.status(200).json(buildCaseAgeingReport(openCases, new Date()));
@@ -725,16 +726,15 @@ exports.getCommitteeQueue = async (req, res, next) => {
   try {
     // Verify caller is on the ethics committee
     const isMember = await EthicsCommittee.findOne({
-      tenantId: req.tenantId,
       userId: req.userId,
-      isActive: true,
+      isActive: true
     });
     if (!isMember)
       return res
         .status(403)
         .json({ message: 'Access denied. Not an Ethics Committee member.' });
 
-    const reports = await GrievanceReport.find({ tenantId: req.tenantId }).sort(
+    const reports = await GrievanceReport.find({}).sort(
       { createdAt: -1 },
     );
 
@@ -771,9 +771,8 @@ exports.getCommitteeQueue = async (req, res, next) => {
 exports.decryptReport = async (req, res, next) => {
   try {
     const isMember = await EthicsCommittee.findOne({
-      tenantId: req.tenantId,
       userId: req.userId,
-      isActive: true,
+      isActive: true
     });
     if (!isMember)
       return res.status(403).json({ message: 'Access denied.' });

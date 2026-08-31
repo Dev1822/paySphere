@@ -15,8 +15,8 @@ const eventBus = require('../services/event.service');
 
 exports.getPolicy = async (req, res, next) => {
   try {
-    let policy = await ToilPolicy.findOne({ tenantId: req.tenantId });
-    if (!policy) policy = await ToilPolicy.create({ tenantId: req.tenantId });
+    let policy = await ToilPolicy.findOne({});
+    if (!policy) policy = await ToilPolicy.create({});
     res.status(200).json({ policy });
   } catch (error) { next(error); }
 };
@@ -24,7 +24,7 @@ exports.getPolicy = async (req, res, next) => {
 exports.updatePolicy = async (req, res, next) => {
   try {
     const policy = await ToilPolicy.findOneAndUpdate(
-      { tenantId: req.tenantId },
+      {},
       { ...req.body, updatedAt: new Date() },
       { upsert: true, new: true },
     );
@@ -34,12 +34,16 @@ exports.updatePolicy = async (req, res, next) => {
 
 exports.getMyToilData = async (req, res, next) => {
   try {
-    const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+    const employee = await Employee.findOne({
+      userId: req.userId
+    });
     if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
     const balance = await getCurrentBalance(req.tenantId, employee._id);
 
-    const ledger = await ToilLedger.find({ tenantId: req.tenantId, employeeId: employee._id })
+    const ledger = await ToilLedger.find({
+      employeeId: employee._id
+    })
       .sort({ createdAt: -1 })
       .limit(50);
 
@@ -48,10 +52,9 @@ exports.getMyToilData = async (req, res, next) => {
     in30Days.setDate(in30Days.getDate() + 30);
 
     const expiringSoon = await ToilLedger.find({
-      tenantId: req.tenantId,
       employeeId: employee._id,
       transactionType: 'Accrual',
-      expiresAt: { $gte: now, $lte: in30Days },
+      expiresAt: { $gte: now, $lte: in30Days }
     }).sort({ expiresAt: 1 });
 
     res.status(200).json({ balance, ledger, expiringSoon });
@@ -61,7 +64,9 @@ exports.getMyToilData = async (req, res, next) => {
 exports.requestToil = async (req, res, next) => {
   try {
     const { requestType, daysRequested, startDate, endDate, remarks } = req.body;
-    const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+    const employee = await Employee.findOne({
+      userId: req.userId
+    });
     if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
     const currentBalance = await getCurrentBalance(req.tenantId, employee._id);
@@ -70,13 +75,12 @@ exports.requestToil = async (req, res, next) => {
     }
 
     const request = await ToilRequest.create({
-      tenantId: req.tenantId,
       employeeId: employee._id,
       requestType,
       daysRequested,
       startDate,
       endDate,
-      remarks,
+      remarks
     });
 
     res.status(201).json({ message: 'TOIL request submitted', request });
@@ -100,13 +104,12 @@ exports.approveRequest = async (req, res, next) => {
       const currentBalance = await getCurrentBalance(req.tenantId, request.employeeId);
 
       await ToilLedger.create({
-        tenantId: req.tenantId,
         employeeId: request.employeeId,
         transactionType: 'Usage',
         days: -request.daysRequested,
         balanceAfter: currentBalance - request.daysRequested,
         referenceId: request._id,
-        description: `TOIL ${request.requestType} approved for ${request.startDate ? new Date(request.startDate).toLocaleDateString() : 'Encashment'}`,
+        description: `TOIL ${request.requestType} approved for ${request.startDate ? new Date(request.startDate).toLocaleDateString() : 'Encashment'}`
       });
     }
 
@@ -122,9 +125,8 @@ exports.getUpcomingExpirationsByDepartment = async (req, res, next) => {
     limitDate.setDate(limitDate.getDate() + days);
 
     const accruals = await ToilLedger.find({
-      tenantId: req.tenantId,
       transactionType: 'Accrual',
-      expiresAt: { $gte: now, $lte: limitDate },
+      expiresAt: { $gte: now, $lte: limitDate }
     }).populate({
       path: 'employeeId',
       select: 'fullName email department',
@@ -138,10 +140,9 @@ exports.getUpcomingExpirationsByDepartment = async (req, res, next) => {
       const usedFromThisAccrual = await ToilLedger.aggregate([
         {
           $match: {
-            tenantId: req.tenantId,
             employeeId: accrual.employeeId._id,
             transactionType: 'Usage',
-            createdAt: { $gt: accrual.createdAt, $lt: now },
+            createdAt: { $gt: accrual.createdAt, $lt: now }
           },
         },
         { $group: { _id: null, totalUsed: { $sum: { $abs: '$days' } } } },
@@ -179,13 +180,12 @@ exports.getUpcomingExpirationsByDepartment = async (req, res, next) => {
  */
 exports.processToilExpirations = async (req, res, next) => {
   try {
-    const policy = await ToilPolicy.findOne({ tenantId: req.tenantId });
+    const policy = await ToilPolicy.findOne({});
     const now = new Date();
 
     const expiredAccruals = await ToilLedger.find({
-      tenantId: req.tenantId,
       transactionType: 'Accrual',
-      expiresAt: { $lt: now },
+      expiresAt: { $lt: now }
     }).populate('employeeId', 'fullName monthlySalary basicSalary');
 
     const conversionCandidates = [];
@@ -195,9 +195,8 @@ exports.processToilExpirations = async (req, res, next) => {
 
       // Check if already expired or encashed
       const alreadyProcessed = await ToilLedger.findOne({
-        tenantId: req.tenantId,
         referenceId: accrual._id,
-        transactionType: { $in: ['Expiration', 'Encashment'] },
+        transactionType: { $in: ['Expiration', 'Encashment'] }
       });
 
       if (alreadyProcessed) continue;
@@ -208,13 +207,12 @@ exports.processToilExpirations = async (req, res, next) => {
       if (daysToExpire > 0) {
         // Record Expiration in ledger
         await ToilLedger.create({
-          tenantId: req.tenantId,
           employeeId: accrual.employeeId._id,
           transactionType: policy?.allowEncashment ? 'Encashment' : 'Expiration',
           days: -daysToExpire,
           balanceAfter: currentBalance - daysToExpire,
           referenceId: accrual._id,
-          description: `Automatic TOIL ${policy?.allowEncashment ? 'Overtime Payout' : 'Expiration'} for accrual of ${accrual.days} days`,
+          description: `Automatic TOIL ${policy?.allowEncashment ? 'Overtime Payout' : 'Expiration'} for accrual of ${accrual.days} days`
         });
 
         conversionCandidates.push({
@@ -257,15 +255,14 @@ exports.processToilExpirations = async (req, res, next) => {
 exports.getPayoutForecast = async (req, res, next) => {
   try {
     const days = parseInt(req.query.days, 10) || 30;
-    const policy = await ToilPolicy.findOne({ tenantId: req.tenantId });
+    const policy = await ToilPolicy.findOne({});
     const now = new Date();
     const limitDate = new Date(now);
     limitDate.setDate(limitDate.getDate() + days);
 
     const upcomingAccruals = await ToilLedger.find({
-      tenantId: req.tenantId,
       transactionType: 'Accrual',
-      expiresAt: { $gte: now, $lte: limitDate },
+      expiresAt: { $gte: now, $lte: limitDate }
     }).populate('employeeId', 'fullName monthlySalary basicSalary');
 
     const candidates = upcomingAccruals.map((a) => ({

@@ -40,7 +40,6 @@ exports.postOpenShift = async (req, res, next) => {
     const expiresAt = new Date(shiftStart.getTime() - 2 * 60 * 60 * 1000);
 
     const openShift = await OpenShift.create({
-      tenantId: req.tenantId,
       shiftTemplateId,
       date: new Date(date),
       startTime,
@@ -50,7 +49,7 @@ exports.postOpenShift = async (req, res, next) => {
       premiumMultiplier: premiumMultiplier || 1.0,
       reason,
       postedBy: req.userId,
-      expiresAt,
+      expiresAt
     });
 
     res.status(201).json({ message: 'Shift posted to marketplace', openShift });
@@ -91,8 +90,7 @@ exports.placeBid = async (req, res, next) => {
     }
 
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).session(session);
     if (!employee) {
       await session.abortTransaction();
@@ -121,12 +119,11 @@ exports.placeBid = async (req, res, next) => {
     const bid = await ShiftBid.create(
       [
         {
-          tenantId: req.tenantId,
           openShiftId: openShift._id,
           employeeId: employee._id,
           status: 'Accepted',
           priorityScore,
-          bidMessage: req.body.message || '',
+          bidMessage: req.body.message || ''
         },
       ],
       { session },
@@ -135,11 +132,10 @@ exports.placeBid = async (req, res, next) => {
     await ShiftRoster.create(
       [
         {
-          tenantId: req.tenantId,
           employeeId: employee._id,
           shiftTemplateId: openShift.shiftTemplateId,
           date: openShift.date,
-          status: 'Scheduled',
+          status: 'Scheduled'
         },
       ],
       { session },
@@ -188,9 +184,8 @@ exports.placeBid = async (req, res, next) => {
 exports.getMarketplace = async (req, res, next) => {
   try {
     const shifts = await OpenShift.find({
-      tenantId: req.tenantId,
       status: 'Open',
-      expiresAt: { $gt: new Date() },
+      expiresAt: { $gt: new Date() }
     })
       .populate('shiftTemplateId', 'name colorCode')
       .sort({ date: 1, startTime: 1 });
@@ -266,11 +261,10 @@ exports.assignShift = async (req, res, next) => {
     await ShiftRoster.create(
       [
         {
-          tenantId: req.tenantId,
           employeeId: winningBid.employeeId,
           shiftTemplateId: openShift.shiftTemplateId,
           date: openShift.date,
-          status: 'Scheduled',
+          status: 'Scheduled'
         },
       ],
       { session },

@@ -26,7 +26,9 @@ exports.initiateReversal = async (req, res, next) => {
   try {
     const { originalPayrollId, correctedData, reason, recoveryMonths, startMonth, startYear, quarter, financialYear } = req.body;
 
-    const originalPayroll = await PayrollUpdate.findOne({ _id: originalPayrollId, tenantId: req.tenantId });
+    const originalPayroll = await PayrollUpdate.findOne({
+      _id: originalPayrollId
+    });
     const validation = validateReversal(originalPayroll);
 
     if (!validation.isValid) {
@@ -35,8 +37,7 @@ exports.initiateReversal = async (req, res, next) => {
 
     const existingReversal = await PayrollReversal.findOne({
       originalPayrollId,
-      tenantId: req.tenantId,
-      status: { $nin: ['Cancelled', 'Fully Recovered'] },
+      status: { $nin: ['Cancelled', 'Fully Recovered'] }
     });
 
     if (existingReversal) {
@@ -54,7 +55,6 @@ exports.initiateReversal = async (req, res, next) => {
     const form24QAdjustment = computeForm24QTdsAdjustments(deltas, quarter || 'Q1', financialYear || '2026-2027');
 
     const reversal = await PayrollReversal.create({
-      tenantId: req.tenantId,
       employeeId: originalPayroll.employeeId,
       originalPayrollId: originalPayroll._id,
       ...deltas,
@@ -63,7 +63,7 @@ exports.initiateReversal = async (req, res, next) => {
       clawbackSchedule: schedule,
       journalEntries,
       initiatedBy: req.userId,
-      status: 'Pending Approval',
+      status: 'Pending Approval'
     });
 
     res.status(201).json({
@@ -76,7 +76,7 @@ exports.initiateReversal = async (req, res, next) => {
 
 exports.getReversals = async (req, res, next) => {
   try {
-    const reversals = await PayrollReversal.find({ tenantId: req.tenantId })
+    const reversals = await PayrollReversal.find({})
       .populate('employeeId', 'fullName department')
       .populate('originalPayrollId', 'month year netSalary')
       .sort({ createdAt: -1 });
@@ -125,7 +125,9 @@ exports.approveReversal = async (req, res, next) => {
         netOverpaid: reversal.netOverpaid,
         approvedBy: req.userId,
       },
-      { tenantId: req.tenantId, session },
+      {
+        session
+      },
     );
 
     if (session) {
@@ -169,8 +171,7 @@ exports.approveReversal = async (req, res, next) => {
 exports.checkPayrollBlockGuard = async (req, res, next) => {
   try {
     const pendingReversals = await PayrollReversal.countDocuments({
-      tenantId: req.tenantId,
-      status: { $in: ['Pending Approval', 'Draft'] },
+      status: { $in: ['Pending Approval', 'Draft'] }
     });
 
     res.status(200).json({
@@ -187,7 +188,7 @@ exports.checkPayrollBlockGuard = async (req, res, next) => {
  */
 exports.getTaxAdjustmentSummary = async (req, res, next) => {
   try {
-    const reversals = await PayrollReversal.find({ tenantId: req.tenantId });
+    const reversals = await PayrollReversal.find({});
 
     const totalGrossOverpaid = reversals.reduce((sum, r) => sum + (r.grossOverpaid || 0), 0);
     const totalTaxOverpaid = reversals.reduce((sum, r) => sum + (r.taxOverpaid || 0), 0);
@@ -222,17 +223,26 @@ exports.initiateReversalOrder = async (req, res, next) => {
     const taxEval = evaluateCrossPeriodTax(originalPayDate, new Date());
 
     const reversal = await PayrollReversalOrder.create({
-      tenantId: req.tenantId, employeeId, originalPayrollRunId, reason,
-      originalGross, originalNet, isCrossPeriod: taxEval.isCrossPeriod
+      employeeId,
+      originalPayrollRunId,
+      reason,
+      originalGross,
+      originalNet,
+      isCrossPeriod: taxEval.isCrossPeriod
     });
 
     // Mock tax adjustments
     const taxTypes = ['Federal', 'State', 'FICA', 'Medicare'];
     const adjustments = taxTypes.map(t => ({
-      tenantId: req.tenantId, reversalId: reversal._id, taxType: t,
-      adjustmentAmount: originalGross * 0.05, // Mock 5%
+      reversalId: reversal._id,
+      taxType: t,
+
+      // Mock 5%
+      adjustmentAmount: originalGross * 0.05,
+
       requiresAmendedReturn: taxEval.requiresAmendedReturn,
-      quarter: taxEval.origQuarter, year: taxEval.origYear
+      quarter: taxEval.origQuarter,
+      year: taxEval.origYear
     }));
     await TaxAdjustmentLedger.insertMany(adjustments);
 
@@ -253,8 +263,10 @@ exports.generateReceivable = async (req, res, next) => {
     const schedule = generateAmortizationSchedule(reversal.originalNet, paychecksRemaining, 0.25, expectedNetPay); // 25% limit
 
     const receivable = await OverpaymentReceivable.create({
-      tenantId: req.tenantId, reversalId, employeeId: reversal.employeeId,
-      totalOwed: reversal.originalNet, remainingBalance: reversal.originalNet,
+      reversalId,
+      employeeId: reversal.employeeId,
+      totalOwed: reversal.originalNet,
+      remainingBalance: reversal.originalNet,
       amortizationSchedule: schedule
     });
 
@@ -271,9 +283,11 @@ exports.generateReceivable = async (req, res, next) => {
  */
 exports.getDashboard = async (req, res, next) => {
   try {
-    const reversals = await PayrollReversalOrder.find({ tenantId: req.tenantId })
+    const reversals = await PayrollReversalOrder.find({})
       .populate('employeeId', 'fullName').sort({ createdAt: -1 });
-    const receivables = await OverpaymentReceivable.find({ tenantId: req.tenantId, status: 'Active' })
+    const receivables = await OverpaymentReceivable.find({
+      status: 'Active'
+    })
       .populate('employeeId', 'fullName');
     res.status(200).json({ reversals, receivables });
   } catch (error) { next(error); }
