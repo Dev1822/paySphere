@@ -790,6 +790,14 @@ export const APP_ROUTES = [
 
   // ── Learning ─────────────────────────────────────────────────────────────
   {
+  {
+    path: '/learning-hub',
+    component: lazy(() => import('../pages/learning/EmployeeLearningHubPage')),
+    label: 'Learning Hub',
+    group: 'learning',
+    icon: 'graduationCap',
+    employee: true,
+  },
     path: '/flashcards',
     component: lazy(() => import('../pages/Flashcards')),
     label: 'Flashcards',
