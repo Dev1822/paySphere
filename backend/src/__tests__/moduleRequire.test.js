@@ -143,7 +143,7 @@ describe('every router loads', () => {
   beforeAll(() => {
     for (const file of routerFiles) {
       try {
-        // eslint-disable-next-line global-require, import/no-dynamic-require
+        // removed eslint-disable-next-line
         require(path.join(ROUTES_DIR, file));
       } catch (error) {
         if (isRunnerArtefact(error)) continue;

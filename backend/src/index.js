@@ -26,6 +26,10 @@ const {
 const { initializeWebhookService } = require('./services/webhook.service');
 const { startWebhookWorker } = require('./workers/webhook.worker');
 const { startEmailWorker } = require('./workers/email.worker');
+const {
+  startIntegrationSyncWorker,
+} = require('./workers/integrationSync.worker');
+const { startPdfWorker } = require('./workers/pdf.worker');
 const { startOutboxWorker } = require('./workers/outbox.worker');
 const { isRedisAvailable } = require('./config/redis');
 const { attachGraphQL } = require('./graphql');
@@ -134,6 +138,8 @@ const startServer = async () => {
   if (process.env.REDIS_URL) {
     startWebhookWorker();
     startEmailWorker();
+    startIntegrationSyncWorker();
+    startPdfWorker();
     startOutboxWorker();
 
     const {
