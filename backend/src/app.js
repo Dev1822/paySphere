@@ -21,7 +21,8 @@
  * `__tests__/app.routeMounting.test.js` now asserts it so a future merge cannot
  * drop a router without a test going red.
  */
-
+const { tenantContextMiddleware } = require('./middlewares/tenantContext.middleware');
+const { tenantGuard } = require('./middlewares/tenantGuard.middleware');
 const mongoose = require('mongoose');
 const piiMaskingPlugin = require('./utils/piiMaskingPlugin');
 const tenantEnforcementPlugin = require('./models/plugins/tenantEnforcement.plugin');
@@ -424,7 +425,8 @@ const app = express();
 // header itself, and advertising the framework and its version is free
 // reconnaissance.
 app.disable('x-powered-by');
-
+app.use(tenantContextMiddleware());
+app.use(tenantGuard());
 app.use(auditContextMiddleware);
 app.use('/api/audit', require('./routes/audit.routes'));
 app.use('/api/audit', require('./routes/auditIntegrity.routes'));

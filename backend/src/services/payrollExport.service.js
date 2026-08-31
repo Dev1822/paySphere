@@ -52,7 +52,25 @@ class PayrollExportService {
 
     return csvData;
   }
+static async exportCSV(req, { tenantId, month, year }) {
+  QueryValidatorService.validateExportOperation({ tenantId });
+  TenantContextService.validateTenantOwnership(tenantId);
+  
+  const payrolls = await PayrollUpdate.find({
+    tenantId,
+    month,
+    year,
+  });
+  
+  // ... rest of export logic ...
+}
 
+static async sendAllPayslipsEmail(req, { tenantId, month, year }) {
+  QueryValidatorService.validateExportOperation({ tenantId });
+  TenantContextService.validateTenantOwnership(tenantId);
+  
+  // ... rest of email logic ...
+}
   static async sendPayslipEmail(req, { payrollId, tenantId }) {
     const payroll = await PayrollUpdate.findOne({ _id: payrollId, tenantId });
     if (!payroll) throw new Error('Payroll record not found');
