@@ -9,6 +9,7 @@ const { processMonthlyAccrual } = require('./leaveAccrual.job');
 const logger = require('../utils/logger');
 const { runDatabaseBackupJob } = require('./backup.job');
 const { runDatabaseArchivalJob } = require('./archival.job');
+const { startCacheWarming } = require('./cacheWarming.job');
 const { runForexSyncJob } = require('./forexSync.job');
 const {
   runCompensationCycleReminderJob,
@@ -313,6 +314,9 @@ async function runDailyGreetingsJob({ now = new Date(), tenantId } = {}) {
 const scheduledTasks = [];
 
 const startCronJobs = () => {
+  // Pre-dawn cache warming
+  scheduledTasks.push(startCacheWarming());
+
   // 09:00 on the 1st of every month.
   scheduledTasks.push(
     cron.schedule('0 9 1 * *', () => {

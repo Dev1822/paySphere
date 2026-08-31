@@ -15,6 +15,7 @@ const {
 const Employee = require('../models/employee.model');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
+const eventDispatcher = require('../utils/eventBus');
 const { sanitizeText } = require('../utils/validators');
 const ProbationTrackerService = require('../services/probationTracker.service');
 const { EMPLOYMENT_STATUS } = require('../config/employment');
@@ -349,6 +350,13 @@ exports.startOnboarding = async (req, res, next) => {
       resourceIds: created.map((t) => t._id),
       details: { employeeId, planName: plan.name, taskCount: created.length },
       req,
+    });
+
+    await eventDispatcher.publish('EmployeeOnboarded', {
+      employeeId,
+      planId: plan._id,
+      tenantId: req.tenantId,
+      tasksCreated: created.length,
     });
 
     logger.info('Onboarding started', {

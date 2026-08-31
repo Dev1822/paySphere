@@ -201,7 +201,9 @@ export const APP_ROUTES = [
   },
   {
     path: '/compensation-intelligence',
-    component: lazy(() => import('../pages/compensation/CompensationIntelligencePage')),
+    component: lazy(
+      () => import('../pages/compensation/CompensationIntelligencePage'),
+    ),
     label: 'Compensation Intelligence',
     group: 'people',
     icon: 'calculator',
@@ -927,11 +929,15 @@ export const APP_ROUTES = [
   },
   {
     path: '/enterprise/onboarding-lifecycle',
-    component: lazy(() => import('../pages/onboarding/EnterpriseOnboardingLifecyclePage')),
+    component: lazy(
+      () => import('../pages/onboarding/EnterpriseOnboardingLifecyclePage'),
+    ),
   },
   {
     path: '/employee-referrals',
-    component: lazy(() => import('../pages/referrals/EmployeeReferralProgramPage')),
+    component: lazy(
+      () => import('../pages/referrals/EmployeeReferralProgramPage'),
+    ),
     label: 'Employee Referrals',
     group: 'enterprise',
     icon: 'group_add',
@@ -939,13 +945,17 @@ export const APP_ROUTES = [
   },
   {
     path: '/enterprise/employee-relations',
-    component: lazy(() => import('../pages/enterprise/EmployeeRelationsHubPage')),
+    component: lazy(
+      () => import('../pages/enterprise/EmployeeRelationsHubPage'),
+    ),
     appShell: false,
   },
 
   {
     path: '/workforce-analytics',
-    component: lazy(() => import('../pages/analytics/WorkforceAnalyticsDashboardPage')),
+    component: lazy(
+      () => import('../pages/analytics/WorkforceAnalyticsDashboardPage'),
+    ),
     label: 'Workforce Analytics',
     group: 'people',
     icon: 'chart',

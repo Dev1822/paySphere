@@ -14,6 +14,7 @@ const {
   getLayout,
   saveLayout,
 } = require('../controllers/dashboardLayout.controller');
+const cacheMiddleware = require('../middlewares/cache.middleware');
 
 const router = express.Router();
 
@@ -54,7 +55,12 @@ router.get(
   '/summary',
   auth,
   requirePermission('READ_EMPLOYEE'),
-  getDashboardSummary
+  cacheMiddleware({
+    ttl: 900,
+    prefix: 'dashboard:summary',
+    tags: ['dashboard'],
+  }),
+  getDashboardSummary,
 );
 
 /**
@@ -65,7 +71,12 @@ router.get(
   '/recent-activity',
   auth,
   requirePermission('READ_EMPLOYEE'),
-  getAuditLogs
+  cacheMiddleware({
+    ttl: 900,
+    prefix: 'dashboard:recent',
+    tags: ['dashboard'],
+  }),
+  getAuditLogs,
 );
 
 module.exports = router;

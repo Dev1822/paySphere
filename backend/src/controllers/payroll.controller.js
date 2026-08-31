@@ -175,7 +175,8 @@ async function transitionPayrollBatch({
   targetStatus,
   extraFields = {},
   expectedVersions = {},
-}) {  // Scoped read first. Anything the caller does not own simply never appears in
+}) {
+  // Scoped read first. Anything the caller does not own simply never appears in
   // this result set, and therefore lands in `notFound` — the caller cannot tell
   // "does not exist" from "belongs to someone else", which is the correct
   // answer to give.
@@ -362,16 +363,15 @@ exports.approvePayroll = async (req, res, next) => {
         ids: batch.ids,
         targetStatus: PAYROLL_STATUS.APPROVED,
         expectedVersions: submittedVersions,
-
         extraFields: {
-            approvedBy: req.userId,
-            approvedAt,
-            // Clear any prior rejection so a resubmitted-then-approved row does not
-            // keep showing a stale reason on the payslip screen.
-            rejectionReason: undefined,
-            rejectedBy: undefined,
-            rejectedAt: undefined,
-          }
+          approvedBy: req.userId,
+          approvedAt,
+          // Clear any prior rejection so a resubmitted-then-approved row does not
+          // keep showing a stale reason on the payslip screen.
+          rejectionReason: undefined,
+          rejectedBy: undefined,
+          rejectedAt: undefined,
+        },
       });
 
     if (versionConflicts && versionConflicts.length > 0) {
@@ -507,8 +507,7 @@ exports.rejectPayroll = async (req, res, next) => {
 
     const staleEmployeeVersions = payrollsToApprove
       .filter((payroll) => {
-        const snapshotVersion =
-          payroll.calculationSnapshot?.employee?.version;
+        const snapshotVersion = payroll.calculationSnapshot?.employee?.version;
 
         return (
           snapshotVersion !== undefined &&
@@ -822,10 +821,18 @@ exports.submitPayrollForReview = async (req, res, next) => {
       errors: result.errors,
     });
   } catch (error) {
-    if (error.message && error.message.includes('Another payroll process is currently running')) {
+    logger.error('Error in submitPayrollForReview:', error);
+    console.error(error.stack);
+    if (
+      error.message &&
+      error.message.includes('Another payroll process is currently running')
+    ) {
       return res.status(409).json({ message: error.message });
     }
-    if (error.status === 400 || error.message.includes('Adolescent scheduling violations')) {
+    if (
+      error.status === 400 ||
+      error.message.includes('Adolescent scheduling violations')
+    ) {
       return res.status(400).json({ message: error.message });
     }
     if (error.validationErrors) {
@@ -888,19 +895,15 @@ exports.exportPayrollCSV = async (req, res, next) => {
       : new Date().getFullYear();
 
     if (isNaN(month) || !Number.isInteger(month) || month < 1 || month > 12) {
-      return res
-        .status(400)
-        .json({
-          message:
-            'Invalid month parameter. Must be an integer between 1 and 12.',
-        });
+      return res.status(400).json({
+        message:
+          'Invalid month parameter. Must be an integer between 1 and 12.',
+      });
     }
     if (isNaN(year) || !Number.isInteger(year) || year < 2000 || year > 2100) {
-      return res
-        .status(400)
-        .json({
-          message: 'Invalid year parameter. Must be a valid year integer.',
-        });
+      return res.status(400).json({
+        message: 'Invalid year parameter. Must be a valid year integer.',
+      });
     }
 
     const csvData = await PayrollExportService.exportCSV(req, {
@@ -1021,26 +1024,38 @@ async function generatePayslips(req, res) {
   try {
     const { payrollId } = req.params;
     const { employeeIds } = req.body;
-    
-    const payroll = await Payroll.findOne({ _id: payrollId, ...{} });
-    if (!payroll) return res.status(404).json({ message: 'Payroll not found.' });
-    
+
+    const payroll = await Payroll.findOne({
+      _id: payrollId,
+      ...tenantFilter(req),
+    });
+    if (!payroll)
+      return res.status(404).json({ message: 'Payroll not found.' });
+
     if (payroll.status !== 'finalized') {
-      return res.status(400).json({ message: 'Only finalized payrolls can be processed.' });
+      return res
+        .status(400)
+        .json({ message: 'Only finalized payrolls can be processed.' });
     }
 
     const payslipService = require('../services/payslipGeneration.service');
     const results = [];
-    
+
     for (const empId of employeeIds) {
-      const result = await payslipService.queuePayslipGeneration(payrollId, empId, req.tenantId);
+      const result = await payslipService.queuePayslipGeneration(
+        payrollId,
+        empId,
+        req.tenantId,
+      );
       results.push(result);
     }
 
     return res.json({ message: 'Payslips queued for generation.', results });
   } catch (err) {
     logger.error('generatePayslips error', { error: err.message });
-    return res.status(500).json({ message: 'Failed to queue payslip generation.' });
+    return res
+      .status(500)
+      .json({ message: 'Failed to queue payslip generation.' });
   }
 }
 
@@ -1049,7 +1064,7 @@ async function getPayslipStatus(req, res) {
     const { jobHash } = req.params;
     const payslipService = require('../services/payslipGeneration.service');
     const status = await payslipService.getGenerationStatus(jobHash);
-    
+
     return res.json(status);
   } catch (err) {
     logger.error('getPayslipStatus error', { error: err.message });
