@@ -1022,6 +1022,11 @@ app.use('/api/competencies', competencyRoutes);
 const workforceCostForecastRoutes = require('./routes/workforceCostForecast.routes');
 app.use('/api/workforce-cost-forecast', workforceCostForecastRoutes);
 
+// Payroll Anomaly Alert Rules — configurable threshold-based anomaly detection,
+// scan engine, alert records, and disposition management.
+const alertRuleRoutes = require('./routes/alertRule.routes');
+app.use('/api/alert-rules', alertRuleRoutes);
+
 // Talent Retention Analytics — flight risk, attrition trends, compensation benchmarks.
 const retentionAnalyticsRoutes = require('./routes/retentionAnalytics.routes');
 app.use('/api/retention-analytics', retentionAnalyticsRoutes);
