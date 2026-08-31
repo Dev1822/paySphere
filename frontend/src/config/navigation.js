@@ -190,6 +190,30 @@ export const APP_ROUTES = [
     icon: 'chart',
   },
   {
+    // Retention analytics sits in People beside Pay equity — both answer
+    // workforce-stability questions, and the risk scores here feed directly
+    // into the compensation decisions on that page (#1902).
+    path: '/retention',
+    component: lazy(() => import('../components/EmployeeRetentionDashboard')),
+    label: 'Retention analytics',
+    group: 'people',
+    icon: 'chart',
+  },
+  {
+    path: '/compensation-intelligence',
+    component: lazy(() => import('../pages/compensation/CompensationIntelligencePage')),
+    label: 'Compensation Intelligence',
+    group: 'people',
+    icon: 'calculator',
+  },
+  {
+    path: '/offer-letters',
+    component: lazy(() => import('../pages/OfferLetterBuilder')),
+    label: 'Offer letters',
+    group: 'people',
+    icon: 'document',
+  },
+  {
     path: '/templates',
     component: lazy(() => import('../pages/LetterTemplateManager')),
     label: 'Letter templates',
@@ -252,6 +276,15 @@ export const APP_ROUTES = [
     label: 'Onboarding tracker',
     group: 'people',
     icon: 'rocket',
+  },
+  {
+    // Offboarding is the lifecycle counterpart to onboarding — the natural
+    // companion for an HR manager reviewing the People section.
+    path: '/offboarding',
+    component: lazy(() => import('../components/EmployeeOffboardingTracker')),
+    label: 'Offboarding tracker',
+    group: 'people',
+    icon: 'exit',
   },
   {
     // In People rather than Compliance: engaging an apprentice and keeping the
@@ -737,6 +770,14 @@ export const APP_ROUTES = [
     icon: 'megaphone',
     employee: true,
   },
+  {
+    path: '/wellness-hub',
+    component: lazy(() => import('../pages/wellness/EmployeeWellnessHubPage')),
+    label: 'Wellness Hub',
+    group: 'workplace',
+    icon: 'heart',
+    employee: true,
+  },
 
   {
     path: '/team-health',
@@ -749,6 +790,14 @@ export const APP_ROUTES = [
 
   // ── Learning ─────────────────────────────────────────────────────────────
   {
+  {
+    path: '/learning-hub',
+    component: lazy(() => import('../pages/learning/EmployeeLearningHubPage')),
+    label: 'Learning Hub',
+    group: 'learning',
+    icon: 'graduationCap',
+    employee: true,
+  },
     path: '/flashcards',
     component: lazy(() => import('../pages/Flashcards')),
     label: 'Flashcards',
@@ -878,18 +927,29 @@ export const APP_ROUTES = [
   },
   {
     path: '/enterprise/onboarding-lifecycle',
-    component: lazy(
-      () => import('../pages/onboarding/EnterpriseOnboardingLifecyclePage'),
-    ),
+    component: lazy(() => import('../pages/onboarding/EnterpriseOnboardingLifecyclePage')),
+  },
+  {
+    path: '/employee-referrals',
+    component: lazy(() => import('../pages/referrals/EmployeeReferralProgramPage')),
+    label: 'Employee Referrals',
+    group: 'enterprise',
+    icon: 'group_add',
+    employee: true,
   },
   {
     path: '/enterprise/employee-relations',
-    component: lazy(
-      () => import('../pages/enterprise/EmployeeRelationsHubPage'),
-    ),
+    component: lazy(() => import('../pages/enterprise/EmployeeRelationsHubPage')),
     appShell: false,
   },
 
+  {
+    path: '/workforce-analytics',
+    component: lazy(() => import('../pages/analytics/WorkforceAnalyticsDashboardPage')),
+    label: 'Workforce Analytics',
+    group: 'people',
+    icon: 'chart',
+  },
   {
     path: '/settings',
     component: lazy(() => import('../pages/Settings')),

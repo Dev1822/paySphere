@@ -11,11 +11,11 @@ const {
   grantRelief,
   getPoolMetrics,
 } = require('../controllers/leavePool.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/donate', protect, donateLeave);
-router.post('/apply-relief', protect, applyRelief);
-router.post('/grant-relief', protect, grantRelief);
-router.get('/pool-metrics', protect, getPoolMetrics);
+router.post('/donate', auth, donateLeave);
+router.post('/apply-relief', auth, applyRelief);
+router.post('/grant-relief', auth, grantRelief);
+router.get('/pool-metrics', auth, getPoolMetrics);
 
 module.exports = router;

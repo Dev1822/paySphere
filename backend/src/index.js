@@ -145,6 +145,11 @@ const startServer = async () => {
       startEpfRemittanceWorker,
     } = require('./workers/epfRemittance.worker');
     startEpfRemittanceWorker();
+
+    const {
+      startStreamConsumer,
+    } = require('./services/attendanceGateway.service');
+    startStreamConsumer();
   } else if (!isRedisAvailable()) {
     logger.warn(
       'Webhook worker not started: REDIS_URL is not set. Webhook deliveries require Redis.',

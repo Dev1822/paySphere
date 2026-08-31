@@ -10,10 +10,10 @@ const {
   updateRates,
   getComplianceReport,
 } = require('../controllers/minimumWages.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/audit-payroll', protect, auditPayroll);
-router.post('/update-rates', protect, updateRates);
-router.get('/compliance-report', protect, getComplianceReport);
+router.post('/audit-payroll', auth, auditPayroll);
+router.post('/update-rates', auth, updateRates);
+router.get('/compliance-report', auth, getComplianceReport);
 
 module.exports = router;

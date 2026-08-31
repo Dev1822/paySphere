@@ -10,10 +10,10 @@ const {
   checkEligibility,
   getDisbursementSchedule,
 } = require('../controllers/maternityBenefit.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/enroll', protect, enrollMaternityClaim);
-router.get('/eligibility/:employeeId', protect, checkEligibility);
-router.get('/disbursement-schedule/:employeeId', protect, getDisbursementSchedule);
+router.post('/enroll', auth, enrollMaternityClaim);
+router.get('/eligibility/:employeeId', auth, checkEligibility);
+router.get('/disbursement-schedule/:employeeId', auth, getDisbursementSchedule);
 
 module.exports = router;
