@@ -1005,10 +1005,12 @@ app.use('/api/skills', skillInventoryRoutes);
 // department dimension the matrix uses.
 app.use('/api/competencies', competencyRoutes);
 
+// Talent Retention Analytics — flight risk scoring, attrition trends,
+// compensation benchmarking, and retention dashboard.
+const retentionAnalyticsRoutes = require('./routes/retentionAnalytics.routes');
+app.use('/api/retention-analytics', retentionAnalyticsRoutes);
+
 // Pulse Surveys (#1201) — lightweight employee engagement polling.
-// CRUD endpoints live in pulseSurvey.routes; analytics aggregation in
-// surveyAnalytics.routes.  Both are mounted under the same prefix so the
-// frontend can call /api/pulse-surveys/… consistently.
 const pulseSurveyRoutes = require('./routes/pulseSurvey.routes');
 const surveyAnalyticsRoutes = require('./routes/surveyAnalytics.routes');
 app.use('/api/pulse-surveys', pulseSurveyRoutes);
