@@ -1005,12 +1005,16 @@ app.use('/api/skills', skillInventoryRoutes);
 // department dimension the matrix uses.
 app.use('/api/competencies', competencyRoutes);
 
-// Talent Retention Analytics — flight risk scoring, attrition trends,
-// compensation benchmarking, and retention dashboard.
+// Workforce Cost Forecasting — salary projections, scenario comparison,
+// headcount modeling, and statutory contribution estimates.
+const workforceCostForecastRoutes = require('./routes/workforceCostForecast.routes');
+app.use('/api/workforce-cost-forecast', workforceCostForecastRoutes);
+
+// Talent Retention Analytics — flight risk, attrition trends, compensation benchmarks.
 const retentionAnalyticsRoutes = require('./routes/retentionAnalytics.routes');
 app.use('/api/retention-analytics', retentionAnalyticsRoutes);
 
-// Pulse Surveys (#1201) — lightweight employee engagement polling.
+// Pulse Surveys — engagement polling and analytics.
 const pulseSurveyRoutes = require('./routes/pulseSurvey.routes');
 const surveyAnalyticsRoutes = require('./routes/surveyAnalytics.routes');
 app.use('/api/pulse-surveys', pulseSurveyRoutes);
