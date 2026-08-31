@@ -1,7 +1,7 @@
 const PayrollEngine = require('../services/PayrollEngine.service');
 const PayrollQueryService = require('../services/payrollQuery.service');
 const PayrollExportService = require('../services/payrollExport.service');
-// `tax.service` and `anomaly.service` were required here by the #693
+const PayrollFinalizationService = require('../services/payrollFinalization.service');// `tax.service` and `anomaly.service` were required here by the #693
 // scaffolding and never called. Left in place they are two more modules loaded
 // on every payroll request for nothing, and `anomaly.service` in particular has
 // a broken require of its own that this file was propagating to app.js at boot
@@ -350,12 +350,15 @@ exports.getPendingApprovals = async (req, res, next) => {
  * ids, and the handler reported success regardless of whether anything matched.
  */
 exports.approvePayroll = async (req, res, next) => {
+  let payrollRunId;
   try {
     const batch = parsePayrollIdBatch(req.body && req.body.payrollIds);
     if (!batch.ok) {
       return res.status(400).json({ message: batch.message });
     }
 
+    const { tenantId } = req;
+    const { payrollRunId: requestPayrollRunId } = req.body;
     const approvedAt = new Date();
 
     const { applied, notFound, invalidTransition, versionConflicts } =
@@ -366,8 +369,6 @@ exports.approvePayroll = async (req, res, next) => {
         extraFields: {
           approvedBy: req.userId,
           approvedAt,
-          // Clear any prior rejection so a resubmitted-then-approved row does not
-          // keep showing a stale reason on the payslip screen.
           rejectionReason: undefined,
           rejectedBy: undefined,
           rejectedAt: undefined,
@@ -381,41 +382,8 @@ exports.approvePayroll = async (req, res, next) => {
         versionConflicts,
       });
     }
-    if (applied.length > 0) {
-      const finalizedAt = new Date();
 
-      const approvedPayrolls = await PayrollUpdate.find({
-        _id: { $in: applied.map((item) => item.payrollId) }
-      });
-
-      const finalizedSnapshotUpdates = approvedPayrolls.map((payroll) => ({
-        updateOne: {
-          filter: {
-            _id: payroll._id,
-
-            'calculationSnapshot.finalizedAt': {
-              $exists: false,
-            }
-          },
-          update: {
-            $set: {
-              'calculationSnapshot.version':
-                payroll.calculationSnapshot?.version ||
-                PAYROLL_CALCULATION_VERSION,
-              'calculationSnapshot.finalizedAt': finalizedAt,
-              'calculationSnapshot.finalizedBy': req.userId,
-            },
-          },
-        },
-      }));
-
-      if (finalizedSnapshotUpdates.length > 0) {
-        await PayrollUpdate.bulkWrite(finalizedSnapshotUpdates);
-      }
-    }
     if (applied.length === 0) {
-      // Nothing moved. A 409 rather than a 200 so the UI does not tell the user
-      // an approval happened when it did not.
       return res.status(409).json({
         message: 'No payroll records were approved',
         approvedCount: 0,
@@ -424,9 +392,27 @@ exports.approvePayroll = async (req, res, next) => {
       });
     }
 
-    // Approved rows enter every payable total, so the cached analytics are now
-    // stale — the same invalidation contract the finalize path follows (#415).
-    // Invalidate analytics and dashboard caches since financial data changed (Issue #519)
+    // Issue #1902: Use atomic finalization service
+    if (requestPayrollRunId) {
+      payrollRunId = requestPayrollRunId;
+    } else {
+      const PayrollRun = require('../models/payrollRun.model');
+      const newRun = await PayrollRun.create({
+        tenantId,
+        payrollPeriod: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
+        payrollRunType: 'REGULAR',
+        status: 'processing',
+      });
+      payrollRunId = newRun._id;
+    }
+
+    const finalizationResult = await PayrollFinalizationService.finalizePayroll({
+      tenantId,
+      payrollIds: applied.map((item) => mongoose.Types.ObjectId(item.payrollId)),
+      payrollRunId,
+      userId: req.userId,
+    });
+
     await cacheService.invalidateAnalytics(req.userId);
     await cacheService.invalidateDashboardSummary(req.userId);
 
@@ -434,9 +420,10 @@ exports.approvePayroll = async (req, res, next) => {
       userId: req.userId,
       action: 'PAYROLL_APPROVE',
       resourceType: 'Payroll',
-      resourceIds: applied.map((a) => a.payrollId),
+      resourceIds: finalizationResult.applied.map((a) => a.payrollId),
       details: {
         approvedCount: applied.length,
+        finalizedCount: finalizationResult.applied.length,
         notFoundCount: notFound.length,
         invalidTransitionCount: invalidTransition.length,
         totalNetSalary: applied.reduce((sum, a) => sum + (a.netSalary || 0), 0),
@@ -447,7 +434,6 @@ exports.approvePayroll = async (req, res, next) => {
           : 'success',
       req,
     });
-
     logger.info('Payroll approved', {
       userId: req.userId,
       approvedCount: applied.length,
