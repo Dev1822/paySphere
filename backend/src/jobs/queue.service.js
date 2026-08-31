@@ -39,8 +39,42 @@ if (process.env.REDIS_URL) {
   logger.warn('BullMQ queues mocked (Redis disabled)');
 }
 
+const jobOrchestrator = require('../services/jobOrchestrator.service');
+
+// Attach orchestrator hooks to queues
+if (process.env.REDIS_URL) {
+  payrollQueue.on('completed', async (job) => {
+    const { workflowId, jobId, jobType } = job.data;
+    if (workflowId) {
+      await jobOrchestrator.completeJob(jobId, workflowId, job.returnvalue);
+    }
+  });
+
+  payrollQueue.on('failed', async (job, err) => {
+    const { workflowId, jobId } = job.data;
+    if (workflowId) {
+      await jobOrchestrator.failJob(jobId, workflowId, err);
+    }
+  });
+
+  bulkOperationQueue.on('completed', async (job) => {
+    const { workflowId, jobId } = job.data;
+    if (workflowId) {
+      await jobOrchestrator.completeJob(jobId, workflowId, job.returnvalue);
+    }
+  });
+
+  bulkOperationQueue.on('failed', async (job, err) => {
+    const { workflowId, jobId } = job.data;
+    if (workflowId) {
+      await jobOrchestrator.failJob(jobId, workflowId, err);
+    }
+  });
+}
+
 module.exports = {
   payrollQueue,
   bulkOperationQueue,
   connection: redisConnection,
+  jobOrchestrator,
 };
