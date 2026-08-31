@@ -404,3 +404,23 @@ exports.verifyCryptographicChain = async (req, res, next) => {
     next(error);
   }
 };
+
+const auditIntegrityService = require('../services/auditIntegrity.service');
+
+exports.verifyAuditTrailIntegrity = async (req, res, next) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.error(
+        'Tenant ID is required for audit verification',
+        null,
+        'bad_request',
+        400,
+      );
+    }
+    const report = await auditIntegrityService.verifyTenantChain(tenantId);
+    return res.success(report);
+  } catch (error) {
+    next(error);
+  }
+};
