@@ -21,7 +21,9 @@ exports.uploadKnowledge = async (req, res, next) => {
         }
 
         // Delete existing chunks for this document to allow re-indexing
-        await KnowledgeChunk.deleteMany({ tenantId: req.tenantId, documentTitle: title });
+        await KnowledgeChunk.deleteMany({
+            documentTitle: title
+        });
 
         const chunks = chunkDocument(content, 1000, 200);
 
@@ -32,7 +34,6 @@ exports.uploadKnowledge = async (req, res, next) => {
         const vocabArray = Array.from(vocabulary);
 
         const chunkDocs = chunks.map((text, index) => ({
-            tenantId: req.tenantId,
             documentTitle: title,
             chunkIndex: index,
             content: text,
@@ -55,7 +56,7 @@ exports.askQuestion = async (req, res, next) => {
         if (!question) return res.status(400).json({ message: 'Question is required' });
 
         // 1. Retrieve all chunks for the tenant (In prod: query Vector DB directly)
-        const allChunks = await KnowledgeChunk.find({ tenantId: req.tenantId });
+        const allChunks = await KnowledgeChunk.find({});
 
         // 2. Perform similarity search
         const relevantChunks = searchKnowledgeBase(allChunks, question, 3);
@@ -85,16 +86,18 @@ exports.escalateToTicket = async (req, res, next) => {
     try {
         const { originalQuery, aiResponse, priority } = req.body;
 
-        const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+        const employee = await Employee.findOne({
+            userId: req.userId
+        });
         if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
         const ticket = await HRTicket.create({
-            tenantId: req.tenantId,
             employeeId: employee._id,
             subject: `Query: ${originalQuery.slice(0, 50)}...`,
             originalQuery,
             aiResponse: aiResponse || '',
             priority: priority || 'Medium',
+
             messages: [{
                 senderId: req.userId,
                 senderType: 'Employee',

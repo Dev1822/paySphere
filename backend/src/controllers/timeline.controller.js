@@ -1,5 +1,4 @@
 const lifecycleEventService = require('../services/lifecycleEvent.service');
-const { tenantFilter } = require('../utils/tenantScope');
 
 exports.getEmployeeTimeline = async (req, res, next) => {
   try {

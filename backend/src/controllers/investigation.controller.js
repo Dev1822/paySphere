@@ -13,7 +13,6 @@ const {
   CaseEvidence,
 } = require('../models/investigation.model');
 const { Grievance } = require('../models/grievance.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
 
@@ -30,19 +29,18 @@ exports.createStep = async (req, res, next) => {
     const { caseId } = req.params;
     const { actionType, title, description, confidentialNotes, isConfidential, dueDate, attachments } = req.body;
 
-    const grievance = await Grievance.findOne(tenantFilter(req, { _id: caseId }));
+    const grievance = await Grievance.findOne({ _id: caseId });
     if (!grievance) {
       return res.status(404).json({ message: 'Grievance case not found' });
     }
 
     // Determine next step number
     const lastStep = await InvestigationStep.findOne(
-      tenantFilter(req, { caseId }),
+      { caseId },
     ).sort({ stepNumber: -1 });
     const stepNumber = lastStep ? lastStep.stepNumber + 1 : 1;
 
     const step = await InvestigationStep.create({
-      tenantId: req.tenantId,
       caseId,
       stepNumber,
       actionType,
@@ -53,7 +51,7 @@ exports.createStep = async (req, res, next) => {
       dueDate: dueDate ? new Date(dueDate) : null,
       attachments: attachments || [],
       performedBy: req.userId,
-      status: 'PENDING',
+      status: 'PENDING'
     });
 
     // Auto-transition case to 'Under Inquiry' if it is still 'Filed'
@@ -86,7 +84,7 @@ exports.getSteps = async (req, res, next) => {
     const { caseId } = req.params;
 
     const steps = await InvestigationStep.find(
-      tenantFilter(req, { caseId }),
+      { caseId },
     )
       .populate('performedBy', 'name email')
       .sort({ stepNumber: 1 })
@@ -108,7 +106,7 @@ exports.updateStep = async (req, res, next) => {
     const { status, description, confidentialNotes, dueDate } = req.body;
 
     const step = await InvestigationStep.findOne(
-      tenantFilter(req, { _id: stepId }),
+      { _id: stepId },
     );
     if (!step) {
       return res.status(404).json({ message: 'Investigation step not found' });
@@ -149,7 +147,7 @@ exports.cancelStep = async (req, res, next) => {
     const { stepId } = req.params;
 
     const step = await InvestigationStep.findOne(
-      tenantFilter(req, { _id: stepId }),
+      { _id: stepId },
     );
     if (!step) {
       return res.status(404).json({ message: 'Investigation step not found' });
@@ -188,13 +186,12 @@ exports.addComment = async (req, res, next) => {
     const { content, isInternal, mentions, parentCommentId } = req.body;
 
     const comment = await CaseComment.create({
-      tenantId: req.tenantId,
       caseId,
       authorId: req.userId,
       content,
       isInternal: isInternal || false,
       mentions: mentions || [],
-      parentCommentId: parentCommentId || null,
+      parentCommentId: parentCommentId || null
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -221,7 +218,7 @@ exports.getComments = async (req, res, next) => {
     const { caseId } = req.params;
     const { includeInternal } = req.query;
 
-    const filter = tenantFilter(req, { caseId });
+    const filter = { caseId };
     // By default exclude internal comments unless explicitly requested
     if (includeInternal !== 'true') {
       filter.isInternal = { $ne: true };
@@ -247,7 +244,7 @@ exports.deleteComment = async (req, res, next) => {
     const { commentId } = req.params;
 
     const comment = await CaseComment.findOne(
-      tenantFilter(req, { _id: commentId }),
+      { _id: commentId },
     );
     if (!comment) {
       return res.status(404).json({ message: 'Comment not found' });
@@ -289,7 +286,6 @@ exports.addEvidence = async (req, res, next) => {
     const { evidenceType, title, description, fileUrl, fileName, fileSize, mimeType, confidentialityLevel } = req.body;
 
     const evidence = await CaseEvidence.create({
-      tenantId: req.tenantId,
       caseId,
       evidenceType,
       title,
@@ -299,7 +295,7 @@ exports.addEvidence = async (req, res, next) => {
       fileSize: fileSize || 0,
       mimeType: mimeType || 'application/octet-stream',
       uploadedBy: req.userId,
-      confidentialityLevel: confidentialityLevel || 'CONFIDENTIAL',
+      confidentialityLevel: confidentialityLevel || 'CONFIDENTIAL'
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -326,7 +322,7 @@ exports.getEvidence = async (req, res, next) => {
     const { caseId } = req.params;
 
     const evidence = await CaseEvidence.find(
-      tenantFilter(req, { caseId }),
+      { caseId },
     )
       .populate('uploadedBy', 'name email')
       .sort({ createdAt: -1 })
@@ -347,7 +343,7 @@ exports.verifyEvidence = async (req, res, next) => {
     const { evidenceId } = req.params;
 
     const evidence = await CaseEvidence.findOne(
-      tenantFilter(req, { _id: evidenceId }),
+      { _id: evidenceId },
     );
     if (!evidence) {
       return res.status(404).json({ message: 'Evidence not found' });
@@ -388,17 +384,16 @@ exports.assignToCase = async (req, res, next) => {
 
     // Deactivate any previous assignment for the same user on this case
     await CaseAssignment.updateMany(
-      tenantFilter(req, { caseId, assignedTo, isActive: true }),
+      { caseId, assignedTo, isActive: true },
       { isActive: false, unassignedAt: new Date(), unassignedBy: req.userId, reason: 'Reassigned' },
     );
 
     const assignment = await CaseAssignment.create({
-      tenantId: req.tenantId,
       caseId,
       assignedTo,
       assignedBy: req.userId,
       role,
-      reason: reason || '',
+      reason: reason || ''
     });
 
     await assignment.populate('assignedTo', 'name email');
@@ -427,7 +422,7 @@ exports.getAssignments = async (req, res, next) => {
     const { caseId } = req.params;
 
     const assignments = await CaseAssignment.find(
-      tenantFilter(req, { caseId }),
+      { caseId },
     )
       .populate('assignedTo', 'name email')
       .populate('assignedBy', 'name email')
@@ -450,7 +445,7 @@ exports.deactivateAssignment = async (req, res, next) => {
     const { reason } = req.body;
 
     const assignment = await CaseAssignment.findOne(
-      tenantFilter(req, { _id: assignmentId, isActive: true }),
+      { _id: assignmentId, isActive: true },
     );
     if (!assignment) {
       return res.status(404).json({ message: 'Active assignment not found' });
@@ -498,29 +493,29 @@ exports.getDashboard = async (req, res, next) => {
       evidenceCount,
       slaBreachCount,
     ] = await Promise.all([
-      Grievance.countDocuments(tenantFilter(req, {})),
+      Grievance.countDocuments({}),
       Grievance.countDocuments(
-        tenantFilter(req, { status: { $in: ['Filed', 'Under Inquiry'] } }),
+        { status: { $in: ['Filed', 'Under Inquiry'] } },
       ),
       InvestigationStep.aggregate([
-        { $match: { tenantId: req.tenantId } },
+        { $match: {} },
         { $group: { _id: '$status', count: { $sum: 1 } } },
       ]),
-      InvestigationStep.find(tenantFilter(req, {}))
+      InvestigationStep.find({})
         .populate('performedBy', 'name')
         .populate('caseId', 'caseNumber')
         .sort({ createdAt: -1 })
         .limit(10)
         .lean(),
       CaseAssignment.countDocuments(
-        tenantFilter(req, { isActive: true }),
+        { isActive: true },
       ),
-      CaseEvidence.countDocuments(tenantFilter(req, {})),
+      CaseEvidence.countDocuments({}),
       Grievance.countDocuments(
-        tenantFilter(req, {
+        {
           status: { $in: ['Filed', 'Under Inquiry'] },
           slaDeadline: { $lt: now },
-        }),
+        },
       ),
     ]);
 
@@ -533,7 +528,9 @@ exports.getDashboard = async (req, res, next) => {
 
     // Category breakdown for open cases
     const categoryBreakdown = await Grievance.aggregate([
-      { $match: { tenantId: req.tenantId, status: { $in: ['Filed', 'Under Inquiry'] } } },
+      { $match: {
+        status: { $in: ['Filed', 'Under Inquiry'] }
+      } },
       { $group: { _id: '$status', count: { $sum: 1 } } },
     ]);
 
@@ -566,20 +563,20 @@ exports.getCaseTimeline = async (req, res, next) => {
     const { caseId } = req.params;
 
     const [steps, comments, assignments, evidence, grievance] = await Promise.all([
-      InvestigationStep.find(tenantFilter(req, { caseId }))
+      InvestigationStep.find({ caseId })
         .populate('performedBy', 'name email')
         .lean(),
-      CaseComment.find(tenantFilter(req, { caseId }))
+      CaseComment.find({ caseId })
         .populate('authorId', 'name email')
         .lean(),
-      CaseAssignment.find(tenantFilter(req, { caseId }))
+      CaseAssignment.find({ caseId })
         .populate('assignedTo', 'name email')
         .populate('assignedBy', 'name email')
         .lean(),
-      CaseEvidence.find(tenantFilter(req, { caseId }))
+      CaseEvidence.find({ caseId })
         .populate('uploadedBy', 'name email')
         .lean(),
-      Grievance.findOne(tenantFilter(req, { _id: caseId })).lean(),
+      Grievance.findOne({ _id: caseId }).lean(),
     ]);
 
     // Merge into unified timeline

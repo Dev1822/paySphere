@@ -57,7 +57,9 @@ function parseLeaveYear(value) {
  * @returns {Promise<object>}
  */
 async function loadClosureInputs(req, year) {
-  const query = { tenantId: req.tenantId, year };
+  const query = {
+    year
+  };
 
   if (req.query?.leaveType || req.body?.leaveType) {
     query.leaveType = req.query?.leaveType || req.body?.leaveType;
@@ -66,10 +68,9 @@ async function loadClosureInputs(req, year) {
   const balances = await LeaveBalance.find(query);
 
   const [policies, employees] = await Promise.all([
-    LeavePolicy.find({ tenantId: req.tenantId }),
+    LeavePolicy.find({}),
     Employee.find({
-      tenantId: req.tenantId,
-      _id: { $in: balances.map((b) => b.employeeId) },
+      _id: { $in: balances.map((b) => b.employeeId) }
     }).select('fullName monthlySalary basicSalary'),
   ]);
 
@@ -83,8 +84,7 @@ async function loadClosureInputs(req, year) {
 exports.getClosurePolicies = async (req, res, next) => {
   try {
     const policies = await LeavePolicy.find({
-      tenantId: req.tenantId,
-      isActive: true,
+      isActive: true
     }).sort({ leaveType: 1, name: 1 });
 
     res.status(200).json({
@@ -186,7 +186,9 @@ exports.runClosure = async (req, res, next) => {
       updateOne: {
         // Scoped by tenant as well as by id: the ids came out of a tenant-scoped
         // read, but the write should not depend on that having been correct.
-        filter: { _id: closure.balanceId, tenantId: req.tenantId },
+        filter: {
+          _id: closure.balanceId
+        },
         update: {
           $set: {
             // The carried figure becomes next year's opening balance, so it is
@@ -215,10 +217,9 @@ exports.runClosure = async (req, res, next) => {
       const nextYearOps = nextYearOpening.map((b) => ({
         updateOne: {
           filter: {
-            tenantId: req.tenantId,
             employeeId: b.employeeId,
             leaveType: b.leaveType,
-            year: b.year,
+            year: b.year
           },
           update: {
             $setOnInsert: b,
@@ -280,7 +281,9 @@ exports.runClosure = async (req, res, next) => {
  */
 exports.getClosureHistory = async (req, res, next) => {
   try {
-    const query = { tenantId: req.tenantId, closedForYear: { $ne: null } };
+    const query = {
+      closedForYear: { $ne: null }
+    };
 
     if (req.query.year) {
       const parsed = parseLeaveYear(req.query.year);

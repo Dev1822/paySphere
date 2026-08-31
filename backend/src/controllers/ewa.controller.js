@@ -16,10 +16,14 @@ const logger = require('../utils/logger');
 
 exports.getMyBalance = async (req, res, next) => {
     try {
-        const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+        const employee = await Employee.findOne({
+            userId: req.userId
+        });
         if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
-        const config = await EWAConfig.findOne({ tenantId: req.tenantId, isActive: true });
+        const config = await EWAConfig.findOne({
+            isActive: true
+        });
         if (!config || !config.isEnabled) return res.status(403).json({ message: 'EWA is not currently enabled for your company.' });
 
         // Find current pay period (simplified: current month)
@@ -28,14 +32,14 @@ exports.getMyBalance = async (req, res, next) => {
         const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
         const accruals = await EWAAccrual.find({
-            tenantId: req.tenantId, employeeId: employee._id,
+            employeeId: employee._id,
             accrualDate: { $gte: periodStart, $lte: periodEnd }
         }).sort({ accrualDate: 1 });
 
         const cumulativeNetAccrued = accruals.reduce((sum, a) => sum + a.netDailyAccrual, 0);
 
         const fundedWithdrawals = await WithdrawalRequest.find({
-            tenantId: req.tenantId, employeeId: employee._id,
+            employeeId: employee._id,
             status: 'Funded',
             createdAt: { $gte: periodStart, $lte: periodEnd }
         });
@@ -60,24 +64,29 @@ exports.getMyBalance = async (req, res, next) => {
 exports.requestWithdrawal = async (req, res, next) => {
     try {
         const { requestedAmount } = req.body;
-        const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+        const employee = await Employee.findOne({
+            userId: req.userId
+        });
         if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
-        const config = await EWAConfig.findOne({ tenantId: req.tenantId, isActive: true });
+        const config = await EWAConfig.findOne({
+            isActive: true
+        });
 
         const now = new Date();
         const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
         const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
         const accruals = await EWAAccrual.find({
-            tenantId: req.tenantId, employeeId: employee._id,
+            employeeId: employee._id,
             accrualDate: { $gte: periodStart, $lte: periodEnd }
         });
         const cumulativeNetAccrued = accruals.reduce((sum, a) => sum + a.netDailyAccrual, 0);
 
         const fundedWithdrawals = await WithdrawalRequest.find({
-            tenantId: req.tenantId, employeeId: employee._id,
-            status: 'Funded', createdAt: { $gte: periodStart, $lte: periodEnd }
+            employeeId: employee._id,
+            status: 'Funded',
+            createdAt: { $gte: periodStart, $lte: periodEnd }
         });
 
         const totalFunded = fundedWithdrawals.reduce((sum, w) => sum + w.requestedAmount, 0);
@@ -93,9 +102,12 @@ exports.requestWithdrawal = async (req, res, next) => {
         }
 
         const withdrawal = await WithdrawalRequest.create({
-            tenantId: req.tenantId, employeeId: employee._id,
-            requestedAmount, transactionFee: config.transactionFee,
-            totalDeduction: validation.totalDeduction, status: 'Funded', fundedAt: new Date()
+            employeeId: employee._id,
+            requestedAmount,
+            transactionFee: config.transactionFee,
+            totalDeduction: validation.totalDeduction,
+            status: 'Funded',
+            fundedAt: new Date()
         });
 
         logger.info(`[EWA] Employee ${employee._id} withdrew ${requestedAmount}`);
@@ -113,7 +125,7 @@ exports.runPaydayOffsetBatch = async (req, res, next) => {
 
         // Find all funded withdrawals for the period that haven't been reconciled
         const pendingWithdrawals = await WithdrawalRequest.find({
-            tenantId: req.tenantId, status: 'Funded',
+            status: 'Funded',
             fundedAt: { $gte: start, $lte: end }
         }).session(session);
 
@@ -136,7 +148,8 @@ exports.runPaydayOffsetBatch = async (req, res, next) => {
             const offsets = generatePayrollOffsets(withdrawals);
 
             const recon = await PaydayReconciliation.create([{
-                tenantId: req.tenantId, employeeId: empId, payrollRunId,
+                employeeId: empId,
+                payrollRunId,
                 totalAdvancesRecovered: offsets.totalAdvances,
                 totalFeesRecovered: offsets.totalFees,
                 totalOffsetAmount: offsets.totalOffset,
@@ -167,13 +180,16 @@ exports.runPaydayOffsetBatch = async (req, res, next) => {
 
 exports.getAdminDashboard = async (req, res, next) => {
     try {
-        const config = await EWAConfig.findOne({ tenantId: req.tenantId });
+        const config = await EWAConfig.findOne({});
 
         const now = new Date();
         const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
         const totalLiability = await WithdrawalRequest.aggregate([
-            { $match: { tenantId: req.tenantId, status: 'Funded', fundedAt: { $gte: periodStart } } },
+            { $match: {
+                status: 'Funded',
+                fundedAt: { $gte: periodStart }
+            } },
             { $group: { _id: null, total: { $sum: '$requestedAmount' }, count: { $sum: 1 } } }
         ]);
 

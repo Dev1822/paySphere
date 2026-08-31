@@ -80,13 +80,14 @@ exports.upsertPolicy = async (req, res, next) => {
     // of them, so a second POST is an edit and answering 409 would leave no way
     // to change a rate.
     const policy = await TravelPolicy.findOneAndUpdate(
-      { tenantId: req.tenantId, grade },
+      {
+        grade
+      },
       {
         $set: {
           ...req.body,
-          tenantId: req.tenantId,
           grade,
-          createdBy: req.userId,
+          createdBy: req.userId
         },
       },
       {
@@ -117,7 +118,7 @@ exports.upsertPolicy = async (req, res, next) => {
  */
 exports.getPolicies = async (req, res, next) => {
   try {
-    const policies = await TravelPolicy.find({ tenantId: req.tenantId })
+    const policies = await TravelPolicy.find({})
       .sort({ grade: 1 })
       .lean();
 
@@ -152,12 +153,13 @@ exports.createRequest = async (req, res, next) => {
     // makes the self-service path safe — there is nothing to substitute.
     const employee = employeeId
       ? await Employee.findOne({
-        _id: mongoose.isValidObjectId(employeeId) ? employeeId : null,
-        tenantId: req.tenantId,
-      })
+      _id: mongoose.isValidObjectId(employeeId) ? employeeId : null
+    })
         .select('_id fullName grade role')
         .lean()
-      : await Employee.findOne({ userId: req.userId, tenantId: req.tenantId })
+      : await Employee.findOne({
+      userId: req.userId
+    })
         .select('_id fullName grade role')
         .lean();
 
@@ -168,7 +170,6 @@ exports.createRequest = async (req, res, next) => {
     const policy = await policyForGrade(req.tenantId, grade);
 
     const request = await TravelRequest.create({
-      tenantId: req.tenantId,
       employeeId: employee._id,
       grade,
       purpose,
@@ -176,7 +177,7 @@ exports.createRequest = async (req, res, next) => {
       estimatedCost,
       advanceRequested,
       status: REQUEST_STATUS.SUBMITTED,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     // Computed for the requester's information only. Reported as null when no
@@ -200,7 +201,7 @@ exports.createRequest = async (req, res, next) => {
  */
 exports.getRequests = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (req.query.status) filter.status = req.query.status;
     if (
       req.query.employeeId &&
@@ -234,8 +235,7 @@ exports.approveRequest = async (req, res, next) => {
     }
 
     const request = await TravelRequest.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
@@ -312,8 +312,7 @@ exports.rejectRequest = async (req, res, next) => {
     }
 
     const request = await TravelRequest.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
@@ -355,8 +354,7 @@ exports.releaseAdvance = async (req, res, next) => {
     }
 
     const request = await TravelRequest.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
@@ -423,8 +421,7 @@ exports.settleRequest = async (req, res, next) => {
     const { actuals, payrollMonth, payrollYear } = req.body;
 
     const request = await TravelRequest.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
@@ -462,7 +459,6 @@ exports.settleRequest = async (req, res, next) => {
     });
 
     const settlement = await TravelSettlement.create({
-      tenantId: req.tenantId,
       requestId: request._id,
       employeeId: request.employeeId,
       actualsByHead: outcome.actualsByHead,
@@ -476,7 +472,7 @@ exports.settleRequest = async (req, res, next) => {
       payrollComponent: outcome.payrollComponent,
       payrollMonth: payrollMonth ?? null,
       payrollYear: payrollYear ?? null,
-      settledBy: req.userId,
+      settledBy: req.userId
     });
 
     request.status = REQUEST_STATUS.SETTLED;
@@ -522,11 +518,10 @@ exports.getOutstandingAdvances = async (req, res, next) => {
     const asOf = resolveAsOf(req.query.asOf);
 
     const requests = await TravelRequest.find({
-      tenantId: req.tenantId,
-      advanceReleased: { $gt: 0 },
+      advanceReleased: { $gt: 0 }
     }).lean();
 
-    const settlements = await TravelSettlement.find({ tenantId: req.tenantId })
+    const settlements = await TravelSettlement.find({})
       .select('requestId')
       .lean();
 
@@ -544,8 +539,7 @@ exports.getOutstandingAdvances = async (req, res, next) => {
 exports.getMyTrips = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     })
       .select('_id fullName grade role')
       .lean();
@@ -557,15 +551,13 @@ exports.getMyTrips = async (req, res, next) => {
     }
 
     const requests = await TravelRequest.find({
-      tenantId: req.tenantId,
-      employeeId: employee._id,
+      employeeId: employee._id
     })
       .sort({ createdAt: -1 })
       .lean();
 
     const settlements = await TravelSettlement.find({
-      tenantId: req.tenantId,
-      employeeId: employee._id,
+      employeeId: employee._id
     }).lean();
 
     const settledIds = new Set(settlements.map((row) => String(row.requestId)));
@@ -592,7 +584,7 @@ exports.getMyTrips = async (req, res, next) => {
  */
 exports.getTravelVarianceReport = async (req, res, next) => {
   try {
-    const settlements = await TravelSettlement.find({ tenantId: req.tenantId })
+    const settlements = await TravelSettlement.find({})
       .populate('employeeId', 'fullName department')
       .populate('requestId', 'purpose advanceReleased')
       .sort({ createdAt: -1 })
@@ -654,15 +646,13 @@ exports.settleMultiCurrencyTrip = async (req, res, next) => {
     const { expenses = [], forexRates = {}, receipts = [] } = req.body;
 
     const request = await TravelRequest.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!request)
       return res.status(404).json({ message: 'Travel request not found' });
 
     const existingSettlement = await TravelSettlement.findOne({
-      tenantId: req.tenantId,
-      requestId: request._id,
+      requestId: request._id
     });
     if (existingSettlement) {
       return res
@@ -687,7 +677,6 @@ exports.settleMultiCurrencyTrip = async (req, res, next) => {
       rebalance.reimbursementPayable || rebalance.surplusToRecover || 0;
 
     const settlement = await TravelSettlement.create({
-      tenantId: req.tenantId,
       requestId: request._id,
       employeeId: request.employeeId,
       perDiemTotal: rebalance.perDiemBase,
@@ -696,7 +685,7 @@ exports.settleMultiCurrencyTrip = async (req, res, next) => {
       settlementType,
       netPayable,
       receipts: receipts.length ? receipts : undefined,
-      recordedBy: req.userId,
+      recordedBy: req.userId
     });
 
     request.status = REQUEST_STATUS.SETTLED;
@@ -737,8 +726,7 @@ exports.settleMultiCurrencyTrip = async (req, res, next) => {
 exports.getCorporatePolicies = async (req, res, next) => {
   try {
     const policies = await PerDiemPolicy.find({
-      tenantId: req.tenantId,
-      isActive: true,
+      isActive: true
     });
     res.status(200).json({ policies });
   } catch (error) {
@@ -761,8 +749,7 @@ exports.requestTravel = async (req, res, next) => {
       estimatedTravelCost,
     } = req.body;
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     });
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
@@ -775,7 +762,6 @@ exports.requestTravel = async (req, res, next) => {
     const totalAdvance = perDiem.totalPerDiem + (estimatedTravelCost || 0);
 
     const request = await CorporateTravelRequest.create({
-      tenantId: req.tenantId,
       employeeId: employee._id,
       destination,
       cityTier,
@@ -786,7 +772,7 @@ exports.requestTravel = async (req, res, next) => {
       estimatedPerDiem: perDiem.totalPerDiem,
       estimatedTravelCost: estimatedTravelCost || 0,
       totalAdvanceRequested: totalAdvance,
-      status: 'Pending Approval',
+      status: 'Pending Approval'
     });
 
     res.status(201).json({
@@ -816,12 +802,11 @@ exports.approveAdvance = async (req, res, next) => {
 
     // Initialize settlement record
     await CorporateTravelSettlement.create({
-      tenantId: req.tenantId,
       requestId: request._id,
       advancePaid: request.totalAdvanceRequested,
       actualExpenses: 0,
       balance: -request.totalAdvanceRequested,
-      status: 'Pending Submission',
+      status: 'Pending Submission'
     });
 
     res
@@ -840,8 +825,7 @@ exports.submitSettlement = async (req, res, next) => {
   try {
     const { requestId, expenseReceipts } = req.body;
     const settlement = await CorporateTravelSettlement.findOne({
-      requestId,
-      tenantId: req.tenantId,
+      requestId
     });
     if (!settlement)
       return res
@@ -882,12 +866,10 @@ exports.submitSettlement = async (req, res, next) => {
 exports.getMyTravel = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     });
     const requests = await CorporateTravelRequest.find({
-      employeeId: employee._id,
-      tenantId: req.tenantId,
+      employeeId: employee._id
     }).sort({ createdAt: -1 });
     res.status(200).json({ requests });
   } catch (error) {

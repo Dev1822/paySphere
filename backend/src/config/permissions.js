@@ -1,6 +1,9 @@
 /**
  * Canonical RBAC vocabulary for PaySphere.
  *
+ * @deprecated This static matrix is being replaced by the dynamic ABAC engine.
+ * The core roles and permissions are now seeded into the database as AccessPolicies.
+ *
  * Both the seeder and the route definitions read from this file so the set of
  * permission names can never drift between "what gets written to the database"
  * and "what the routes ask for" — a mismatch there is invisible until a user

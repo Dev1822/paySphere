@@ -5,7 +5,6 @@
 
 const TuitionReimbursement = require('../models/tuitionReimbursement.model');
 const { calculateTuitionExemption } = require('../services/tuitionAssistance.service');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 async function previewClaim(req, res) {
@@ -51,10 +50,9 @@ async function submitClaim(req, res) {
 
     // Aggregate cumulative prior disbursements for employee in fiscal year
     const priorClaims = await TuitionReimbursement.find({
-      tenantId: req.tenantId,
       employeeId,
       fiscalYear: Number(fiscalYear),
-      status: { $in: ['approved', 'disbursed'] },
+      status: { $in: ['approved', 'disbursed'] }
     }).lean();
 
     const cumulativePrior = priorClaims.reduce((sum, c) => sum + (c.claimedAmount || 0), 0);
@@ -66,7 +64,6 @@ async function submitClaim(req, res) {
     });
 
     const claim = await TuitionReimbursement.create({
-      tenantId: req.tenantId,
       employeeId,
       claimNumber,
       fiscalYear: Number(fiscalYear),
@@ -80,7 +77,7 @@ async function submitClaim(req, res) {
       statutoryAnnualExemptionCap: calculation.statutoryCap,
       exemptReimbursementAmount: calculation.exemptReimbursementAmount,
       taxableSpilloverPerquisiteAmount: calculation.taxableSpilloverPerquisiteAmount,
-      status: 'pending_review',
+      status: 'pending_review'
     });
 
     return res.status(201).json({ message: 'Tuition assistance claim submitted successfully.', claim });
@@ -92,7 +89,7 @@ async function submitClaim(req, res) {
 
 async function getClaims(req, res) {
   try {
-    const filter = { ...tenantFilter(req) };
+    const filter = { ...{} };
     if (req.query.employeeId) filter.employeeId = req.query.employeeId;
     if (req.query.fiscalYear) filter.fiscalYear = req.query.fiscalYear;
     if (req.query.status) filter.status = req.query.status;
@@ -112,7 +109,7 @@ async function getClaims(req, res) {
 async function approveClaim(req, res) {
   try {
     const { id } = req.params;
-    const claim = await TuitionReimbursement.findOne({ _id: id, ...tenantFilter(req) });
+    const claim = await TuitionReimbursement.findOne({ _id: id, ...{} });
     if (!claim) {
       return res.status(404).json({ message: 'Claim not found.' });
     }

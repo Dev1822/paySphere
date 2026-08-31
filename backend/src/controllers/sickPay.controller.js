@@ -9,7 +9,9 @@ const logger = require('../utils/logger');
 
 exports.createPolicy = async (req, res, next) => {
     try {
-        const policy = await DisabilityPolicy.create({ ...req.body, tenantId: req.tenantId });
+        const policy = await DisabilityPolicy.create({
+            ...req.body
+        });
         res.status(201).json({ message: 'Disability policy created', policy });
     } catch (error) { next(error); }
 };
@@ -28,10 +30,14 @@ exports.importCarrierFeed = async (req, res, next) => {
             const taxCalc = calculateSickPayTaxability(p.grossBenefitAmount, policy.employerPremiumPercentage);
 
             const feed = await ThirdPartyPaymentFeed.create([{
-                tenantId: req.tenantId, policyId: policy._id, employeeId: p.employeeId,
-                paymentDate: new Date(p.paymentDate), grossBenefitAmount: p.grossBenefitAmount,
-                taxablePercentage: taxCalc.taxablePercentage, taxableAmount: taxCalc.taxableAmount,
-                nonTaxableAmount: taxCalc.nonTaxableAmount, ficaTaxable: policy.isSubjectToFICA,
+                policyId: policy._id,
+                employeeId: p.employeeId,
+                paymentDate: new Date(p.paymentDate),
+                grossBenefitAmount: p.grossBenefitAmount,
+                taxablePercentage: taxCalc.taxablePercentage,
+                taxableAmount: taxCalc.taxableAmount,
+                nonTaxableAmount: taxCalc.nonTaxableAmount,
+                ficaTaxable: policy.isSubjectToFICA,
                 status: 'Reconciled'
             }], { session });
 
@@ -59,11 +65,15 @@ exports.injectToPayroll = async (req, res, next) => {
         for (const feed of feeds) {
             // Fetch YTD ledger
             const year = new Date(feed.paymentDate).getFullYear();
-            let ledger = await SickPayTaxLedger.findOne({ tenantId: req.tenantId, employeeId: feed.employeeId, taxYear: year });
+            let ledger = await SickPayTaxLedger.findOne({
+                employeeId: feed.employeeId,
+                taxYear: year
+            });
 
             if (!ledger) {
                 ledger = await SickPayTaxLedger.create({
-                    tenantId: req.tenantId, employeeId: feed.employeeId, taxYear: year
+                    employeeId: feed.employeeId,
+                    taxYear: year
                 });
             }
 
@@ -93,8 +103,10 @@ exports.injectToPayroll = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const policies = await DisabilityPolicy.find({ tenantId: req.tenantId });
-        const pendingFeeds = await ThirdPartyPaymentFeed.find({ tenantId: req.tenantId, status: 'Pending' })
+        const policies = await DisabilityPolicy.find({});
+        const pendingFeeds = await ThirdPartyPaymentFeed.find({
+            status: 'Pending'
+        })
             .populate('employeeId', 'fullName');
         res.status(200).json({ policies, pendingFeeds });
     } catch (error) { next(error); }

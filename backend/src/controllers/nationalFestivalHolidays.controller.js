@@ -128,7 +128,10 @@ exports.createCalendar = async (req, res, next) => {
     const rules = resolveRules(state);
 
     const calendar = await HolidayCalendar.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment, year },
+      {
+        establishment,
+        year
+      },
       {
         $set: {
           state,
@@ -143,9 +146,8 @@ exports.createCalendar = async (req, res, next) => {
     for (const holiday of nationalHolidaysFor(year)) {
       const row = await Holiday.findOneAndUpdate(
         {
-          tenantId: req.tenantId,
           calendarId: calendar._id,
-          date: holiday.date,
+          date: holiday.date
         },
         {
           $setOnInsert: {
@@ -206,7 +208,9 @@ exports.settleCalendar = async (req, res, next) => {
     const settledOn = readDate(req.body.settledOn) || new Date();
 
     const calendar = await HolidayCalendar.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       {
         $set: {
           settledOn,
@@ -253,8 +257,7 @@ exports.addHoliday = async (req, res, next) => {
     }
 
     const calendar = await HolidayCalendar.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!calendar) {
       return res.status(404).json({ message: 'Calendar not found' });
@@ -274,7 +277,10 @@ exports.addHoliday = async (req, res, next) => {
     }
 
     const holiday = await Holiday.findOneAndUpdate(
-      { tenantId: req.tenantId, calendarId: calendar._id, date },
+      {
+        calendarId: calendar._id,
+        date
+      },
       {
         $set: {
           kind: KIND.FESTIVAL,
@@ -318,8 +324,7 @@ exports.recordSubstitution = async (req, res, next) => {
     }
 
     const holiday = await Holiday.findOne({
-      _id: req.body.holidayId,
-      tenantId: req.tenantId,
+      _id: req.body.holidayId
     }).lean();
     if (!holiday) return res.status(404).json({ message: 'Holiday not found' });
 
@@ -346,14 +351,15 @@ exports.recordSubstitution = async (req, res, next) => {
     }
 
     const substitution = await HolidaySubstitution.create({
-      tenantId: req.tenantId,
       holidayId: holiday._id,
       substitutedDate,
       agreedOn,
+
       agreedBy: mongoose.isValidObjectId(req.body.agreedBy)
         ? req.body.agreedBy
         : undefined,
-      recordedBy: req.userId,
+
+      recordedBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -395,14 +401,12 @@ exports.recordWorked = async (req, res, next) => {
     }
 
     const holiday = await Holiday.findOne({
-      _id: req.body.holidayId,
-      tenantId: req.tenantId,
+      _id: req.body.holidayId
     }).lean();
     if (!holiday) return res.status(404).json({ message: 'Holiday not found' });
 
     const calendar = await HolidayCalendar.findOne({
-      _id: holiday.calendarId,
-      tenantId: req.tenantId,
+      _id: holiday.calendarId
     }).lean();
 
     const rules = resolveRules(calendar?.state);
@@ -429,9 +433,8 @@ exports.recordWorked = async (req, res, next) => {
 
     const record = await HolidayWorked.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         employeeId: req.body.employeeId,
-        holidayDate: holiday.date,
+        holidayDate: holiday.date
       },
       {
         $set: {
@@ -491,14 +494,12 @@ exports.getEligibility = async (req, res, next) => {
     }
 
     const holiday = await Holiday.findOne({
-      _id: req.query.holidayId,
-      tenantId: req.tenantId,
+      _id: req.query.holidayId
     }).lean();
     if (!holiday) return res.status(404).json({ message: 'Holiday not found' });
 
     const calendar = await HolidayCalendar.findOne({
-      _id: holiday.calendarId,
-      tenantId: req.tenantId,
+      _id: holiday.calendarId
     }).lean();
 
     const rules = resolveRules(calendar?.state);
@@ -533,9 +534,8 @@ exports.getPosition = async (req, res, next) => {
     const year = Number(req.query.year) || new Date().getUTCFullYear();
 
     const calendar = await findCalendar({
-      tenantId: req.tenantId,
       establishment,
-      year,
+      year
     });
 
     if (!calendar) {
@@ -550,15 +550,13 @@ exports.getPosition = async (req, res, next) => {
     }
 
     const holidays = await Holiday.find({
-      tenantId: req.tenantId,
-      calendarId: calendar._id,
+      calendarId: calendar._id
     })
       .sort({ date: 1 })
       .lean();
 
     const substitutions = await HolidaySubstitution.find({
-      tenantId: req.tenantId,
-      holidayId: { $in: holidays.map((holiday) => holiday._id) },
+      holidayId: { $in: holidays.map((holiday) => holiday._id) }
     }).lean();
 
     const byId = new Map(
@@ -566,11 +564,10 @@ exports.getPosition = async (req, res, next) => {
     );
 
     const worked = await HolidayWorked.find({
-      tenantId: req.tenantId,
       holidayDate: {
         $gte: new Date(Date.UTC(year, 0, 1)),
         $lte: new Date(Date.UTC(year, 11, 31)),
-      },
+      }
     }).lean();
 
     const result = assessYear({

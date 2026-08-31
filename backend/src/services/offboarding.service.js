@@ -22,6 +22,7 @@ const {
   generateAttritionAnalytics,
 } = require('../utils/offboarding.utils');
 const logger = require('../utils/logger');
+const eventDispatcher = require('../utils/eventBus');
 
 // ─── Process Lifecycle ──────────────────────────────────────────────────────
 
@@ -61,10 +62,23 @@ async function initiateOffboarding(tenantId, employeeId, data, userId) {
   }));
   await ClearanceChecklistItem.insertMany(checklistItems);
 
-  await logActivity(tenantId, process._id, 'ProcessInitiated', {
+  await logActivity(
+    tenantId,
+    process._id,
+    'ProcessInitiated',
+    {
+      exitType: data.exitType,
+      lastWorkingDay: data.lastWorkingDay,
+    },
+    userId,
+  );
+
+  await eventDispatcher.publish('OffboardingInitiated', {
+    tenantId,
+    employeeId,
+    processId: process._id,
     exitType: data.exitType,
-    lastWorkingDay: data.lastWorkingDay,
-  }, userId);
+  });
 
   logger.info('Offboarding initiated', { processId: process._id, employeeId });
   return process;
@@ -75,7 +89,9 @@ async function getProcess(processId, tenantId) {
     .populate('employeeId', 'fullName email department')
     .populate('handoverToId', 'fullName');
   if (!process) {
-    throw Object.assign(new Error('Offboarding process not found'), { statusCode: 404 });
+    throw Object.assign(new Error('Offboarding process not found'), {
+      statusCode: 404,
+    });
   }
   return process;
 }
@@ -85,7 +101,10 @@ async function getProcesses(tenantId, filters = {}) {
   if (filters.status) query.status = filters.status;
   if (filters.exitType) query.exitType = filters.exitType;
   if (filters.department) {
-    const employees = await Employee.find({ tenantId, department: filters.department }).select('_id');
+    const employees = await Employee.find({
+      tenantId,
+      department: filters.department,
+    }).select('_id');
     query.employeeId = { $in: employees.map((e) => e._id) };
   }
   if (filters.upcomingDays) {
@@ -99,10 +118,21 @@ async function getProcesses(tenantId, filters = {}) {
     .sort({ lastWorkingDay: 1 });
 }
 
-async function transitionProcess(processId, tenantId, targetStatus, userId, comment) {
-  const process = await OffboardingProcess.findOne({ _id: processId, tenantId });
+async function transitionProcess(
+  processId,
+  tenantId,
+  targetStatus,
+  userId,
+  comment,
+) {
+  const process = await OffboardingProcess.findOne({
+    _id: processId,
+    tenantId,
+  });
   if (!process) {
-    throw Object.assign(new Error('Offboarding process not found'), { statusCode: 404 });
+    throw Object.assign(new Error('Offboarding process not found'), {
+      statusCode: 404,
+    });
   }
 
   const validation = validateTransition(process.status, targetStatus);
@@ -122,13 +152,25 @@ async function transitionProcess(processId, tenantId, targetStatus, userId, comm
     process.completedAt = new Date();
     process.completedBy = userId;
     process.progressPercent = 100;
+
+    await eventDispatcher.publish('OffboardingCompleted', {
+      tenantId,
+      employeeId: process.employeeId,
+      processId,
+    });
   }
 
   await process.save();
 
-  await logActivity(tenantId, processId, 'StatusChanged', {
-    to: targetStatus,
-  }, userId);
+  await logActivity(
+    tenantId,
+    processId,
+    'StatusChanged',
+    {
+      to: targetStatus,
+    },
+    userId,
+  );
 
   return process;
 }
@@ -145,7 +187,9 @@ async function getClearanceChecklist(offboardingId, tenantId) {
 async function updateClearanceItem(itemId, tenantId, data, userId) {
   const item = await ClearanceChecklistItem.findOne({ _id: itemId, tenantId });
   if (!item) {
-    throw Object.assign(new Error('Clearance item not found'), { statusCode: 404 });
+    throw Object.assign(new Error('Clearance item not found'), {
+      statusCode: 404,
+    });
   }
 
   if (data.status === 'Cleared') {
@@ -196,7 +240,9 @@ async function addAssetReturn(offboardingId, tenantId, data) {
 async function updateAssetReturn(assetId, tenantId, data, userId) {
   const asset = await AssetReturn.findOne({ _id: assetId, tenantId });
   if (!asset) {
-    throw Object.assign(new Error('Asset record not found'), { statusCode: 404 });
+    throw Object.assign(new Error('Asset record not found'), {
+      statusCode: 404,
+    });
   }
 
   if (data.status === 'Returned') {
@@ -211,11 +257,17 @@ async function updateAssetReturn(assetId, tenantId, data, userId) {
   Object.assign(asset, data);
   await asset.save();
 
-  await logActivity(tenantId, asset.offboardingId, 'AssetReturned', {
-    assetType: asset.assetType,
-    status: asset.status,
-    deduction: asset.deductionAmount,
-  }, userId);
+  await logActivity(
+    tenantId,
+    asset.offboardingId,
+    'AssetReturned',
+    {
+      assetType: asset.assetType,
+      status: asset.status,
+      deduction: asset.deductionAmount,
+    },
+    userId,
+  );
 
   return asset;
 }
@@ -244,7 +296,9 @@ async function addKnowledgeTransfer(offboardingId, tenantId, data) {
 async function updateKnowledgeTransfer(ktId, tenantId, data, userId) {
   const kt = await KnowledgeTransfer.findOne({ _id: ktId, tenantId });
   if (!kt) {
-    throw Object.assign(new Error('Knowledge transfer record not found'), { statusCode: 404 });
+    throw Object.assign(new Error('Knowledge transfer record not found'), {
+      statusCode: 404,
+    });
   }
 
   if (data.status === 'Completed') {
@@ -255,9 +309,15 @@ async function updateKnowledgeTransfer(ktId, tenantId, data, userId) {
   Object.assign(kt, data);
   await kt.save();
 
-  await logActivity(tenantId, kt.offboardingId, 'KnowledgeTransferCompleted', {
-    topic: kt.topic,
-  }, userId);
+  await logActivity(
+    tenantId,
+    kt.offboardingId,
+    'KnowledgeTransferCompleted',
+    {
+      topic: kt.topic,
+    },
+    userId,
+  );
 
   return kt;
 }
@@ -265,27 +325,43 @@ async function updateKnowledgeTransfer(ktId, tenantId, data, userId) {
 // ─── Exit Interview ─────────────────────────────────────────────────────────
 
 async function scheduleExitInterview(offboardingId, tenantId, data, userId) {
-  const process = await OffboardingProcess.findOne({ _id: offboardingId, tenantId });
+  const process = await OffboardingProcess.findOne({
+    _id: offboardingId,
+    tenantId,
+  });
   if (!process) {
-    throw Object.assign(new Error('Offboarding process not found'), { statusCode: 404 });
+    throw Object.assign(new Error('Offboarding process not found'), {
+      statusCode: 404,
+    });
   }
 
   process.exitInterviewDate = data.date;
   process.exitInterviewerId = data.interviewerId;
   await process.save();
 
-  await logActivity(tenantId, offboardingId, 'ExitInterviewScheduled', {
-    date: data.date,
-    interviewerId: data.interviewerId,
-  }, userId);
+  await logActivity(
+    tenantId,
+    offboardingId,
+    'ExitInterviewScheduled',
+    {
+      date: data.date,
+      interviewerId: data.interviewerId,
+    },
+    userId,
+  );
 
   return process;
 }
 
 async function completeExitInterview(offboardingId, tenantId, data, userId) {
-  const process = await OffboardingProcess.findOne({ _id: offboardingId, tenantId });
+  const process = await OffboardingProcess.findOne({
+    _id: offboardingId,
+    tenantId,
+  });
   if (!process) {
-    throw Object.assign(new Error('Offboarding process not found'), { statusCode: 404 });
+    throw Object.assign(new Error('Offboarding process not found'), {
+      statusCode: 404,
+    });
   }
 
   process.exitInterviewConducted = true;
@@ -293,9 +369,15 @@ async function completeExitInterview(offboardingId, tenantId, data, userId) {
   process.exitInterviewFeedback = data.feedback || '';
   await process.save();
 
-  await logActivity(tenantId, offboardingId, 'ExitInterviewCompleted', {
-    rating: data.rating,
-  }, userId);
+  await logActivity(
+    tenantId,
+    offboardingId,
+    'ExitInterviewCompleted',
+    {
+      rating: data.rating,
+    },
+    userId,
+  );
 
   return process;
 }
@@ -303,13 +385,21 @@ async function completeExitInterview(offboardingId, tenantId, data, userId) {
 // ─── Final Settlement ───────────────────────────────────────────────────────
 
 async function initiateSettlement(offboardingId, tenantId, userId) {
-  const process = await OffboardingProcess.findOne({ _id: offboardingId, tenantId });
+  const process = await OffboardingProcess.findOne({
+    _id: offboardingId,
+    tenantId,
+  });
   if (!process) {
-    throw Object.assign(new Error('Offboarding process not found'), { statusCode: 404 });
+    throw Object.assign(new Error('Offboarding process not found'), {
+      statusCode: 404,
+    });
   }
 
   // Calculate asset deductions
-  const assetDeductions = await getTotalAssetDeductions(offboardingId, tenantId);
+  const assetDeductions = await getTotalAssetDeductions(
+    offboardingId,
+    tenantId,
+  );
 
   // Get employee salary
   const employee = await Employee.findById(process.employeeId);
@@ -332,18 +422,29 @@ async function initiateSettlement(offboardingId, tenantId, userId) {
   });
   await process.save();
 
-  await logActivity(tenantId, offboardingId, 'SettlementInitiated', {
-    estimatedAmount: estimate.total,
-    components: estimate.components,
-  }, userId);
+  await logActivity(
+    tenantId,
+    offboardingId,
+    'SettlementInitiated',
+    {
+      estimatedAmount: estimate.total,
+      components: estimate.components,
+    },
+    userId,
+  );
 
   return { process, estimate };
 }
 
 async function processSettlement(offboardingId, tenantId, finalAmount, userId) {
-  const process = await OffboardingProcess.findOne({ _id: offboardingId, tenantId });
+  const process = await OffboardingProcess.findOne({
+    _id: offboardingId,
+    tenantId,
+  });
   if (!process) {
-    throw Object.assign(new Error('Offboarding process not found'), { statusCode: 404 });
+    throw Object.assign(new Error('Offboarding process not found'), {
+      statusCode: 404,
+    });
   }
 
   process.settlementStatus = 'Processed';
@@ -351,9 +452,15 @@ async function processSettlement(offboardingId, tenantId, finalAmount, userId) {
   process.settlementProcessedAt = new Date();
   await process.save();
 
-  await logActivity(tenantId, offboardingId, 'SettlementProcessed', {
-    amount: finalAmount,
-  }, userId);
+  await logActivity(
+    tenantId,
+    offboardingId,
+    'SettlementProcessed',
+    {
+      amount: finalAmount,
+    },
+    userId,
+  );
 
   return process;
 }
@@ -361,9 +468,14 @@ async function processSettlement(offboardingId, tenantId, finalAmount, userId) {
 // ─── Handover ───────────────────────────────────────────────────────────────
 
 async function updateHandover(offboardingId, tenantId, data, userId) {
-  const process = await OffboardingProcess.findOne({ _id: offboardingId, tenantId });
+  const process = await OffboardingProcess.findOne({
+    _id: offboardingId,
+    tenantId,
+  });
   if (!process) {
-    throw Object.assign(new Error('Offboarding process not found'), { statusCode: 404 });
+    throw Object.assign(new Error('Offboarding process not found'), {
+      statusCode: 404,
+    });
   }
 
   if (data.handoverToId) process.handoverToId = data.handoverToId;
@@ -384,7 +496,14 @@ async function getOffboardingDashboard(tenantId) {
   const [active, upcoming30, completed, recent] = await Promise.all([
     OffboardingProcess.find({
       tenantId,
-      status: { $in: ['Initiated', 'InProgress', 'ClearancePending', 'SettlementPending'] },
+      status: {
+        $in: [
+          'Initiated',
+          'InProgress',
+          'ClearancePending',
+          'SettlementPending',
+        ],
+      },
     }).populate('employeeId', 'fullName department'),
     OffboardingProcess.find({
       tenantId,
@@ -393,7 +512,10 @@ async function getOffboardingDashboard(tenantId) {
     OffboardingProcess.find({
       tenantId,
       status: 'Completed',
-    }).sort({ completedAt: -1 }).limit(10).populate('employeeId', 'fullName department'),
+    })
+      .sort({ completedAt: -1 })
+      .limit(10)
+      .populate('employeeId', 'fullName department'),
     OffboardingProcess.find({
       tenantId,
       createdAt: { $gte: new Date(now.getFullYear(), now.getMonth() - 1, 1) },
@@ -419,7 +541,10 @@ async function getAttritionReport(tenantId, startDate, endDate) {
   }
 
   const processes = await OffboardingProcess.find(query);
-  const totalHeadcount = await Employee.countDocuments({ tenantId, isActive: { $ne: false } });
+  const totalHeadcount = await Employee.countDocuments({
+    tenantId,
+    isActive: { $ne: false },
+  });
 
   return generateAttritionAnalytics(processes, totalHeadcount);
 }

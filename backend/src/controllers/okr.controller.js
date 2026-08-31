@@ -15,13 +15,21 @@ exports.createObjective = async (req, res, next) => {
         // If Company/Dept, ownerId might be the department head or CEO (passed in body or resolved)
         let ownerId = req.body.ownerId;
         if (type === 'Individual') {
-            const emp = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+            const emp = await Employee.findOne({
+                userId: req.userId
+            });
             ownerId = emp._id;
         }
 
         const objective = await Objective.create({
-            tenantId: req.tenantId, title, description, type, parentId, department, cycle,
-            ownerId, keyResults: keyResults || []
+            title,
+            description,
+            type,
+            parentId,
+            department,
+            cycle,
+            ownerId,
+            keyResults: keyResults || []
         });
 
         // If this is a child objective, trigger parent recalculation
@@ -37,7 +45,9 @@ exports.logCheckIn = async (req, res, next) => {
     try {
         const { objectiveId, keyResultId, newValue, notes, blockedBy } = req.body;
 
-        const objective = await Objective.findOne({ _id: objectiveId, tenantId: req.tenantId });
+        const objective = await Objective.findOne({
+            _id: objectiveId
+        });
         if (!objective) return res.status(404).json({ message: 'Objective not found' });
 
         const kr = objective.keyResults.id(keyResultId);
@@ -49,7 +59,6 @@ exports.logCheckIn = async (req, res, next) => {
 
         // Log the check-in history
         await CheckIn.create({
-            tenantId: req.tenantId,
             objectiveId,
             keyResultId,
             updatedBy: req.userId,
@@ -68,8 +77,12 @@ exports.logCheckIn = async (req, res, next) => {
 
 exports.getMyOkrs = async (req, res, next) => {
     try {
-        const emp = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
-        const okrs = await Objective.find({ tenantId: req.tenantId, ownerId: emp._id })
+        const emp = await Employee.findOne({
+            userId: req.userId
+        });
+        const okrs = await Objective.find({
+            ownerId: emp._id
+        })
             .populate('parentId', 'title')
             .sort({ createdAt: -1 });
         res.status(200).json({ okrs });
@@ -79,7 +92,7 @@ exports.getMyOkrs = async (req, res, next) => {
 exports.getCompanyTree = async (req, res, next) => {
     try {
         const { cycle } = req.query;
-        const query = { tenantId: req.tenantId };
+        const query = {};
         if (cycle) query.cycle = cycle;
 
         const allObjectives = await Objective.find(query)

@@ -5,7 +5,6 @@
 
 const ExpatColaSetting = require('../models/expatColaSetting.model');
 const { calculateExpatAllowances } = require('../services/expatColaCalculator.service');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 async function previewAllowance(req, res) {
@@ -63,10 +62,9 @@ async function upsertSetting(req, res) {
 
     const setting = await ExpatColaSetting.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         homeCity,
         hostCity,
-        effectiveYear: Number(effectiveYear),
+        effectiveYear: Number(effectiveYear)
       },
       {
         $set: {
@@ -93,7 +91,7 @@ async function upsertSetting(req, res) {
 
 async function getSettings(req, res) {
   try {
-    const filter = { ...tenantFilter(req) };
+    const filter = { ...{} };
     if (req.query.effectiveYear) filter.effectiveYear = req.query.effectiveYear;
     if (req.query.hostCity) filter.hostCity = req.query.hostCity;
 

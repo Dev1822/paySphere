@@ -96,9 +96,7 @@ function validateRuleBody(body = {}) {
 
 exports.listCalculationRules = async (req, res, next) => {
   try {
-    const rules = await PayrollCalculationRuleVersion.find({
-      tenantId: req.tenantId,
-    })
+    const rules = await PayrollCalculationRuleVersion.find({})
       .sort({ effectiveFrom: -1 })
       .lean();
 
@@ -121,8 +119,7 @@ exports.createCalculationRule = async (req, res, next) => {
     }
 
     const existing = await PayrollCalculationRuleVersion.findOne({
-      tenantId: req.tenantId,
-      version: validation.value.version,
+      version: validation.value.version
     });
 
     if (existing) {
@@ -132,8 +129,7 @@ exports.createCalculationRule = async (req, res, next) => {
     }
 
     const existingActive = await PayrollCalculationRuleVersion.exists({
-      tenantId: req.tenantId,
-      isActive: true,
+      isActive: true
     });
 
     const activate =
@@ -142,8 +138,7 @@ exports.createCalculationRule = async (req, res, next) => {
     if (activate) {
       await PayrollCalculationRuleVersion.updateMany(
         {
-          tenantId: req.tenantId,
-          isActive: true,
+          isActive: true
         },
         {
           $set: { isActive: false },
@@ -152,11 +147,10 @@ exports.createCalculationRule = async (req, res, next) => {
     }
 
     const rule = await PayrollCalculationRuleVersion.create({
-      tenantId: req.tenantId,
       createdBy: req.userId,
       effectiveFrom: req.body.effectiveFrom || new Date(),
       isActive: activate,
-      ...validation.value,
+      ...validation.value
     });
 
     res.status(201).json({
@@ -173,8 +167,7 @@ exports.activateCalculationRule = async (req, res, next) => {
     const { version } = req.params;
 
     const rule = await PayrollCalculationRuleVersion.findOne({
-      tenantId: req.tenantId,
-      version,
+      version
     });
 
     if (!rule) {
@@ -186,8 +179,7 @@ exports.activateCalculationRule = async (req, res, next) => {
     if (!rule.isActive) {
       await PayrollCalculationRuleVersion.updateMany(
         {
-          tenantId: req.tenantId,
-          isActive: true,
+          isActive: true
         },
         {
           $set: { isActive: false },

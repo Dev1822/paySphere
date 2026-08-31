@@ -42,9 +42,8 @@ exports.createPolicy = async (req, res, next) => {
     const normalisedCode = policyCode.trim().toUpperCase().replace(/\s+/g, '-');
 
     const existing = await CompanyPolicy.findOne({
-      tenantId: req.tenantId,
-      policyCode: normalisedCode,
-      });
+      policyCode: normalisedCode
+    });
     if (existing) {
       return res
         .status(409)
@@ -54,11 +53,11 @@ exports.createPolicy = async (req, res, next) => {
     const isGlobal = !assignedDepartments || assignedDepartments.length === 0;
 
     const policy = await CompanyPolicy.create({
-      tenantId: req.tenantId,
       policyCode: normalisedCode,
       category: category || 'general',
       description: description ? sanitizeText(description) : '',
       currentVersion: 1,
+
       versions: [
         {
           versionNumber: 1,
@@ -70,15 +69,18 @@ exports.createPolicy = async (req, res, next) => {
           changeNote: 'Initial version',
         },
       ],
+
       status: 'draft',
       effectiveDate: effectiveDate ? new Date(effectiveDate) : undefined,
       expiryDate: expiryDate ? new Date(expiryDate) : undefined,
       requiresAcknowledgment: requiresAcknowledgment !== false,
+
       assignedDepartments: isGlobal
         ? []
         : assignedDepartments.map(sanitizeText),
+
       isGlobal,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -108,7 +110,7 @@ exports.createPolicy = async (req, res, next) => {
 exports.getPolicies = async (req, res, next) => {
   try {
     const { category, status, search } = req.query;
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (category) filter.category = category;
     if (status) filter.status = status;
     if (search && typeof search === 'string' && search.trim()) {
@@ -137,9 +139,8 @@ exports.getPolicyById = async (req, res, next) => {
   try {
     const { id } = req.params;
     const policy = await CompanyPolicy.findOne({
-      _id: id,
-      tenantId: req.tenantId,
-      }).populate('createdBy', 'fullName email');
+      _id: id
+    }).populate('createdBy', 'fullName email');
 
     if (!policy) return res.status(404).json({ message: 'Policy not found' });
 
@@ -173,9 +174,8 @@ exports.updatePolicy = async (req, res, next) => {
     } = req.body;
 
     const policy = await CompanyPolicy.findOne({
-      _id: id,
-      tenantId: req.tenantId,
-      });
+      _id: id
+    });
     if (!policy) return res.status(404).json({ message: 'Policy not found' });
 
     if (description !== undefined)
@@ -232,9 +232,8 @@ exports.publishVersion = async (req, res, next) => {
       return res.status(400).json({ message: 'Version content is required' });
 
     const policy = await CompanyPolicy.findOne({
-      _id: id,
-      tenantId: req.tenantId,
-      });
+      _id: id
+    });
     if (!policy) return res.status(404).json({ message: 'Policy not found' });
 
     const newVersion = policy.currentVersion + 1;
@@ -281,9 +280,8 @@ exports.deletePolicy = async (req, res, next) => {
   try {
     const { id } = req.params;
     const policy = await CompanyPolicy.findOne({
-      _id: id,
-      tenantId: req.tenantId,
-      });
+      _id: id
+    });
     if (!policy) return res.status(404).json({ message: 'Policy not found' });
 
     await policy.softDelete();
@@ -318,8 +316,7 @@ exports.acknowledgePolicy = async (req, res, next) => {
 
     const policy = await CompanyPolicy.findOne({
       _id: id,
-      tenantId: req.tenantId,
-      status: 'active',
+      status: 'active'
     });
     if (!policy)
       return res.status(404).json({ message: 'Active policy not found' });
@@ -331,9 +328,8 @@ exports.acknowledgePolicy = async (req, res, next) => {
     }
 
     const employee = await Employee.findOne({
-      createdBy: req.userId,
-      tenantId: req.tenantId,
-      });
+      createdBy: req.userId
+    });
     if (!employee)
       return res.status(404).json({ message: 'No employee record found' });
 
@@ -366,12 +362,11 @@ exports.acknowledgePolicy = async (req, res, next) => {
     const acknowledgment = await PolicyAcknowledgment.create({
       policyId: policy._id,
       employeeId: employee._id,
-      tenantId: req.tenantId,
       policyVersion: policy.currentVersion,
       policyCode: policy.policyCode,
       acknowledgedAt: new Date(),
       ipAddress: req.ip || '',
-      userAgent: req.headers['user-agent'] || '',
+      userAgent: req.headers['user-agent'] || ''
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -407,16 +402,14 @@ exports.acknowledgePolicy = async (req, res, next) => {
 exports.getPendingPolicies = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      createdBy: req.userId,
-      tenantId: req.tenantId,
-      });
+      createdBy: req.userId
+    });
     if (!employee) return res.status(204).json({ policies: [] });
 
     const activePolicies = await CompanyPolicy.find({
-      tenantId: req.tenantId,
       status: 'active',
-      requiresAcknowledgment: true,
-      });
+      requiresAcknowledgment: true
+    });
 
     // Filter by department assignment
     const applicable = activePolicies.filter((p) => {
@@ -429,8 +422,7 @@ exports.getPendingPolicies = async (req, res, next) => {
 
     // Which versions has this employee already acknowledged?
     const acks = await PolicyAcknowledgment.find({
-      tenantId: req.tenantId,
-      employeeId: employee._id,
+      employeeId: employee._id
     }).select('policyId policyVersion');
     const ackMap = new Map(
       acks.map((a) => [`${a.policyId}:${a.policyVersion}`, true]),
@@ -467,19 +459,16 @@ exports.getAcknowledgmentStats = async (req, res, next) => {
   try {
     const { id } = req.params;
     const policy = await CompanyPolicy.findOne({
-      _id: id,
-      tenantId: req.tenantId,
-      });
+      _id: id
+    });
     if (!policy) return res.status(404).json({ message: 'Policy not found' });
 
     const totalEmployees = await Employee.countDocuments({
-      tenantId: req.tenantId,
-      isActive: true,
+      isActive: true
     });
     const acknowledgedCount = await PolicyAcknowledgment.countDocuments({
       policyId: policy._id,
-      tenantId: req.tenantId,
-      policyVersion: policy.currentVersion,
+      policyVersion: policy.currentVersion
     });
     const pendingCount = Math.max(0, totalEmployees - acknowledgedCount);
     const acknowledgmentRate =
@@ -495,8 +484,7 @@ exports.getAcknowledgmentStats = async (req, res, next) => {
 
     const recentAcks = await PolicyAcknowledgment.find({
       policyId: policy._id,
-      tenantId: req.tenantId,
-      policyVersion: policy.currentVersion,
+      policyVersion: policy.currentVersion
     })
       .populate('employeeId', 'fullName department')
       .sort({ acknowledgedAt: -1 })

@@ -273,7 +273,7 @@ async function assembleWorkforce(tenantId, period, limits) {
  */
 exports.getLimits = async (req, res, next) => {
   try {
-    const limits = await WorkingHoursLimits.find({ tenantId: req.tenantId })
+    const limits = await WorkingHoursLimits.find({})
       .sort({ establishment: 1 })
       .lean();
 
@@ -307,14 +307,15 @@ exports.updateLimits = async (req, res, next) => {
     ];
 
     const update = {
-      tenantId: req.tenantId,
       establishment,
       statute: req.body.statute || 'Factories Act, 1948',
       nightHoursExempt: Boolean(req.body.nightHoursExempt),
       nightHoursExemptionRef: req.body.nightHoursExemptionRef || '',
+
       nightHoursExemptionConditions:
         req.body.nightHoursExemptionConditions || '',
-      updatedBy: req.userId,
+
+      updatedBy: req.userId
     };
 
     for (const field of numeric) {
@@ -338,7 +339,9 @@ exports.updateLimits = async (req, res, next) => {
     }
 
     const limits = await WorkingHoursLimits.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment },
+      {
+        establishment
+      },
       { $set: update },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -434,23 +437,19 @@ exports.commitAssessment = async (req, res, next) => {
 
     const assessment = await WorkingHoursAssessment.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         establishment,
-        periodStart: period.periodStart,
+        periodStart: period.periodStart
       },
       {
         $set: {
-          tenantId: req.tenantId,
           establishment,
           periodStart: period.periodStart,
           periodEnd: period.periodEnd,
           limits,
-
           assessedCount: result.assessedCount,
           breachCount: result.breachCount,
           overtimeShortfall: result.overtimeShortfall,
           compliant: result.compliant,
-
           bySection: result.bySection,
           findings: result.findings,
 
@@ -467,7 +466,7 @@ exports.commitAssessment = async (req, res, next) => {
             breachCount: employee.breachCount,
           })),
 
-          committedBy: req.userId,
+          committedBy: req.userId
         },
       },
       { new: true, upsert: true, setDefaultsOnInsert: true },
@@ -502,7 +501,7 @@ exports.commitAssessment = async (req, res, next) => {
  */
 exports.listAssessments = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (typeof req.query.establishment === 'string') {
       filter.establishment = req.query.establishment.trim();
     }
@@ -531,8 +530,7 @@ exports.getAssessment = async (req, res, next) => {
     }
 
     const assessment = await WorkingHoursAssessment.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!assessment) {

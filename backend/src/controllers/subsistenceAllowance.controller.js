@@ -218,7 +218,9 @@ exports.updateRules = async (req, res, next) => {
     }
 
     const rules = await SubsistenceRules.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment },
+      {
+        establishment
+      },
       { $set: { ...update, updatedBy: req.userId } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -248,7 +250,7 @@ exports.updateRules = async (req, res, next) => {
  */
 exports.listSuspensions = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
 
     if (typeof req.query.establishment === 'string') {
       filter.establishment = req.query.establishment.trim();
@@ -281,17 +283,15 @@ exports.createSuspension = async (req, res, next) => {
     }
 
     const employee = await Employee.findOne({
-      _id: req.body.employeeId,
-      tenantId: req.tenantId,
+      _id: req.body.employeeId
     }).lean();
 
     if (!employee)
       return res.status(404).json({ message: 'Employee not found' });
 
     const open = await Suspension.findOne({
-      tenantId: req.tenantId,
       employeeId: employee._id,
-      outcome: OUTCOME.PENDING,
+      outcome: OUTCOME.PENDING
     }).lean();
 
     if (open) {
@@ -317,23 +317,26 @@ exports.createSuspension = async (req, res, next) => {
     );
 
     const suspension = await Suspension.create({
-      tenantId: req.tenantId,
       establishment:
         typeof req.body.establishment === 'string'
           ? req.body.establishment.trim()
           : employee.department || '',
+
       employeeId: employee._id,
       name: employee.name || '',
       suspendedOn,
+
       orderReference:
         typeof req.body.orderReference === 'string'
           ? req.body.orderReference.trim()
           : '',
+
       // A one-line identifier, not an allegation — see this file's header.
       groundSummary:
         typeof req.body.groundSummary === 'string'
           ? req.body.groundSummary.trim().slice(0, 200)
           : '',
+
       frozenWages: {
         basis: WAGE_BASIS.BASIC_PLUS_DA,
         basic: Number.isFinite(basic) ? Math.max(0, basic) : 0,
@@ -342,7 +345,8 @@ exports.createSuspension = async (req, res, next) => {
           : 0,
         frozenOn: suspendedOn,
       },
-      createdBy: req.userId,
+
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -400,15 +404,16 @@ exports.recordAttributability = async (req, res, next) => {
     }
 
     const before = await Suspension.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!before)
       return res.status(404).json({ message: 'Suspension not found' });
 
     const suspension = await Suspension.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       {
         $set: {
           attributability: {
@@ -455,8 +460,7 @@ exports.getSuspension = async (req, res, next) => {
     }
 
     const suspension = await Suspension.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!suspension) {
@@ -507,8 +511,7 @@ exports.recordPayment = async (req, res, next) => {
     }
 
     const suspension = await Suspension.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!suspension) {
@@ -568,8 +571,7 @@ exports.recordOutcome = async (req, res, next) => {
     }
 
     const suspension = await Suspension.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!suspension) {
@@ -633,9 +635,8 @@ exports.previewAssessment = async (req, res, next) => {
 
     return res.json(
       await buildAssessment({
-        tenantId: req.tenantId,
         establishment,
-        query: req.query,
+        query: req.query
       }),
     );
   } catch (error) {
@@ -648,9 +649,7 @@ exports.previewAssessment = async (req, res, next) => {
  */
 exports.listAssessments = async (req, res, next) => {
   try {
-    const assessments = await SubsistenceAssessment.find({
-      tenantId: req.tenantId,
-    })
+    const assessments = await SubsistenceAssessment.find({})
       .sort({ periodStart: -1 })
       .limit(50)
       .select('-findings -suspensions')
@@ -673,16 +672,14 @@ exports.commitAssessment = async (req, res, next) => {
         : '';
 
     const { period, rules, workmen, result } = await buildAssessment({
-      tenantId: req.tenantId,
       establishment,
-      query: req.body,
+      query: req.body
     });
 
     const assessment = await SubsistenceAssessment.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         establishment,
-        periodStart: period.periodStart,
+        periodStart: period.periodStart
       },
       {
         $set: {

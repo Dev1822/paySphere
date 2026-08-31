@@ -15,7 +15,7 @@ exports.getReconciliationReport = async (req, res, next) => {
   try {
     const { month, year } = req.query;
 
-    const query = { tenantId: req.tenantId };
+    const query = {};
     if (month) query.month = parseInt(month, 10);
     if (year) query.year = parseInt(year, 10);
 

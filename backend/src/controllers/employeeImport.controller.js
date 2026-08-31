@@ -10,7 +10,6 @@
 
 const EmployeeImport = require('../models/employeeImport.model');
 const { parseAndValidate, commitImport, rollbackImport } = require('../services/employeeImport.service');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 async function startImport(req, res) {
@@ -48,7 +47,7 @@ async function startImport(req, res) {
 
 async function getImportJob(req, res) {
   try {
-    const job = await EmployeeImport.findOne({ _id: req.params.jobId, ...tenantFilter(req) });
+    const job = await EmployeeImport.findOne({ _id: req.params.jobId, ...{} });
     if (!job) return res.status(404).json({ message: 'Import job not found.' });
     return res.json({
       jobId:         job._id,
@@ -94,7 +93,7 @@ async function getImportProgress(req, res) {
   try {
     const job = await EmployeeImport.findOne({ 
       _id: req.params.jobId, 
-      ...tenantFilter(req) 
+      ...{} 
     });
     
     if (!job) return res.status(404).json({ message: 'Import job not found.' });

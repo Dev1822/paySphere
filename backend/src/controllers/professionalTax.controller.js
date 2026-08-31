@@ -157,8 +157,7 @@ exports.getStateSummary = async (req, res, next) => {
     const financialYear = month >= 4 ? year : year - 1;
 
     const { result } = await computeYear({
-      tenantId: req.tenantId,
-      financialYear,
+      financialYear
     });
 
     const summaryMap = new Map();

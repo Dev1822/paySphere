@@ -263,15 +263,15 @@ exports.createSalaryRevision = async (req, res, next) => {
     // stored payroll row unreproducible.
     const paidInPeriod = await PayrollUpdate.findOne({
       employeeId: employee._id,
-      tenantId: req.tenantId,
       status: 'paid',
+
       $or: [
         { year: { $gt: effectiveFrom.getFullYear() } },
         {
           year: effectiveFrom.getFullYear(),
           month: { $gte: effectiveFrom.getMonth() + 1 },
         },
-      ],
+      ]
     }).select('month year');
 
     if (paidInPeriod) {
@@ -294,15 +294,15 @@ exports.createSalaryRevision = async (req, res, next) => {
         // who can see it. #585 dropped the first while the schema still
         // required it, so this create() threw on every call (#613).
         createdBy: req.userId,
+
         employeeId: employee._id,
-        tenantId: req.tenantId,
         effectiveFrom,
         components: validation.value.components,
         grossMonthly: validation.value.grossMonthly,
         ctcAnnual: validation.value.ctcAnnual,
         reason: validation.value.reason,
         note: sanitizeText(body.note || ''),
-        revisedBy: req.userId,
+        revisedBy: req.userId
       });
     } catch (error) {
       if (error && error.code === 11000) {
@@ -338,7 +338,9 @@ exports.createSalaryRevision = async (req, res, next) => {
 
     if (isCurrent) {
       await Employee.updateOne(
-        { _id: employee._id, tenantId: req.tenantId },
+        {
+          _id: employee._id
+        },
         { $set: { monthlySalary: validation.value.grossMonthly } },
       );
 

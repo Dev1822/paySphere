@@ -219,15 +219,16 @@ const subscribe = async (req, res, next) => {
     await PushSubscription.findOneAndUpdate(
       { endpoint: subscription.endpoint },
       {
-        tenantId: req.tenantId,
         userId: req.userId,
         endpoint: subscription.endpoint,
+
         keys: {
           auth: subscription.keys.auth,
           p256dh: subscription.keys.p256dh,
         },
+
         userAgent: req.get('user-agent') || '',
-        isActive: true,
+        isActive: true
       },
       { upsert: true, new: true },
     );

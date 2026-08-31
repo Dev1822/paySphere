@@ -9,7 +9,10 @@ const { normalizeMetrics, calculateLeaderboardAndBonuses, generatePayrollInjecti
 
 exports.createChallenge = async (req, res, next) => {
     try {
-        const challenge = await WellnessChallenge.create({ ...req.body, tenantId: req.tenantId, createdBy: req.userId });
+        const challenge = await WellnessChallenge.create({
+            ...req.body,
+            createdBy: req.userId
+        });
         res.status(201).json({ message: 'Challenge created', challenge });
     } catch (error) { next(error); }
 };
@@ -17,7 +20,11 @@ exports.createChallenge = async (req, res, next) => {
 exports.createTeam = async (req, res, next) => {
     try {
         const { challengeId, teamName, memberIds } = req.body;
-        const team = await TeamRoster.create({ tenantId: req.tenantId, challengeId, teamName, members: memberIds });
+        const team = await TeamRoster.create({
+            challengeId,
+            teamName,
+            members: memberIds
+        });
         res.status(201).json({ message: 'Team created', team });
     } catch (error) { next(error); }
 };
@@ -25,7 +32,9 @@ exports.createTeam = async (req, res, next) => {
 exports.logActivity = async (req, res, next) => {
     try {
         const { challengeId, teamId, date, metricValue, source } = req.body;
-        const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+        const employee = await Employee.findOne({
+            userId: req.userId
+        });
         if (!employee) return res.status(404).json({ message: 'Employee not found' });
 
         const challenge = await WellnessChallenge.findById(challengeId);
@@ -49,7 +58,9 @@ exports.logActivity = async (req, res, next) => {
 exports.getLeaderboard = async (req, res, next) => {
     try {
         const { challengeId } = req.params;
-        const teams = await TeamRoster.find({ challengeId, tenantId: req.tenantId }).populate('members', 'fullName');
+        const teams = await TeamRoster.find({
+            challengeId
+        }).populate('members', 'fullName');
         const challenge = await WellnessChallenge.findById(challengeId);
 
         const leaderboard = calculateLeaderboardAndBonuses(teams, challenge.rewardPoolAmount);
@@ -60,7 +71,9 @@ exports.getLeaderboard = async (req, res, next) => {
 exports.processPayrollInjection = async (req, res, next) => {
     try {
         const { challengeId } = req.params;
-        const teams = await TeamRoster.find({ challengeId, tenantId: req.tenantId }).populate('members', '_id');
+        const teams = await TeamRoster.find({
+            challengeId
+        }).populate('members', '_id');
         const challenge = await WellnessChallenge.findById(challengeId);
 
         const leaderboard = calculateLeaderboardAndBonuses(teams, challenge.rewardPoolAmount);

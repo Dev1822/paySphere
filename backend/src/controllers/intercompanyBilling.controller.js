@@ -5,7 +5,6 @@
 
 const IntercompanyPayrollBilling = require('../models/intercompanyPayrollBilling.model');
 const { calculateTransferPricingBilling } = require('../services/intercompanyBilling.service');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 async function previewBilling(req, res) {
@@ -64,7 +63,6 @@ async function createVoucher(req, res) {
     });
 
     const voucher = await IntercompanyPayrollBilling.create({
-      tenantId: req.tenantId,
       billingVoucherNumber,
       period,
       sendingEntityId,
@@ -79,7 +77,7 @@ async function createVoucher(req, res) {
       transferPricingMarkupAmount: metrics.transferPricingMarkupAmount,
       totalBilledAmount: metrics.totalBilledAmount,
       currencyCode: currencyCode || 'USD',
-      status: 'draft',
+      status: 'draft'
     });
 
     return res.status(201).json({ message: 'Intercompany billing voucher generated successfully.', voucher });
@@ -91,7 +89,7 @@ async function createVoucher(req, res) {
 
 async function getVouchers(req, res) {
   try {
-    const filter = { ...tenantFilter(req) };
+    const filter = { ...{} };
     if (req.query.period) filter.period = req.query.period;
     if (req.query.sendingEntityId) filter.sendingEntityId = req.query.sendingEntityId;
     if (req.query.receivingEntityId) filter.receivingEntityId = req.query.receivingEntityId;
@@ -111,7 +109,7 @@ async function getVouchers(req, res) {
 async function approveVoucher(req, res) {
   try {
     const { id } = req.params;
-    const voucher = await IntercompanyPayrollBilling.findOne({ _id: id, ...tenantFilter(req) });
+    const voucher = await IntercompanyPayrollBilling.findOne({ _id: id, ...{} });
     if (!voucher) {
       return res.status(404).json({ message: 'Voucher not found.' });
     }

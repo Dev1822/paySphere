@@ -27,14 +27,15 @@ exports.startTimer = async (req, res, next) => {
     const contractorId = req.vendorId || req.body.contractorId;
     if (!contractorId) return res.status(400).json({ message: 'Contractor identification required' });
 
-    const vendor = await Vendor.findOne({ _id: contractorId, tenantId: req.tenantId });
+    const vendor = await Vendor.findOne({
+      _id: contractorId
+    });
     if (!vendor) return res.status(404).json({ message: 'Contractor not found' });
 
     const runningTimer = await TimesheetEntry.findOne({
-      tenantId: req.tenantId,
       contractorId,
       status: 'In Progress',
-      endTime: null,
+      endTime: null
     });
 
     if (runningTimer) {
@@ -47,7 +48,6 @@ exports.startTimer = async (req, res, next) => {
     const hourlyRate = vendor.hourlyRate || 0;
 
     const entry = await TimesheetEntry.create({
-      tenantId: req.tenantId,
       contractorId,
       projectId,
       startTime: new Date(),
@@ -55,7 +55,7 @@ exports.startTimer = async (req, res, next) => {
       description,
       entryType: 'Timer',
       deviceIp: req.ip,
-      userAgent: req.get('user-agent'),
+      userAgent: req.get('user-agent')
     });
 
     res.status(201).json({ message: 'Timer started', entry });
@@ -71,10 +71,9 @@ exports.stopTimer = async (req, res, next) => {
     const contractorId = req.vendorId || req.body.contractorId;
 
     const entry = await TimesheetEntry.findOne({
-      tenantId: req.tenantId,
       contractorId,
       status: 'In Progress',
-      endTime: null,
+      endTime: null
     });
 
     if (!entry) return res.status(404).json({ message: 'No active timer found' });
@@ -102,7 +101,9 @@ exports.stopTimer = async (req, res, next) => {
 exports.approveEntry = async (req, res, next) => {
   try {
     const { action, rejectionReason } = req.body;
-    const entry = await TimesheetEntry.findOne({ _id: req.params.id, tenantId: req.tenantId });
+    const entry = await TimesheetEntry.findOne({
+      _id: req.params.id
+    });
 
     if (!entry) return res.status(404).json({ message: 'Timesheet entry not found' });
     if (entry.status !== 'Pending Approval') {
@@ -132,7 +133,7 @@ exports.getTimesheetSummary = async (req, res, next) => {
   try {
     const { projectId, contractorId, status = 'Approved' } = req.query;
 
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (projectId) filter.projectId = projectId;
     if (contractorId) filter.contractorId = contractorId;
     if (status && status !== 'ALL') filter.status = status;
@@ -163,13 +164,14 @@ exports.generateInvoiceFromTimesheets = async (req, res, next) => {
     if (!clientId) return res.status(400).json({ message: 'Client ID is required' });
     if (!timesheetIds.length) return res.status(400).json({ message: 'At least one timesheet entry required' });
 
-    const client = await Client.findOne({ _id: clientId, tenantId: req.tenantId });
+    const client = await Client.findOne({
+      _id: clientId
+    });
     if (!client) return res.status(404).json({ message: 'Client not found' });
 
     const entries = await TimesheetEntry.find({
       _id: { $in: timesheetIds },
-      tenantId: req.tenantId,
-      status: 'Approved',
+      status: 'Approved'
     }).lean();
 
     if (entries.length === 0) {
@@ -179,14 +181,13 @@ exports.generateInvoiceFromTimesheets = async (req, res, next) => {
     const payload = buildInvoicePayloadFromTimesheets(entries, client, invoiceNumber);
 
     const invoice = await ClientInvoice.create({
-      tenantId: req.tenantId,
       clientId: client._id,
       invoiceNumber: payload.invoiceNumber,
       invoiceDate: payload.invoiceDate,
       foreignAmount: payload.foreignAmount,
       foreignCurrency: payload.foreignCurrency,
       exchangeRateAtInvoice: 1.0,
-      inrEquivalent: payload.foreignAmount,
+      inrEquivalent: payload.foreignAmount
     });
 
     eventBus.emit('AUDIT_LOG', {

@@ -22,7 +22,9 @@ exports.createInvoice = async (req, res, next) => {
   try {
     const { clientId, invoiceNumber, invoiceDate, foreignAmount } = req.body;
 
-    const client = await Client.findOne({ _id: clientId, tenantId: req.tenantId });
+    const client = await Client.findOne({
+      _id: clientId
+    });
     if (!client) return res.status(404).json({ message: 'Client not found' });
 
     // Fetch current exchange rate (e.g., USD to INR)
@@ -30,14 +32,13 @@ exports.createInvoice = async (req, res, next) => {
     const inrEquivalent = Math.round((Number(foreignAmount) * exchangeRate) * 100) / 100;
 
     const invoice = await ClientInvoice.create({
-      tenantId: req.tenantId,
       clientId,
       invoiceNumber,
       invoiceDate: new Date(invoiceDate),
       foreignAmount: Number(foreignAmount),
       foreignCurrency: client.defaultCurrency,
       exchangeRateAtInvoice: exchangeRate,
-      inrEquivalent,
+      inrEquivalent
     });
 
     res.status(201).json({ message: 'Invoice generated', invoice });
@@ -54,7 +55,9 @@ exports.createInvoice = async (req, res, next) => {
 exports.recordPayment = async (req, res, next) => {
   try {
     const { inrReceived, bankCharges, transactionDate } = req.body;
-    const invoice = await ClientInvoice.findOne({ _id: req.params.id, tenantId: req.tenantId });
+    const invoice = await ClientInvoice.findOne({
+      _id: req.params.id
+    });
 
     if (!invoice) return res.status(404).json({ message: 'Invoice not found' });
     if (invoice.status === 'Paid') return res.status(400).json({ message: 'Invoice is already fully paid.' });
@@ -77,13 +80,12 @@ exports.recordPayment = async (req, res, next) => {
 
     // Log to Forex Ledger
     const ledgerEntry = await ForexLedger.create({
-      tenantId: req.tenantId,
       invoiceId: invoice._id,
       transactionDate: new Date(transactionDate),
       inrReceived: Number(inrReceived),
       bankCharges: Number(bankCharges) || 0,
       realizedGainLoss: reconciliation.realizedGainLoss,
-      exchangeRateAtPayment: effectiveRate,
+      exchangeRateAtPayment: effectiveRate
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -112,7 +114,9 @@ exports.recordPayment = async (req, res, next) => {
  */
 exports.getDashboard = async (req, res, next) => {
   try {
-    const invoices = await ClientInvoice.find({ tenantId: req.tenantId, status: { $ne: 'Paid' } })
+    const invoices = await ClientInvoice.find({
+      status: { $ne: 'Paid' }
+    })
       .populate('clientId', 'name defaultCurrency')
       .sort({ invoiceDate: -1 });
 
@@ -139,8 +143,7 @@ exports.getDashboard = async (req, res, next) => {
 exports.getAgingReport = async (req, res, next) => {
   try {
     const openInvoices = await ClientInvoice.find({
-      tenantId: req.tenantId,
-      status: { $ne: 'Paid' },
+      status: { $ne: 'Paid' }
     })
       .populate('clientId', 'name defaultCurrency')
       .sort({ invoiceDate: 1 })

@@ -32,7 +32,7 @@ const payrollRunSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['processing', 'completed', 'failed'],
+      enum: ['processing', 'completed', 'failed', 'finalizing', 'finalized'],
       default: 'processing',
     },
     jobId: {
@@ -47,6 +47,31 @@ const payrollRunSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    finalizationStatus: {
+      type: String,
+      enum: ['pending', 'in_progress', 'completed', 'failed', 'rolled_back'],
+      default: 'pending',
+    },
+    finalizationStartedAt: {
+      type: Date,
+      default: null,
+    },
+    finalizationCompletedAt: {
+      type: Date,
+      default: null,
+    },
+    finalizationAttempts: {
+      type: Number,
+      default: 0,
+    },
+    finalizationVersion: {
+      type: Number,
+      default: 0,
+    },
+    finalizationIdempotencyKey: {
+      type: String,
+      default: null,
+    },
     startedAt: {
       type: Date,
       default: Date.now,
@@ -54,8 +79,7 @@ const payrollRunSchema = new mongoose.Schema(
     finishedAt: {
       type: Date,
       default: null,
-    },
-  },
+    },  },
   { timestamps: true },
 );
 

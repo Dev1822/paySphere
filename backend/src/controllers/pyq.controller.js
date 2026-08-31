@@ -1,13 +1,12 @@
 const PYQ = require("../models/pyq.model");
 const PYQTrend = require("../models/pyqTrend.model");
-const { tenantFilter } = require("../utils/tenantScope");
 const { generatePYQTrend } = require("../utils/gemini");
 
 // Create a single PYQ entry
 exports.createPYQ = async (req, res, next) => {
   try {
     const { subject, exam, year, question, chapter, difficulty, tags } = req.body;
-    const filter = tenantFilter(req);
+    const filter = {};
 
     if (!subject || !exam || !year || !question || !chapter || !difficulty) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -35,7 +34,7 @@ exports.createPYQ = async (req, res, next) => {
 exports.bulkUploadPYQs = async (req, res, next) => {
   try {
     const { pyqs } = req.body;
-    const filter = tenantFilter(req);
+    const filter = {};
 
     if (!Array.isArray(pyqs) || pyqs.length === 0) {
       return res.status(400).json({ message: "Invalid payload: 'pyqs' array is required and cannot be empty" });
@@ -72,7 +71,7 @@ exports.getPYQs = async (req, res, next) => {
     if (year) clause.year = Number(year);
     if (chapter) clause.chapter = new RegExp(chapter.trim(), "i");
 
-    const filter = tenantFilter(req, clause);
+    const filter = clause;
     const results = await PYQ.find(filter).sort({ year: -1, chapter: 1 });
     res.status(200).json(results);
   } catch (error) {
@@ -84,7 +83,7 @@ exports.getPYQs = async (req, res, next) => {
 exports.generateTrendForecast = async (req, res, next) => {
   try {
     const { subject, exam, forecastYear } = req.body;
-    const filter = tenantFilter(req);
+    const filter = {};
 
     if (!subject || !exam || !forecastYear) {
       return res.status(400).json({ message: "Missing required fields: subject, exam, and forecastYear are required" });
@@ -132,10 +131,10 @@ exports.getLatestTrendForecast = async (req, res, next) => {
       return res.status(400).json({ message: "Missing query parameters: subject and exam are required" });
     }
 
-    const filter = tenantFilter(req, {
+    const filter = {
       subject: new RegExp(subject.trim(), "i"),
       exam: new RegExp(exam.trim(), "i"),
-    });
+    };
 
     const forecast = await PYQTrend.findOne(filter).sort({ forecastYear: -1 });
     if (!forecast) {

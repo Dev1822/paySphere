@@ -61,7 +61,6 @@ exports.createOrUpdateMonthlyUpdate = async (req, res, next) => {
         // FIX #509: Awaiting DB call inside try/catch prevents unhandled rejection on DB drop
         const employee = await Employee.findOne({
             _id: employeeId,
-            tenantId: req.tenantId,
             isDeleted: { $ne: true }
         });
 
@@ -81,7 +80,6 @@ exports.createOrUpdateMonthlyUpdate = async (req, res, next) => {
         const updateData = {
             employeeId: employee._id,
             employeeName: employee.fullName,
-            tenantId: req.tenantId,
             month: parsedMonth,
             year: parsedYear,
             leaveDays: safeLeaveDays,
@@ -96,7 +94,6 @@ exports.createOrUpdateMonthlyUpdate = async (req, res, next) => {
         const updatedRecord = await MonthlyUpdate.findOneAndUpdate(
             {
                 employeeId: employee._id,
-                tenantId: req.tenantId,
                 month: parsedMonth,
                 year: parsedYear
             },
@@ -169,7 +166,6 @@ exports.getEmployeeMonthlyUpdates = async (req, res, next) => {
         // Verify ownership
         const employee = await Employee.findOne({
             _id: employeeId,
-            tenantId: req.tenantId,
             isDeleted: { $ne: true }
         }).select('_id fullName');
 
@@ -179,8 +175,7 @@ exports.getEmployeeMonthlyUpdates = async (req, res, next) => {
 
         // Fetch updates sorted by newest first
         const updates = await MonthlyUpdate.find({
-            employeeId: employee._id,
-            tenantId: req.tenantId
+            employeeId: employee._id
         }).sort({ year: -1, month: -1 }).lean();
 
         return res.status(200).json({
@@ -220,8 +215,7 @@ exports.deleteMonthlyUpdate = async (req, res, next) => {
         }
 
         const record = await MonthlyUpdate.findOne({
-            _id: id,
-            tenantId: req.tenantId
+            _id: id
         });
 
         if (!record) {
@@ -233,7 +227,6 @@ exports.deleteMonthlyUpdate = async (req, res, next) => {
         const PayrollUpdate = require('../models/payroll.model');
         const lockedPayroll = await PayrollUpdate.findOne({
             employeeId: record.employeeId,
-            tenantId: req.tenantId,
             month: record.month,
             year: record.year,
             status: { $in: ['approved', 'paid'] }

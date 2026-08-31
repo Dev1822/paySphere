@@ -21,10 +21,24 @@
  * `__tests__/app.routeMounting.test.js` now asserts it so a future merge cannot
  * drop a router without a test going red.
  */
-
+const { tenantContextMiddleware } = require('./middlewares/tenantContext.middleware');
+const { tenantGuard } = require('./middlewares/tenantGuard.middleware');
 const mongoose = require('mongoose');
 const piiMaskingPlugin = require('./utils/piiMaskingPlugin');
-mongoose.plugin(piiMaskingPlugin);
+const tenantEnforcementPlugin = require('./models/plugins/tenantEnforcement.plugin');
+const payrollReconciliationRoutes = require('./routes/payrollReconciliation.routes');
+const checkPayrollRunLocking = require('./middlewares/payrollRunLocking.middleware');
+
+app.use('/api/payroll-reconciliation', payrollReconciliationRoutes);
+
+// Apply locking check to data modification endpoints
+app.use('/api/attendance', checkPayrollRunLocking);
+app.use('/api/leave', checkPayrollRunLocking);
+app.use('/api/compensation', checkPayrollRunLocking);
+app.use('/api/employee', checkPayrollRunLocking);
+
+app.use('/api/payroll', payrollRoutes);mongoose.plugin(piiMaskingPlugin);
+mongoose.plugin(tenantEnforcementPlugin);
 
 const express = require('express');
 const cors = require('cors');
@@ -58,7 +72,6 @@ const payrollRoutes = require('./routes/payroll.routes');
 const forecastRoutes = require('./routes/forecast.routes');
 const retroactiveRoutes = require('./routes/retroactive.routes');
 const sandboxRoutes = require('./routes/sandbox.routes');
-const forecastRoutes = require('./routes/forecast.routes');
 const payrollApprovalRoutes = require('./routes/payrollApproval.routes');
 const payrollComparisonRoutes = require('./routes/payrollComparison.routes');
 const employeeCompensationRoutes = require('./routes/employeeCompensation.routes');
@@ -314,7 +327,6 @@ const ltaRoutes = require('./routes/lta.routes');
 const gratuityEntitlementRoutes = require('./routes/gratuityEntitlement.routes');
 const appraisalRoutes = require('./routes/appraisal.routes');
 const contractRoutes = require('./routes/contract.routes');
-const forecastRoutes = require('./routes/forecast.routes');
 const accountingRoutes = require('./routes/accounting.routes');
 const clientInvoiceRoutes = require('./routes/clientInvoice.routes');
 const intercompanyBillingRoutes = require('./routes/intercompanyBilling.routes');
@@ -378,6 +390,7 @@ const fbpRoutes = require('./routes/fbp.routes');
 const teamRoutes = require('./routes/team.routes');
 const healthChallengeRoutes = require('./routes/healthChallenge.routes');
 const offboardingRoutes = require('./routes/offboarding.routes');
+const competencyRoutes = require('./routes/competency.routes');
 const {
   tenantRouter: subscriptionTenantRoutes,
   adminRouter: subscriptionAdminRoutes,
@@ -412,7 +425,8 @@ const app = express();
 // header itself, and advertising the framework and its version is free
 // reconnaissance.
 app.disable('x-powered-by');
-
+app.use(tenantContextMiddleware());
+app.use(tenantGuard());
 app.use(auditContextMiddleware);
 app.use('/api/audit', require('./routes/audit.routes'));
 app.use('/api/audit', require('./routes/auditIntegrity.routes'));
@@ -586,7 +600,6 @@ app.use('/api/bulk-operations', bulkOperationRoutes);
 app.use('/api/payroll/forecast', forecastRoutes);
 app.use('/api/payroll/retroactive', retroactiveRoutes);
 app.use('/api/payroll/sandbox', sandboxRoutes);
-app.use('/api/payroll/forecast', forecastRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/payroll', payrollApprovalRoutes);
 app.use('/api/payroll-comparison', payrollComparisonRoutes);
@@ -998,6 +1011,31 @@ app.use('/api/offboarding', offboardingRoutes);
 
 // Skill Inventory & Competency Framework
 app.use('/api/skills', skillInventoryRoutes);
+
+// Employee competency tracking — skills, proficiency levels, gap analysis.
+// Placed next to team because the two share the employee directory and the
+// department dimension the matrix uses.
+app.use('/api/competencies', competencyRoutes);
+
+// Workforce Cost Forecasting — salary projections, scenario comparison,
+// headcount modeling, and statutory contribution estimates.
+const workforceCostForecastRoutes = require('./routes/workforceCostForecast.routes');
+app.use('/api/workforce-cost-forecast', workforceCostForecastRoutes);
+
+// Payroll Anomaly Alert Rules — configurable threshold-based anomaly detection,
+// scan engine, alert records, and disposition management.
+const alertRuleRoutes = require('./routes/alertRule.routes');
+app.use('/api/alert-rules', alertRuleRoutes);
+
+// Talent Retention Analytics — flight risk, attrition trends, compensation benchmarks.
+const retentionAnalyticsRoutes = require('./routes/retentionAnalytics.routes');
+app.use('/api/retention-analytics', retentionAnalyticsRoutes);
+
+// Pulse Surveys — engagement polling and analytics.
+const pulseSurveyRoutes = require('./routes/pulseSurvey.routes');
+const surveyAnalyticsRoutes = require('./routes/surveyAnalytics.routes');
+app.use('/api/pulse-surveys', pulseSurveyRoutes);
+app.use('/api/pulse-surveys/analytics', surveyAnalyticsRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────
 // Must be registered AFTER all valid routes but BEFORE error handlers.

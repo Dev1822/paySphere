@@ -11,11 +11,18 @@ const logger = require('../utils/logger');
 exports.updateElection = async (req, res, next) => {
     try {
         const { benefitType, electionAmount, effectiveMonth, effectiveYear } = req.body;
-        const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+        const employee = await Employee.findOne({
+            userId: req.userId
+        });
         if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
         const election = await CommuterElection.findOneAndUpdate(
-            { tenantId: req.tenantId, employeeId: employee._id, benefitType, effectiveMonth, effectiveYear },
+            {
+                employeeId: employee._id,
+                benefitType,
+                effectiveMonth,
+                effectiveYear
+            },
             { electionAmount, status: 'Active' },
             { upsert: true, new: true }
         );
@@ -29,12 +36,18 @@ exports.uploadVendorFeed = async (req, res, next) => {
         const { vendorName, month, year, totalInvoiced, lineItems } = req.body;
 
         const feed = await VendorTransitFeed.create({
-            tenantId: req.tenantId, vendorName, month, year, totalInvoiced, lineItems
+            vendorName,
+            month,
+            year,
+            totalInvoiced,
+            lineItems
         });
 
         // Run reconciliation immediately
         const internalElections = await CommuterElection.find({
-            tenantId: req.tenantId, effectiveMonth: month, effectiveYear: year, status: 'Active'
+            effectiveMonth: month,
+            effectiveYear: year,
+            status: 'Active'
         });
 
         const discrepancies = reconcileVendorFeed(internalElections, lineItems);
@@ -48,7 +61,9 @@ exports.processPayrollDeductions = async (req, res, next) => {
         const { payrollRunId, month, year } = req.body;
 
         const elections = await CommuterElection.find({
-            tenantId: req.tenantId, effectiveMonth: month, effectiveYear: year, status: 'Active'
+            effectiveMonth: month,
+            effectiveYear: year,
+            status: 'Active'
         });
 
         const ledgers = [];
@@ -58,9 +73,13 @@ exports.processPayrollDeductions = async (req, res, next) => {
             const calc = calculatePreTaxDeduction(election.electionAmount, election.benefitType);
 
             const ledger = await PreTaxDeductionLedger.create({
-                tenantId: req.tenantId, employeeId: election.employeeId, payrollRunId,
-                benefitType: election.benefitType, electedAmount: election.electionAmount,
-                actualDeduction: calc.actualDeduction, month, year
+                employeeId: election.employeeId,
+                payrollRunId,
+                benefitType: election.benefitType,
+                electedAmount: election.electionAmount,
+                actualDeduction: calc.actualDeduction,
+                month,
+                year
             });
 
             ledgers.push(ledger);
@@ -81,10 +100,14 @@ exports.processPayrollDeductions = async (req, res, next) => {
 
 exports.getMyElections = async (req, res, next) => {
     try {
-        const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+        const employee = await Employee.findOne({
+            userId: req.userId
+        });
         if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
-        const elections = await CommuterElection.find({ employeeId: employee._id, tenantId: req.tenantId })
+        const elections = await CommuterElection.find({
+            employeeId: employee._id
+        })
             .sort({ effectiveYear: -1, effectiveMonth: -1 });
 
         res.status(200).json({ elections, limits: IRS_LIMITS });

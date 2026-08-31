@@ -303,12 +303,13 @@ exports.updateRules = async (req, res, next) => {
     }
 
     const before = await LayoffRules.findOne({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     }).lean();
 
     const rules = await LayoffRules.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment },
+      {
+        establishment
+      },
       { $set: { ...update, updatedBy: req.userId } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -341,7 +342,7 @@ exports.updateRules = async (req, res, next) => {
  */
 exports.listSpells = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
 
     if (typeof req.query.establishment === 'string') {
       filter.establishment = req.query.establishment.trim();
@@ -377,8 +378,7 @@ exports.createSpell = async (req, res, next) => {
     }
 
     const employee = await Employee.findOne({
-      _id: req.body.employeeId,
-      tenantId: req.tenantId,
+      _id: req.body.employeeId
     }).lean();
 
     if (!employee)
@@ -396,17 +396,19 @@ exports.createSpell = async (req, res, next) => {
     );
 
     const spell = await LayoffSpell.create({
-      tenantId: req.tenantId,
       establishment:
         typeof req.body.establishment === 'string'
           ? req.body.establishment.trim()
           : employee.department || '',
+
       employeeId: employee._id,
       name: employee.name || '',
+
       category:
         typeof req.body.category === 'string'
           ? req.body.category.trim()
           : employee.designation || '',
+
       belowGroundInMine: req.body.belowGroundInMine === true,
       fromDate,
       toDate: req.body.toDate ? new Date(req.body.toDate) : undefined,
@@ -414,6 +416,7 @@ exports.createSpell = async (req, res, next) => {
       weeklyHolidays: Math.max(0, Number(req.body.weeklyHolidays) || 0),
       disentitledDays: sanitiseDisentitlements(req.body.disentitledDays),
       serviceDays: sanitiseServiceDays(req.body.serviceDays),
+
       frozenWages: {
         basic: Number.isFinite(basic) ? Math.max(0, basic) : 0,
         dearnessAllowance: Number.isFinite(dearnessAllowance)
@@ -422,10 +425,12 @@ exports.createSpell = async (req, res, next) => {
         benefitsPerDay: Math.max(0, Number(req.body.benefitsPerDay) || 0),
         frozenOn: fromDate,
       },
+
       chapterVBActionId: mongoose.isValidObjectId(req.body.chapterVBActionId)
         ? req.body.chapterVBActionId
         : undefined,
-      createdBy: req.userId,
+
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -497,8 +502,7 @@ exports.getServiceSuggestion = async (req, res, next) => {
     }
 
     const spell = await LayoffSpell.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!spell) return res.status(404).json({ message: 'Spell not found' });
@@ -528,7 +532,7 @@ exports.getServiceSuggestion = async (req, res, next) => {
  */
 exports.listActions = async (req, res, next) => {
   try {
-    const actions = await ChapterVBAction.find({ tenantId: req.tenantId })
+    const actions = await ChapterVBAction.find({})
       .sort({ proposedOn: -1 })
       .limit(100)
       .lean();
@@ -566,42 +570,52 @@ exports.recordAction = async (req, res, next) => {
       : PERMISSION_STATE.NOT_SOUGHT;
 
     const record = await ChapterVBAction.create({
-      tenantId: req.tenantId,
       establishment:
         typeof req.body.establishment === 'string'
           ? req.body.establishment.trim()
           : '',
+
       action,
       workmen: Math.max(0, Number(req.body.workmen) || 0),
+
       proposedOn: req.body.proposedOn
         ? new Date(req.body.proposedOn)
         : new Date(),
+
       effectiveOn: req.body.effectiveOn
         ? new Date(req.body.effectiveOn)
         : undefined,
+
       permission,
+
       permissionApplicationNumber:
         typeof req.body.permissionApplicationNumber === 'string'
           ? req.body.permissionApplicationNumber.trim()
           : '',
+
       permissionAppliedOn: req.body.permissionAppliedOn
         ? new Date(req.body.permissionAppliedOn)
         : undefined,
+
       permissionDecidedOn: req.body.permissionDecidedOn
         ? new Date(req.body.permissionDecidedOn)
         : undefined,
+
       noticeMonths: Math.max(0, Number(req.body.noticeMonths) || 0),
       unavoidable: req.body.unavoidable === true,
+
       grounds: Array.isArray(req.body.grounds)
         ? req.body.grounds.filter((ground) =>
             Object.prototype.hasOwnProperty.call(NOT_UNAVOIDABLE, ground),
           )
         : [],
+
       groundsNote:
         typeof req.body.groundsNote === 'string'
           ? req.body.groundsNote.trim()
           : '',
-      recordedBy: req.userId,
+
+      recordedBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -649,14 +663,15 @@ exports.recordPermission = async (req, res, next) => {
     }
 
     const before = await ChapterVBAction.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!before) return res.status(404).json({ message: 'Action not found' });
 
     const record = await ChapterVBAction.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       {
         $set: {
           permission: req.body.permission,
@@ -707,9 +722,8 @@ exports.getSeniority = async (req, res, next) => {
       typeof req.query.category === 'string' ? req.query.category.trim() : '';
 
     const records = await SeniorityRecord.find({
-      tenantId: req.tenantId,
       chapterVBActionId: req.params.id,
-      ...(category ? { category } : {}),
+      ...(category ? { category } : {})
     }).lean();
 
     const reasons = {};
@@ -752,33 +766,36 @@ exports.recordSeniority = async (req, res, next) => {
     const rows = Array.isArray(req.body.workmen) ? req.body.workmen : [];
 
     await SeniorityRecord.deleteMany({
-      tenantId: req.tenantId,
       chapterVBActionId: req.params.id,
+
       ...(typeof req.body.category === 'string' && req.body.category.trim()
         ? { category: req.body.category.trim() }
-        : {}),
+        : {})
     });
 
     const created = await SeniorityRecord.insertMany(
       rows
         .filter((row) => mongoose.isValidObjectId(row?.employeeId))
         .map((row) => ({
-          tenantId: req.tenantId,
-          chapterVBActionId: req.params.id,
-          category:
-            typeof row.category === 'string'
-              ? row.category.trim()
-              : String(req.body.category || '').trim(),
-          employeeId: row.employeeId,
-          name: typeof row.name === 'string' ? row.name.trim() : '',
-          serviceDays: Math.max(0, Number(row.serviceDays) || 0),
-          proposed: row.proposed === true,
-          departureReason:
-            typeof row.departureReason === 'string'
-              ? row.departureReason.trim()
-              : '',
-          recordedBy: req.userId,
-        })),
+        chapterVBActionId: req.params.id,
+
+        category:
+          typeof row.category === 'string'
+            ? row.category.trim()
+            : String(req.body.category || '').trim(),
+
+        employeeId: row.employeeId,
+        name: typeof row.name === 'string' ? row.name.trim() : '',
+        serviceDays: Math.max(0, Number(row.serviceDays) || 0),
+        proposed: row.proposed === true,
+
+        departureReason:
+          typeof row.departureReason === 'string'
+            ? row.departureReason.trim()
+            : '',
+
+        recordedBy: req.userId
+      })),
     );
 
     return res.status(201).json({ recorded: created.length });
@@ -800,8 +817,7 @@ exports.getReemploymentPreference = async (req, res, next) => {
       typeof req.query.category === 'string' ? req.query.category.trim() : '';
 
     const candidates = await ReemploymentCandidate.find({
-      tenantId: req.tenantId,
-      ...(category ? { category } : {}),
+      ...(category ? { category } : {})
     })
       .sort({ serviceDays: -1 })
       .lean();
@@ -837,7 +853,9 @@ exports.recordReemploymentCandidate = async (req, res, next) => {
     }
 
     const candidate = await ReemploymentCandidate.findOneAndUpdate(
-      { tenantId: req.tenantId, employeeId: req.body.employeeId },
+      {
+        employeeId: req.body.employeeId
+      },
       {
         $set: {
           establishment:
@@ -948,9 +966,8 @@ exports.previewAssessment = async (req, res, next) => {
 
     return res.json(
       await buildAssessment({
-        tenantId: req.tenantId,
         establishment,
-        query: req.query,
+        query: req.query
       }),
     );
   } catch (error) {
@@ -963,7 +980,7 @@ exports.previewAssessment = async (req, res, next) => {
  */
 exports.listAssessments = async (req, res, next) => {
   try {
-    const assessments = await LayoffAssessment.find({ tenantId: req.tenantId })
+    const assessments = await LayoffAssessment.find({})
       .sort({ periodStart: -1 })
       .limit(50)
       .select('-findings')
@@ -986,16 +1003,14 @@ exports.commitAssessment = async (req, res, next) => {
         : '';
 
     const { period, rules, result } = await buildAssessment({
-      tenantId: req.tenantId,
       establishment,
-      query: req.body,
+      query: req.body
     });
 
     const assessment = await LayoffAssessment.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         establishment,
-        periodStart: period.periodStart,
+        periodStart: period.periodStart
       },
       {
         $set: {

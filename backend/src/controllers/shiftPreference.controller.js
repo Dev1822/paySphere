@@ -42,11 +42,10 @@ exports.createTemplate = async (req, res, next) => {
     }
 
     const template = await AvailabilityTemplate.create({
-      tenantId: req.tenantId,
       name,
       description,
       slots,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emitAuditLog({
@@ -71,9 +70,7 @@ exports.createTemplate = async (req, res, next) => {
 
 exports.getTemplates = async (req, res, next) => {
   try {
-    const templates = await AvailabilityTemplate.find({
-      tenantId: req.tenantId,
-    })
+    const templates = await AvailabilityTemplate.find({})
       .populate('createdBy', 'fullName')
       .sort({ name: 1 })
       .lean();
@@ -90,8 +87,7 @@ exports.updateTemplate = async (req, res, next) => {
     }
 
     const template = await AvailabilityTemplate.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!template)
       return res.status(404).json({ message: 'Template not found' });
@@ -127,8 +123,7 @@ exports.deleteTemplate = async (req, res, next) => {
       return res.status(400).json({ message: 'Invalid template ID' });
     }
     const template = await AvailabilityTemplate.findOneAndDelete({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!template)
       return res.status(404).json({ message: 'Template not found' });
@@ -158,8 +153,7 @@ exports.submitPreference = async (req, res, next) => {
       req.body;
 
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id fullName');
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
@@ -173,9 +167,8 @@ exports.submitPreference = async (req, res, next) => {
 
     // Check for existing preference this week
     const existing = await ShiftPreference.findOne({
-      tenantId: req.tenantId,
       employeeId: employee._id,
-      weekStartDate: weekStart,
+      weekStartDate: weekStart
     });
 
     let preference;
@@ -194,7 +187,6 @@ exports.submitPreference = async (req, res, next) => {
       preference = await existing.save();
     } else {
       preference = await ShiftPreference.create({
-        tenantId: req.tenantId,
         employeeId: employee._id,
         weekStartDate: weekStart,
         preferences: preferences || [],
@@ -202,7 +194,7 @@ exports.submitPreference = async (req, res, next) => {
         minHours: minHours || 0,
         maxHours: maxHours || 40,
         status: 'Submitted',
-        submittedAt: new Date(),
+        submittedAt: new Date()
       });
     }
 
@@ -229,13 +221,14 @@ exports.submitPreference = async (req, res, next) => {
 exports.getMyPreferences = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id');
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
 
-    const filter = { tenantId: req.tenantId, employeeId: employee._id };
+    const filter = {
+      employeeId: employee._id
+    };
     if (req.query.status) filter.status = req.query.status;
     if (req.query.week) filter.weekStartDate = new Date(req.query.week);
 
@@ -252,7 +245,7 @@ exports.getMyPreferences = async (req, res, next) => {
 
 exports.getAllPreferences = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (req.query.status) filter.status = req.query.status;
     if (
       req.query.employeeId &&
@@ -298,8 +291,7 @@ exports.reviewPreference = async (req, res, next) => {
     }
 
     const preference = await ShiftPreference.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!preference)
       return res.status(404).json({ message: 'Preference not found' });
@@ -346,8 +338,7 @@ exports.createSwapRequest = async (req, res, next) => {
     const { originalShift, desiredShift, effectiveDate, reason } = req.body;
 
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id');
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
@@ -364,13 +355,12 @@ exports.createSwapRequest = async (req, res, next) => {
     }
 
     const swap = await ShiftSwapRequest.create({
-      tenantId: req.tenantId,
       requesterId: employee._id,
       originalShift,
       desiredShift: desiredShift || null,
       effectiveDate: new Date(effectiveDate),
       reason: reason || '',
-      status: 'Open',
+      status: 'Open'
     });
 
     eventBus.emitAuditLog({
@@ -393,12 +383,11 @@ exports.createSwapRequest = async (req, res, next) => {
 
 exports.getSwapRequests = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (req.query.status) filter.status = req.query.status;
     if (req.query.my === 'true') {
       const employee = await Employee.findOne({
-        userId: req.userId,
-        tenantId: req.tenantId,
+        userId: req.userId
       }).select('_id');
       if (employee) filter.requesterId = employee._id;
     }
@@ -423,15 +412,13 @@ exports.acceptSwap = async (req, res, next) => {
     }
 
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id');
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
 
     const swap = await ShiftSwapRequest.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!swap)
       return res.status(404).json({ message: 'Swap request not found' });
@@ -481,8 +468,7 @@ exports.approveSwap = async (req, res, next) => {
     }
 
     const swap = await ShiftSwapRequest.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!swap)
       return res.status(404).json({ message: 'Swap request not found' });
@@ -526,15 +512,13 @@ exports.cancelSwap = async (req, res, next) => {
     }
 
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id');
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
 
     const swap = await ShiftSwapRequest.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!swap)
       return res.status(404).json({ message: 'Swap request not found' });
@@ -563,17 +547,15 @@ exports.findSwapMatches = async (req, res, next) => {
     }
 
     const swap = await ShiftSwapRequest.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!swap)
       return res.status(404).json({ message: 'Swap request not found' });
 
     // Get all other employees
     const otherEmployees = await Employee.find({
-      tenantId: req.tenantId,
       isActive: true,
-      _id: { $ne: swap.requesterId },
+      _id: { $ne: swap.requesterId }
     })
       .select('_id fullName department')
       .lean();
@@ -606,9 +588,8 @@ exports.runAutoAssignment = async (req, res, next) => {
 
     // Get all approved preferences for this week
     const approvedPrefs = await ShiftPreference.find({
-      tenantId: req.tenantId,
       weekStartDate: weekStart,
-      status: 'Approved',
+      status: 'Approved'
     }).lean();
 
     if (approvedPrefs.length === 0) {
@@ -621,8 +602,7 @@ exports.runAutoAssignment = async (req, res, next) => {
     const empIds = approvedPrefs.map((p) => p.employeeId);
     const employees = await Employee.find({
       _id: { $in: empIds },
-      tenantId: req.tenantId,
-      isActive: true,
+      isActive: true
     })
       .select('_id fullName blackoutDates')
       .lean();
@@ -641,7 +621,6 @@ exports.runAutoAssignment = async (req, res, next) => {
     for (const a of result.assignments) {
       try {
         const assignment = await ShiftAssignment.create({
-          tenantId: req.tenantId,
           employeeId: a.employeeId,
           shiftType: a.shiftType,
           shiftDate: a.shiftDate,
@@ -649,7 +628,7 @@ exports.runAutoAssignment = async (req, res, next) => {
           endTime: a.endTime,
           autoAssigned: true,
           preferenceMatch: a.preferenceMatch,
-          status: 'Assigned',
+          status: 'Assigned'
         });
         created.push(assignment);
       } catch (err) {
@@ -699,7 +678,7 @@ exports.runAutoAssignment = async (req, res, next) => {
 
 exports.getAssignments = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (req.query.date) filter.shiftDate = new Date(req.query.date);
     if (req.query.shiftType) filter.shiftType = req.query.shiftType;
     if (
@@ -731,13 +710,11 @@ exports.getScheduleMetrics = async (req, res, next) => {
     weekEnd.setDate(weekEnd.getDate() + 7);
 
     const assignments = await ShiftAssignment.find({
-      tenantId: req.tenantId,
-      shiftDate: { $gte: weekStart, $lt: weekEnd },
+      shiftDate: { $gte: weekStart, $lt: weekEnd }
     }).lean();
 
     const prefs = await ShiftPreference.find({
-      tenantId: req.tenantId,
-      weekStartDate: weekStart,
+      weekStartDate: weekStart
     }).lean();
 
     const metrics = computeScheduleMetrics(
@@ -763,31 +740,25 @@ exports.getDashboard = async (req, res, next) => {
     const [pendingPreferences, openSwaps, totalAssignments, templateCount] =
       await Promise.all([
         ShiftPreference.countDocuments({
-          tenantId: req.tenantId,
-          status: 'Submitted',
+          status: 'Submitted'
         }),
         ShiftSwapRequest.countDocuments({
-          tenantId: req.tenantId,
-          status: { $in: ['Open', 'Matched'] },
+          status: { $in: ['Open', 'Matched'] }
         }),
         ShiftAssignment.countDocuments({
-          tenantId: req.tenantId,
-          shiftDate: { $gte: weekStart, $lt: weekEnd },
+          shiftDate: { $gte: weekStart, $lt: weekEnd }
         }),
         AvailabilityTemplate.countDocuments({
-          tenantId: req.tenantId,
-          isActive: true,
+          isActive: true
         }),
       ]);
 
     // Preference submission rate
     const totalEmployees = await Employee.countDocuments({
-      tenantId: req.tenantId,
-      isActive: true,
+      isActive: true
     });
     const submittedThisWeek = await ShiftPreference.countDocuments({
-      tenantId: req.tenantId,
-      weekStartDate: weekStart,
+      weekStartDate: weekStart
     });
 
     return res.status(200).json({

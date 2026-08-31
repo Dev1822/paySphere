@@ -201,7 +201,9 @@ export const APP_ROUTES = [
   },
   {
     path: '/compensation-intelligence',
-    component: lazy(() => import('../pages/compensation/CompensationIntelligencePage')),
+    component: lazy(
+      () => import('../pages/compensation/CompensationIntelligencePage'),
+    ),
     label: 'Compensation Intelligence',
     group: 'people',
     icon: 'calculator',
@@ -770,6 +772,14 @@ export const APP_ROUTES = [
     icon: 'megaphone',
     employee: true,
   },
+  {
+    path: '/wellness-hub',
+    component: lazy(() => import('../pages/wellness/EmployeeWellnessHubPage')),
+    label: 'Wellness Hub',
+    group: 'workplace',
+    icon: 'heart',
+    employee: true,
+  },
 
   {
     path: '/team-health',
@@ -781,6 +791,14 @@ export const APP_ROUTES = [
   },
 
   // ── Learning ─────────────────────────────────────────────────────────────
+  {
+    path: '/learning-hub',
+    component: lazy(() => import('../pages/learning/EmployeeLearningHubPage')),
+    label: 'Learning Hub',
+    group: 'learning',
+    icon: 'graduationCap',
+    employee: true,
+  },
   {
     path: '/flashcards',
     component: lazy(() => import('../pages/Flashcards')),
@@ -916,6 +934,16 @@ export const APP_ROUTES = [
     ),
   },
   {
+    path: '/employee-referrals',
+    component: lazy(
+      () => import('../pages/referrals/EmployeeReferralProgramPage'),
+    ),
+    label: 'Employee Referrals',
+    group: 'enterprise',
+    icon: 'group_add',
+    employee: true,
+  },
+  {
     path: '/enterprise/employee-relations',
     component: lazy(
       () => import('../pages/enterprise/EmployeeRelationsHubPage'),
@@ -923,6 +951,15 @@ export const APP_ROUTES = [
     appShell: false,
   },
 
+  {
+    path: '/workforce-analytics',
+    component: lazy(
+      () => import('../pages/analytics/WorkforceAnalyticsDashboardPage'),
+    ),
+    label: 'Workforce Analytics',
+    group: 'people',
+    icon: 'chart',
+  },
   {
     path: '/settings',
     component: lazy(() => import('../pages/Settings')),

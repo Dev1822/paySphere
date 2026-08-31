@@ -9,9 +9,9 @@
 const mongoose = require('mongoose');
 const TaxBracket = require('../models/taxBracket.model');
 const logger = require('../utils/logger');
-const {
   round2,
   taxOn,
+  taxOnBonus,
   effectiveRate,
   validateSlabs,
 } = require('../utils/taxCalculator');
@@ -85,7 +85,18 @@ class TaxService {
     }
 
     const taxableIncome = Math.max(0, gross - totalDeductions);
-    const { totalTax: baseTax, breakdown } = taxOn(taxableIncome, taxConfig.brackets);
+    const { totalTax: incomeTax, breakdown } = taxOn(taxableIncome, taxConfig.brackets);
+    
+    // Support bonus withholding calculation
+    const bonusIncome = Number(options.bonusIncome) || 0;
+    let bonusTax = 0;
+    if (bonusIncome > 0) {
+      bonusTax = taxOnBonus(bonusIncome, taxableIncome, taxConfig.brackets, { 
+        method: options.bonusTaxMethod || 'AGGREGATE' 
+      });
+    }
+
+    const baseTax = incomeTax + bonusTax;
 
     // Apply health/education cess or surcharge if applicable
     const cessRate = defaults.cessRate || 0;
@@ -104,6 +115,7 @@ class TaxService {
       configured: true,
       regime,
       grossIncome: gross,
+      bonusIncome,
       taxableIncome,
       deductionsApplied: totalDeductions,
       breakdown,

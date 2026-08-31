@@ -12,8 +12,12 @@ exports.postJob = async (req, res, next) => {
     try {
         const { title, department, description, requiredSkills, resetProbation } = req.body;
         const job = await InternalJob.create({
-            tenantId: req.tenantId, title, department, description,
-            requiredSkills: requiredSkills || [], resetProbation, postedBy: req.userId
+            title,
+            department,
+            description,
+            requiredSkills: requiredSkills || [],
+            resetProbation,
+            postedBy: req.userId
         });
         res.status(201).json({ message: 'Internal job posted', job });
     } catch (error) { next(error); }
@@ -21,7 +25,9 @@ exports.postJob = async (req, res, next) => {
 
 exports.getOpenJobs = async (req, res, next) => {
     try {
-        const jobs = await InternalJob.find({ tenantId: req.tenantId, status: 'Open' })
+        const jobs = await InternalJob.find({
+            status: 'Open'
+        })
             .populate('managerId', 'fullName')
             .sort({ createdAt: -1 });
         res.status(200).json({ jobs });
@@ -30,11 +36,12 @@ exports.getOpenJobs = async (req, res, next) => {
 
 exports.applyToJob = async (req, res, next) => {
     try {
-        const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+        const employee = await Employee.findOne({
+            userId: req.userId
+        });
         if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
         const application = await InternalApplication.create({
-            tenantId: req.tenantId,
             jobId: req.params.jobId,
             applicantId: employee._id,
             coverLetter: req.body.coverLetter || ''
@@ -48,7 +55,9 @@ exports.applyToJob = async (req, res, next) => {
 
 exports.getPipeline = async (req, res, next) => {
     try {
-        const applications = await InternalApplication.find({ tenantId: req.tenantId, jobId: req.params.jobId })
+        const applications = await InternalApplication.find({
+            jobId: req.params.jobId
+        })
             .populate('applicantId', 'fullName department role email')
             .sort({ createdAt: -1 });
         res.status(200).json({ applications });

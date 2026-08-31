@@ -14,7 +14,9 @@ exports.createBatch = async (req, res, next) => {
         // invoices: [{ currency, amount }]
 
         const batch = await FXPayrollBatch.create({
-            tenantId: req.tenantId, batchName, baseCurrency: baseCurrency || 'USD', status: 'Draft'
+            batchName,
+            baseCurrency: baseCurrency || 'USD',
+            status: 'Draft'
         });
 
         let totalBaseLiability = 0;
@@ -36,9 +38,12 @@ exports.createBatch = async (req, res, next) => {
             expiresAt.setHours(expiresAt.getHours() + 48); // 48-hour lock
 
             await ExchangeRateLock.create({
-                tenantId: req.tenantId, batchId: batch._id, foreignCurrency: currency,
-                totalForeignAmount: totalForeign, lockedRate: mockLiveRate,
-                lockedBaseAmount: lockedBase, lockExpiresAt: expiresAt
+                batchId: batch._id,
+                foreignCurrency: currency,
+                totalForeignAmount: totalForeign,
+                lockedRate: mockLiveRate,
+                lockedBaseAmount: lockedBase,
+                lockExpiresAt: expiresAt
             });
         }
 
@@ -56,7 +61,9 @@ exports.confirmWiresSent = async (req, res, next) => {
         const batch = await FXPayrollBatch.findById(batchId);
         if (!batch) return res.status(404).json({ message: 'Batch not found' });
 
-        const locks = await ExchangeRateLock.find({ batchId, tenantId: req.tenantId });
+        const locks = await ExchangeRateLock.find({
+            batchId
+        });
 
         // Rate Expiry Guardrail
         for (const lock of locks) {
@@ -86,7 +93,9 @@ exports.recordSettlement = async (req, res, next) => {
             throw new Error('Batch not found or not in "Wires Sent" state.');
         }
 
-        const locks = await ExchangeRateLock.find({ batchId, tenantId: req.tenantId }).session(session);
+        const locks = await ExchangeRateLock.find({
+            batchId
+        }).session(session);
         const variances = [];
         let totalVariance = 0;
 
@@ -96,10 +105,15 @@ exports.recordSettlement = async (req, res, next) => {
 
             if (calc.type !== 'None') {
                 await FXVarianceLedger.create([{
-                    tenantId: req.tenantId, batchId: batch._id, foreignCurrency: lock.foreignCurrency,
-                    foreignAmount: lock.totalForeignAmount, lockedRate: lock.lockedRate,
-                    actualSettlementRate: actualRate, lockedBaseAmount: calc.lockedBase,
-                    actualBaseAmount: calc.actualBase, varianceAmount: calc.variance, varianceType: calc.type
+                    batchId: batch._id,
+                    foreignCurrency: lock.foreignCurrency,
+                    foreignAmount: lock.totalForeignAmount,
+                    lockedRate: lock.lockedRate,
+                    actualSettlementRate: actualRate,
+                    lockedBaseAmount: calc.lockedBase,
+                    actualBaseAmount: calc.actualBase,
+                    varianceAmount: calc.variance,
+                    varianceType: calc.type
                 }], { session });
 
                 totalVariance += (calc.type === 'Loss' ? calc.variance : -calc.variance);
@@ -123,8 +137,8 @@ exports.recordSettlement = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const batches = await FXPayrollBatch.find({ tenantId: req.tenantId }).sort({ createdAt: -1 }).limit(20);
-        const variances = await FXVarianceLedger.find({ tenantId: req.tenantId }).sort({ createdAt: -1 }).limit(50);
+        const batches = await FXPayrollBatch.find({}).sort({ createdAt: -1 }).limit(20);
+        const variances = await FXVarianceLedger.find({}).sort({ createdAt: -1 }).limit(50);
         res.status(200).json({ batches, variances });
     } catch (error) { next(error); }
 };

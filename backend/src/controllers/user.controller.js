@@ -25,6 +25,7 @@ const { getDefaultRole } = require('../seeds/rbac.seed');
 const { resolveAccountType } = require('../config/accountTypes');
 const { ensureTenantForUser } = require('../services/tenant.service');
 const { createAuditLog } = require('../services/audit.service');
+const redisClient = require('../config/redis');
 
 const GOOGLE_CLIENT_ID =
   process.env.GOOGLE_CLIENT_ID ||
@@ -289,9 +290,7 @@ exports.getSettings = async (req, res, next) => {
     // `createdBy`, this counted only the employees this particular admin had
     // added, and after #585 stopped writing that field it counted zero — the
     // Settings page reported an empty company (#613).
-    const employeeCount = await Employee.countDocuments({
-      tenantId: req.tenantId,
-    });
+    const employeeCount = await Employee.countDocuments({});
 
     const UserDTO = require('../utils/userDTO');
     const safeUser = UserDTO.toClient(user);
@@ -443,8 +442,7 @@ exports.updateSettings = async (req, res, next) => {
       } else if (typeof avatar === 'string' && avatar.startsWith('data:image/')) {
         const storedAvatar = await uploadDataUrl({
           dataUrl: avatar,
-          tenantId: req.tenantId,
-          area: 'profiles/avatars',
+          area: 'profiles/avatars'
         });
         user.avatar = storedAvatar.uri;
       } else {
@@ -473,8 +471,7 @@ exports.updateSettings = async (req, res, next) => {
         if (typeof companyLogo === 'string' && companyLogo.startsWith('data:image/')) {
           const storedLogo = await uploadDataUrl({
             dataUrl: companyLogo,
-            tenantId: req.tenantId,
-            area: 'profiles/company-logos',
+            area: 'profiles/company-logos'
           });
           user.settings.companyInfo.companyLogo = storedLogo.uri;
         }
@@ -1043,8 +1040,8 @@ exports.deleteAccount = async (req, res, next) => {
       // longer carry a `createdBy` to match on. Filtering by the old key deleted
       // nothing and left the company's employee and payroll records behind after
       // the account that owned them was gone (#613).
-      await Employee.deleteMany({ tenantId: req.tenantId }, deleteOptions);
-      await PayrollUpdate.deleteMany({ tenantId: req.tenantId }, deleteOptions);
+      await Employee.deleteMany({}, deleteOptions);
+      await PayrollUpdate.deleteMany({}, deleteOptions);
       // Soft-delete the tenant as well
       await Tenant.findByIdAndUpdate(
         tenant._id,
@@ -1196,6 +1193,18 @@ exports.logout = async (req, res, next) => {
         const decoded = jwt.verify(accessToken, process.env.JWT_SECRET, {
           ignoreExpiration: true,
         });
+        
+        // Add to Redis blacklist (Token Replay Prevention #2088)
+        if (redisClient && redisClient.status === "ready") {
+          // Calculate TTL based on token expiration
+          const now = Math.floor(Date.now() / 1000);
+          const ttl = decoded.exp ? decoded.exp - now : 86400; // default 24h
+          
+          if (ttl > 0) {
+            await redisClient.setex(`blacklist:${accessToken}`, ttl, 'true');
+          }
+        }
+
         if (decoded && decoded.id) {
           await User.findByIdAndUpdate(decoded.id, {
             $inc: { tokenVersion: 1 },

@@ -6,7 +6,6 @@
 const LaborAllocationRule = require('../models/laborAllocationRule.model');
 const LaborCostJournal = require('../models/laborCostJournal.model');
 const { distributeLaborCost } = require('../services/laborAllocation.service');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 async function createRule(req, res) {
@@ -17,11 +16,10 @@ async function createRule(req, res) {
     }
 
     const rule = await LaborAllocationRule.create({
-      tenantId: req.tenantId,
       employeeId,
       effectiveFrom,
       allocationMethod: allocationMethod || 'timesheet_hours',
-      splits,
+      splits
     });
 
     return res.status(201).json({ message: 'Labor allocation rule created successfully.', rule });
@@ -33,7 +31,7 @@ async function createRule(req, res) {
 
 async function getRules(req, res) {
   try {
-    const filter = { ...tenantFilter(req) };
+    const filter = { ...{} };
     if (req.query.employeeId) filter.employeeId = req.query.employeeId;
 
     const rules = await LaborAllocationRule.find(filter)
@@ -71,8 +69,7 @@ async function postCostDistribution(req, res) {
     const createdEntries = [];
     for (const entry of result.journalEntries) {
       const doc = await LaborCostJournal.create({
-        tenantId: req.tenantId,
-        ...entry,
+        ...entry
       });
       createdEntries.push(doc);
     }
@@ -90,7 +87,7 @@ async function postCostDistribution(req, res) {
 
 async function getJournalEntries(req, res) {
   try {
-    const filter = { ...tenantFilter(req) };
+    const filter = { ...{} };
     if (req.query.projectCode) filter.projectCode = req.query.projectCode;
     if (req.query.payrollRunId) filter.payrollRunId = req.query.payrollRunId;
     if (req.query.employeeId) filter.employeeId = req.query.employeeId;

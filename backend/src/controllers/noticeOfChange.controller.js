@@ -205,19 +205,20 @@ exports.recordChange = async (req, res, next) => {
     }
 
     const change = await ProposedChange.create({
-      tenantId: req.tenantId,
       establishment,
       description,
       effectedBy,
       sourceRef: String(req.body.sourceRef || '').trim(),
       scheduleItem,
+
       inAccordanceWithStandingOrders: Boolean(
         req.body.inAccordanceWithStandingOrders,
       ),
+
       casualFluctuation: Boolean(req.body.casualFluctuation),
       direction: req.body.direction || 'NEUTRAL',
       effectiveOn,
-      recordedBy: req.userId,
+      recordedBy: req.userId
     });
 
     const assessment = assessChange(shapeChange(change), [], {
@@ -282,8 +283,7 @@ exports.classify = async (req, res, next) => {
     }
 
     const change = await ProposedChange.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!change) {
       return res.status(404).json({ message: 'Change not found' });
@@ -302,12 +302,10 @@ exports.classify = async (req, res, next) => {
     await change.save();
 
     const determinations = await WorkmanDetermination.find({
-      tenantId: req.tenantId,
-      changeId: change._id,
+      changeId: change._id
     }).lean();
     const notices = await ChangeNotice.find({
-      tenantId: req.tenantId,
-      changeId: change._id,
+      changeId: change._id
     }).lean();
 
     const assessment = assessChange(
@@ -360,8 +358,7 @@ exports.determinePopulation = async (req, res, next) => {
     }
 
     const change = await ProposedChange.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!change) {
       return res.status(404).json({ message: 'Change not found' });
@@ -378,8 +375,7 @@ exports.determinePopulation = async (req, res, next) => {
     }
 
     const employees = await Employee.find({
-      _id: { $in: employeeIds },
-      tenantId: req.tenantId,
+      _id: { $in: employeeIds }
     })
       .select('_id name capacity employmentCapacity monthlyWages salary')
       .lean();
@@ -401,9 +397,8 @@ exports.determinePopulation = async (req, res, next) => {
 
       const row = await WorkmanDetermination.findOneAndUpdate(
         {
-          tenantId: req.tenantId,
           changeId: change._id,
-          employeeId: employee._id,
+          employeeId: employee._id
         },
         {
           $set: {
@@ -422,8 +417,7 @@ exports.determinePopulation = async (req, res, next) => {
     }
 
     const notices = await ChangeNotice.find({
-      tenantId: req.tenantId,
-      changeId: change._id,
+      changeId: change._id
     }).lean();
 
     const assessment = assessChange(
@@ -487,16 +481,14 @@ exports.serveNotice = async (req, res, next) => {
     }
 
     const change = await ProposedChange.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!change) {
       return res.status(404).json({ message: 'Change not found' });
     }
 
     const determinations = await WorkmanDetermination.find({
-      tenantId: req.tenantId,
-      changeId: change._id,
+      changeId: change._id
     }).lean();
 
     const preliminary = assessChange(
@@ -515,23 +507,23 @@ exports.serveNotice = async (req, res, next) => {
     }
 
     const notice = await ChangeNotice.create({
-      tenantId: req.tenantId,
       changeId: change._id,
       form: String(req.body.form || DEFAULT_RULES.noticeForm).trim(),
       servedOn,
       effectiveDateNoticed: change.effectiveOn,
       scheduleItems: preliminary.scheduleItems.map((item) => item.item),
+
       workmenServed: Number(
         req.body.workmenServed ?? preliminary.population.obliged,
       ),
+
       manner: req.body.manner || 'NOTICE_BOARD',
       documentRef: String(req.body.documentRef || '').trim(),
-      servedBy: req.userId,
+      servedBy: req.userId
     });
 
     const notices = await ChangeNotice.find({
-      tenantId: req.tenantId,
-      changeId: change._id,
+      changeId: change._id
     }).lean();
 
     const assessment = assessChange(
@@ -591,8 +583,7 @@ exports.moveEffectiveDate = async (req, res, next) => {
     }
 
     const change = await ProposedChange.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!change) {
       return res.status(404).json({ message: 'Change not found' });
@@ -609,12 +600,10 @@ exports.moveEffectiveDate = async (req, res, next) => {
     await change.save();
 
     const determinations = await WorkmanDetermination.find({
-      tenantId: req.tenantId,
-      changeId: change._id,
+      changeId: change._id
     }).lean();
     const notices = await ChangeNotice.find({
-      tenantId: req.tenantId,
-      changeId: change._id,
+      changeId: change._id
     }).lean();
 
     const assessment = assessChange(
@@ -663,8 +652,7 @@ exports.recordProceeding = async (req, res, next) => {
     }
 
     const change = await ProposedChange.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!change) {
       return res.status(404).json({ message: 'Change not found' });
@@ -681,12 +669,10 @@ exports.recordProceeding = async (req, res, next) => {
     await change.save();
 
     const determinations = await WorkmanDetermination.find({
-      tenantId: req.tenantId,
-      changeId: change._id,
+      changeId: change._id
     }).lean();
     const notices = await ChangeNotice.find({
-      tenantId: req.tenantId,
-      changeId: change._id,
+      changeId: change._id
     }).lean();
 
     const assessment = assessChange(
@@ -763,8 +749,7 @@ exports.recordExemption = async (req, res, next) => {
     }
 
     const change = await ProposedChange.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!change) {
       return res.status(404).json({ message: 'Change not found' });
@@ -778,12 +763,10 @@ exports.recordExemption = async (req, res, next) => {
     await change.save();
 
     const determinations = await WorkmanDetermination.find({
-      tenantId: req.tenantId,
-      changeId: change._id,
+      changeId: change._id
     }).lean();
     const notices = await ChangeNotice.find({
-      tenantId: req.tenantId,
-      changeId: change._id,
+      changeId: change._id
     }).lean();
 
     const assessment = assessChange(
@@ -832,7 +815,7 @@ exports.recordExemption = async (req, res, next) => {
  */
 exports.getQueue = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (req.query.establishment) {
       filter.establishment = String(req.query.establishment).trim();
     }
@@ -842,12 +825,10 @@ exports.getQueue = async (req, res, next) => {
 
     const [determinations, notices] = await Promise.all([
       WorkmanDetermination.find({
-        tenantId: req.tenantId,
-        changeId: { $in: changeIds },
+        changeId: { $in: changeIds }
       }).lean(),
       ChangeNotice.find({
-        tenantId: req.tenantId,
-        changeId: { $in: changeIds },
+        changeId: { $in: changeIds }
       }).lean(),
     ]);
 
@@ -912,8 +893,7 @@ exports.getPosition = async (req, res, next) => {
     }
 
     const change = await ProposedChange.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
     if (!change) {
       return res.status(404).json({ message: 'Change not found' });
@@ -921,10 +901,11 @@ exports.getPosition = async (req, res, next) => {
 
     const [determinations, notices] = await Promise.all([
       WorkmanDetermination.find({
-        tenantId: req.tenantId,
-        changeId: change._id,
+        changeId: change._id
       }).lean(),
-      ChangeNotice.find({ tenantId: req.tenantId, changeId: change._id })
+      ChangeNotice.find({
+        changeId: change._id
+      })
         .sort({ servedOn: -1 })
         .lean(),
     ]);

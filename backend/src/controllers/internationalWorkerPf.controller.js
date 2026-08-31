@@ -145,7 +145,10 @@ exports.recordStatus = async (req, res, next) => {
     }
 
     const status = await InternationalWorkerStatus.findOneAndUpdate(
-      { tenantId: req.tenantId, employeeId: req.body.employeeId, from },
+      {
+        employeeId: req.body.employeeId,
+        from
+      },
       {
         $set: {
           limb: req.body.limb,
@@ -220,7 +223,10 @@ exports.recordCertificate = async (req, res, next) => {
     }
 
     const certificate = await CertificateOfCoverage.findOneAndUpdate(
-      { tenantId: req.tenantId, employeeId: req.body.employeeId, validFrom },
+      {
+        employeeId: req.body.employeeId,
+        validFrom
+      },
       {
         $set: {
           countryCode,
@@ -283,8 +289,7 @@ exports.listExpiringCertificates = async (req, res, next) => {
     const horizon = new Date(Date.now() + withinDays * 86400000);
 
     const certificates = await CertificateOfCoverage.find({
-      tenantId: req.tenantId,
-      validTo: { $lte: horizon },
+      validTo: { $lte: horizon }
     })
       .sort({ validTo: 1 })
       .lean();
@@ -322,9 +327,8 @@ exports.recordContribution = async (req, res, next) => {
     }
 
     const { determination, certificate } = await loadPosition({
-      tenantId: req.tenantId,
       employeeId: req.body.employeeId,
-      asOn: forMonthEnding,
+      asOn: forMonthEnding
     });
 
     const status = determineStatus({
@@ -343,9 +347,8 @@ exports.recordContribution = async (req, res, next) => {
 
     const record = await InternationalWorkerContribution.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         employeeId: req.body.employeeId,
-        forMonthEnding,
+        forMonthEnding
       },
       {
         $set: {
@@ -406,9 +409,8 @@ exports.checkWithdrawal = async (req, res, next) => {
     const asOn = readDate(req.query.asOn) || new Date();
 
     const { determination, certificate } = await loadPosition({
-      tenantId: req.tenantId,
       employeeId: req.query.employeeId,
-      asOn,
+      asOn
     });
 
     const status = determineStatus({ determination, certificate, asOn });
@@ -456,7 +458,10 @@ exports.fileIwOne = async (req, res, next) => {
         : '';
 
     const filing = await IwOneReturn.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment, forMonthEnding },
+      {
+        establishment,
+        forMonthEnding
+      },
       {
         $set: {
           dueOn,
@@ -509,13 +514,9 @@ exports.getPosition = async (req, res, next) => {
       readDate(req.query.from) || new Date(now.getUTCFullYear(), 0, 1);
     const to = readDate(req.query.to) || now;
 
-    const determinations = await InternationalWorkerStatus.find({
-      tenantId: req.tenantId,
-    }).lean();
+    const determinations = await InternationalWorkerStatus.find({}).lean();
 
-    const certificates = await CertificateOfCoverage.find({
-      tenantId: req.tenantId,
-    })
+    const certificates = await CertificateOfCoverage.find({})
       .sort({ validTo: -1 })
       .lean();
 
@@ -528,8 +529,7 @@ exports.getPosition = async (req, res, next) => {
     }
 
     const contributions = await InternationalWorkerContribution.find({
-      tenantId: req.tenantId,
-      forMonthEnding: { $gte: from, $lte: to },
+      forMonthEnding: { $gte: from, $lte: to }
     })
       .sort({ forMonthEnding: -1 })
       .lean();
@@ -541,9 +541,8 @@ exports.getPosition = async (req, res, next) => {
     }
 
     const filings = await IwOneReturn.find({
-      tenantId: req.tenantId,
       establishment,
-      filedOn: { $ne: null },
+      filedOn: { $ne: null }
     }).lean();
 
     const result = assessEstablishment({

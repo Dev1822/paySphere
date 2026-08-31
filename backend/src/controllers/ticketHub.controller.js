@@ -9,7 +9,6 @@ const {
   Ticket,
   TicketComment,
 } = require('../models/ticketHub.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
 
@@ -24,13 +23,12 @@ exports.createCategory = async (req, res, next) => {
     const { name, description, icon, color, defaultPriority } = req.body;
 
     const category = await TicketCategory.create({
-      tenantId: req.tenantId,
       name,
       description: description || '',
       icon: icon || 'headphones',
       color: color || '#6366f1',
       defaultPriority: defaultPriority || 'MEDIUM',
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -51,7 +49,7 @@ exports.createCategory = async (req, res, next) => {
 exports.getCategories = async (req, res, next) => {
   try {
     const categories = await TicketCategory.find(
-      tenantFilter(req, { isActive: true }),
+      { isActive: true },
     ).sort({ name: 1 }).lean();
     res.status(200).json({ categories });
   } catch (error) {
@@ -68,14 +66,13 @@ exports.createSLAPolicy = async (req, res, next) => {
     const { name, priority, firstResponseHours, resolutionHours, escalationAfterHours, escalationContact, businessHoursOnly } = req.body;
 
     const policy = await SLAPolicy.create({
-      tenantId: req.tenantId,
       name,
       priority,
       firstResponseHours,
       resolutionHours,
       escalationAfterHours,
       escalationContact: escalationContact || '',
-      businessHoursOnly: businessHoursOnly !== false,
+      businessHoursOnly: businessHoursOnly !== false
     });
 
     res.status(201).json({ policy });
@@ -90,7 +87,7 @@ exports.createSLAPolicy = async (req, res, next) => {
 exports.getSLAPolicies = async (req, res, next) => {
   try {
     const policies = await SLAPolicy.find(
-      tenantFilter(req, { isActive: true }),
+      { isActive: true },
     ).sort({ priority: 1 }).lean();
     res.status(200).json({ policies });
   } catch (error) {
@@ -107,20 +104,20 @@ exports.createTicket = async (req, res, next) => {
     const { categoryId, subject, description, priority, tags, assigneeId, assigneeName, team } = req.body;
 
     const category = await TicketCategory.findOne(
-      tenantFilter(req, { _id: categoryId, isActive: true }),
+      { _id: categoryId, isActive: true },
     );
     if (!category) {
       return res.status(404).json({ message: 'Ticket category not found' });
     }
 
     // Generate ticket number
-    const count = await Ticket.countDocuments(tenantFilter(req, {}));
+    const count = await Ticket.countDocuments({});
     const ticketNumber = `TKT-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
 
     // Resolve SLA
     const ticketPriority = priority || category.defaultPriority;
     const sla = await SLAPolicy.findOne(
-      tenantFilter(req, { priority: ticketPriority, isActive: true }),
+      { priority: ticketPriority, isActive: true },
     );
 
     const now = new Date();
@@ -132,7 +129,6 @@ exports.createTicket = async (req, res, next) => {
       : null;
 
     const ticket = await Ticket.create({
-      tenantId: req.tenantId,
       ticketNumber,
       categoryId,
       subject,
@@ -145,7 +141,7 @@ exports.createTicket = async (req, res, next) => {
       slaPolicyId: sla?._id || null,
       firstResponseDueAt,
       resolutionDueAt,
-      tags: tags || [],
+      tags: tags || []
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -166,7 +162,7 @@ exports.createTicket = async (req, res, next) => {
 exports.getTickets = async (req, res, next) => {
   try {
     const { status, priority, assigneeId, categoryId, page = 1, limit = 20 } = req.query;
-    const filter = tenantFilter(req, {});
+    const filter = {};
 
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
@@ -206,7 +202,7 @@ exports.getTicket = async (req, res, next) => {
     const { ticketId } = req.params;
 
     const ticket = await Ticket.findOne(
-      tenantFilter(req, { _id: ticketId }),
+      { _id: ticketId },
     )
       .populate('categoryId', 'name icon color')
       .populate('requesterId', 'fullName department email')
@@ -218,7 +214,7 @@ exports.getTicket = async (req, res, next) => {
     }
 
     const comments = await TicketComment.find(
-      tenantFilter(req, { ticketId }),
+      { ticketId },
     )
       .populate('authorId', 'name email')
       .sort({ createdAt: 1 })
@@ -247,7 +243,7 @@ exports.updateTicket = async (req, res, next) => {
     const { ticketId } = req.params;
     const { status, priority, assigneeId, assigneeName, team, resolutionNote, tags } = req.body;
 
-    const ticket = await Ticket.findOne(tenantFilter(req, { _id: ticketId }));
+    const ticket = await Ticket.findOne({ _id: ticketId });
     if (!ticket) {
       return res.status(404).json({ message: 'Ticket not found' });
     }
@@ -276,13 +272,12 @@ exports.updateTicket = async (req, res, next) => {
 
       // Log status change as system event
       await TicketComment.create({
-        tenantId: req.tenantId,
         ticketId: ticket._id,
         authorId: req.userId,
         authorType: 'SYSTEM',
         authorName: 'System',
         content: `Status changed from ${previousStatus} to ${status}`,
-        isSystemEvent: true,
+        isSystemEvent: true
       });
     }
 
@@ -305,19 +300,18 @@ exports.addComment = async (req, res, next) => {
     const { ticketId } = req.params;
     const { content, authorType, isInternal } = req.body;
 
-    const ticket = await Ticket.findOne(tenantFilter(req, { _id: ticketId }));
+    const ticket = await Ticket.findOne({ _id: ticketId });
     if (!ticket) {
       return res.status(404).json({ message: 'Ticket not found' });
     }
 
     const comment = await TicketComment.create({
-      tenantId: req.tenantId,
       ticketId,
       authorId: req.userId,
       authorType: authorType || 'HR',
       authorName: req.body.authorName || '',
       content,
-      isInternal: isInternal || false,
+      isInternal: isInternal || false
     });
 
     // Auto-set first response time if not set
@@ -337,7 +331,7 @@ exports.assignTicket = async (req, res, next) => {
     const { ticketId } = req.params;
     const { assigneeId, assigneeName, team } = req.body;
 
-    const ticket = await Ticket.findOne(tenantFilter(req, { _id: ticketId }));
+    const ticket = await Ticket.findOne({ _id: ticketId });
     if (!ticket) {
       return res.status(404).json({ message: 'Ticket not found' });
     }
@@ -354,13 +348,12 @@ exports.assignTicket = async (req, res, next) => {
     await ticket.save();
 
     await TicketComment.create({
-      tenantId: req.tenantId,
       ticketId: ticket._id,
       authorId: req.userId,
       authorType: 'SYSTEM',
       authorName: 'System',
       content: `Ticket assigned to ${assigneeName || 'unknown'}`,
-      isSystemEvent: true,
+      isSystemEvent: true
     });
 
     res.status(200).json({ ticket });
@@ -388,28 +381,28 @@ exports.getDashboard = async (req, res, next) => {
       recentTickets,
       avgResolutionTime,
     ] = await Promise.all([
-      Ticket.countDocuments(tenantFilter(req, {})),
-      Ticket.countDocuments(tenantFilter(req, { status: 'OPEN' })),
-      Ticket.countDocuments(tenantFilter(req, { status: 'IN_PROGRESS' })),
-      Ticket.countDocuments(tenantFilter(req, { status: { $in: ['RESOLVED', 'CLOSED'] } })),
+      Ticket.countDocuments({}),
+      Ticket.countDocuments({ status: 'OPEN' }),
+      Ticket.countDocuments({ status: 'IN_PROGRESS' }),
+      Ticket.countDocuments({ status: { $in: ['RESOLVED', 'CLOSED'] } }),
       Ticket.countDocuments(
-        tenantFilter(req, {
+        {
           resolutionDueAt: { $lt: now },
           status: { $nin: ['RESOLVED', 'CLOSED'] },
-        }),
+        },
       ),
       Ticket.aggregate([
-        { $match: { tenantId: req.tenantId } },
+        { $match: {} },
         { $group: { _id: '$priority', count: { $sum: 1 } } },
       ]),
       Ticket.aggregate([
-        { $match: { tenantId: req.tenantId } },
+        { $match: {} },
         { $group: { _id: '$categoryId', count: { $sum: 1 } } },
         { $lookup: { from: 'ticketcategories', localField: '_id', foreignField: '_id', as: 'category' } },
         { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
         { $project: { _id: 1, count: 1, name: '$category.name', color: '$category.color' } },
       ]),
-      Ticket.find(tenantFilter(req, {}))
+      Ticket.find({})
         .populate('categoryId', 'name icon color')
         .populate('requesterId', 'fullName')
         .sort({ createdAt: -1 })
@@ -419,9 +412,8 @@ exports.getDashboard = async (req, res, next) => {
       Ticket.aggregate([
         {
           $match: {
-            tenantId: req.tenantId,
             status: { $in: ['RESOLVED', 'CLOSED'] },
-            resolvedAt: { $gte: new Date(Date.now() - 30 * 86400000) },
+            resolvedAt: { $gte: new Date(Date.now() - 30 * 86400000) }
           },
         },
         {

@@ -5,7 +5,6 @@
 
 const DeferredCompensation = require('../models/deferredCompensation.model');
 const { calculateDeferralMetrics, compoundQuarterlyGrowth } = require('../services/deferredCompensation.service');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 async function previewDeferral(req, res) {
@@ -54,7 +53,6 @@ async function createPlan(req, res) {
     });
 
     const plan = await DeferredCompensation.create({
-      tenantId: req.tenantId,
       employeeId,
       planYear: Number(planYear),
       planType: planType || 'elective_salary_deferral',
@@ -66,7 +64,7 @@ async function createPlan(req, res) {
       distributionTrigger: distributionTrigger || 'fixed_date',
       distributionSchedule: Array.isArray(distributionSchedule) ? distributionSchedule : [],
       status: 'active',
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     return res.status(201).json({ message: 'Section 409A NQDC Plan recorded successfully.', plan });
@@ -78,7 +76,7 @@ async function createPlan(req, res) {
 
 async function getPlans(req, res) {
   try {
-    const filter = { ...tenantFilter(req) };
+    const filter = { ...{} };
     if (req.query.employeeId) filter.employeeId = req.query.employeeId;
     if (req.query.planYear) filter.planYear = req.query.planYear;
     if (req.query.status) filter.status = req.query.status;
@@ -98,7 +96,7 @@ async function getPlans(req, res) {
 async function accrueQuarterlyInterest(req, res) {
   try {
     const { id } = req.params;
-    const plan = await DeferredCompensation.findOne({ _id: id, ...tenantFilter(req) });
+    const plan = await DeferredCompensation.findOne({ _id: id, ...{} });
     if (!plan) {
       return res.status(404).json({ message: 'Deferred compensation plan not found.' });
     }

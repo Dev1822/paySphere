@@ -15,12 +15,18 @@ exports.generateECR = async (req, res, next) => {
         const { type, month, year } = req.body;
 
         // Check if already generated
-        const existing = await StatutoryChallan.findOne({ tenantId: req.tenantId, type, month, year });
+        const existing = await StatutoryChallan.findOne({
+            type,
+            month,
+            year
+        });
         if (existing) return res.status(409).json({ message: 'ECR for this month already generated.', challan: existing });
 
         // Fetch finalized payrolls for the month
         const payrolls = await PayrollUpdate.find({
-            tenantId: req.tenantId, month, year, status: { $in: ['approved', 'paid'] }
+            month,
+            year,
+            status: { $in: ['approved', 'paid'] }
         }).lean();
 
         if (payrolls.length === 0) {
@@ -45,9 +51,8 @@ exports.generateECR = async (req, res, next) => {
         }
 
         const ecrKey = createObjectKey({
-            tenantId: req.tenantId,
             area: 'statutory/ecr',
-            extension: 'txt',
+            extension: 'txt'
         });
         const storedEcr = await putObject({
             key: ecrKey,
@@ -57,7 +62,6 @@ exports.generateECR = async (req, res, next) => {
         });
 
         const challan = await StatutoryChallan.create({
-            tenantId: req.tenantId,
             type,
             month,
             year,
@@ -79,7 +83,9 @@ exports.generateECR = async (req, res, next) => {
 exports.uploadPaymentReceipt = async (req, res, next) => {
     try {
         const { challanId, receiptUrl } = req.body;
-        const challan = await StatutoryChallan.findOne({ _id: challanId, tenantId: req.tenantId });
+        const challan = await StatutoryChallan.findOne({
+            _id: challanId
+        });
         if (!challan) return res.status(404).json({ message: 'Challan not found' });
 
         let parsed = null;
@@ -94,9 +100,8 @@ exports.uploadPaymentReceipt = async (req, res, next) => {
         if (req.file) {
             const extension = req.file.mimetype === 'application/pdf' ? 'pdf' : 'bin';
             const receiptKey = createObjectKey({
-                tenantId: req.tenantId,
                 area: 'statutory/payment-receipts',
-                extension,
+                extension
             });
             const storedReceipt = await putObject({
                 key: receiptKey,
@@ -138,7 +143,7 @@ exports.uploadPaymentReceipt = async (req, res, next) => {
 
 exports.getVaultHistory = async (req, res, next) => {
     try {
-        const history = await StatutoryChallan.find({ tenantId: req.tenantId })
+        const history = await StatutoryChallan.find({})
             .sort({ year: -1, month: -1, type: 1 })
             .lean();
         const hydratedHistory = await Promise.all(history.map(async (item) => ({

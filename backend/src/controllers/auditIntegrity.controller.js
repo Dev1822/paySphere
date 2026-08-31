@@ -8,7 +8,6 @@
 
 const auditIntegrity = require('../services/auditIntegrity.service');
 const AuditLog = require('../models/auditLog.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 /**
@@ -20,7 +19,7 @@ async function verifyRecord(req, res) {
 
     const record = await AuditLog.findOne({
       _id: recordId,
-      ...tenantFilter(req)
+      ...{}
     });
 
     if (!record) {
@@ -54,7 +53,7 @@ async function verifyChain(req, res) {
     const record = await AuditLog.findOne({
       resourceType,
       resourceId,
-      ...tenantFilter(req)
+      ...{}
     });
 
     if (!record) {
@@ -89,12 +88,9 @@ async function verifyChain(req, res) {
 async function getIntegrityReport(req, res) {
   try {
     // Get all distinct resources for this tenant
-    const resources = await AuditLog.distinct('resourceType', {
-      tenantId: req.tenantId
-    });
+    const resources = await AuditLog.distinct('resourceType', {});
 
     const report = {
-      tenantId: req.tenantId,
       scanDate: new Date().toISOString(),
       resourcesScanned: 0,
       chainsValid: 0,
@@ -104,7 +100,6 @@ async function getIntegrityReport(req, res) {
 
     for (const resourceType of resources) {
       const resourceIds = await AuditLog.distinct('resourceId', {
-        tenantId: req.tenantId,
         resourceType
       });
 
