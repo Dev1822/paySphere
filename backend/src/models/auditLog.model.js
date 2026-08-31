@@ -108,6 +108,27 @@ const AUDIT_ACTIONS = [
   'CESS_ASSESSMENT_ORDER_RECORDED',
   'CESS_BENEFICIARY_REGISTERED',
   'CESS_ASSESSMENT_COMMITTED',
+  // Industrial Disputes Act section 9A (#1973). The classification is audited
+  // because reclassifying a change from a Fourth Schedule item to none is how a
+  // notice obligation is cleared without being discharged, and nothing else on
+  // the record changes when it happens. The `from` and `to` are both carried
+  // for that reason.
+  //
+  // The proceeding is audited because clearing the express permission reference
+  // turns a section 33 requirement into a twenty-one-day wait — the one error in
+  // the module that tells an employer to commit an offence on a date certain.
+  //
+  // The population is audited with the affected count beside the obliged count,
+  // because the gap between them is the finding: a change touching forty people
+  // and obliging notice to six is a different record from one obliging notice to
+  // all forty, and a single number cannot say which happened.
+  'SECTION_9A_CHANGE_RECORDED',
+  'SECTION_9A_CHANGE_CLASSIFIED',
+  'SECTION_9A_POPULATION_DETERMINED',
+  'SECTION_9A_NOTICE_SERVED',
+  'SECTION_9A_EFFECTIVE_DATE_MOVED',
+  'SECTION_9A_PROCEEDING_RECORDED',
+  'SECTION_9A_EXEMPTION_RECORDED',
   // Payment of Wages Act, 1936 (#1767). Next to the minimum wage actions
   // because the rules move findings the same way a notification does: raising
   // the section 1(6) applicability ceiling takes employees out of the Act and
@@ -202,6 +223,29 @@ const AUDIT_ACTIONS = [
   'EPS_ASSUMPTIONS_UPDATED',
   'EPS_WAGE_HISTORY_BACKFILLED',
   'EPS_VALUATION_COMMITTED',
+  // Industrial Employment (Standing Orders) Act, 1946 (#2029). The
+  // applicability determination is audited with the crossing date on it, not
+  // with today's, because the whole finding is that the section 3(1) six months
+  // may already have been running for a quarter before anybody looked.
+  //
+  // The headcount sync is audited with `stillApplicable` beside the strength,
+  // because a strength recorded below the threshold on an applicable
+  // establishment is the row somebody will later read as 'the Act stopped
+  // applying' — the proviso to section 1(3) says it did not, and the record has
+  // to show it.
+  //
+  // The certification carries both the certificate date and the dispatch date.
+  // Section 7 runs from the second; using the first brings the orders into
+  // force weeks early, and the pair is what lets a reviewer see which was used.
+  //
+  // The modification carries the agreement's party and reference rather than a
+  // flag, because section 10(1) excepts a modification *agreed* — and an
+  // agreement with nothing to point at is the claim, not the document.
+  'STANDING_ORDERS_ESTABLISHMENT_RECORDED',
+  'STANDING_ORDERS_APPLICABILITY_DETERMINED',
+  'STANDING_ORDERS_HEADCOUNT_SYNCED',
+  'STANDING_ORDERS_CERTIFIED',
+  'STANDING_ORDERS_MODIFICATION_PROPOSED',
   // National and Festival Holidays Acts (#1970). The substitution is audited
   // with the holiday's kind on it, because a NATIONAL kind on one of these rows
   // means the engine's refusal was bypassed — 26 January, 15 August and 2
@@ -383,6 +427,23 @@ const AUDIT_ACTIONS = [
   'IW_CERTIFICATE_RECORDED',
   'IW_CONTRIBUTION_COMPUTED',
   'IW_ONE_FILED',
+  // Shops and Commercial Establishments Acts (#1972). The registration is
+  // audited because its three dates are the whole finding: `commencedOn` is
+  // what the registration window runs from, and `validTo` is what separates an
+  // establishment filing a renewal late from one trading unregistered. Either
+  // can be moved to make a lapse look like a renewal with nothing else on the
+  // record changing, and the certificate itself is a scan in a vault that says
+  // whatever the last edit said.
+  //
+  // The particular and the headcount sync are audited together because they are
+  // the two ways an amendment obligation gets closed without being discharged.
+  // The clock runs from the date the particular changed, so a particular
+  // "corrected" to match the establishment — or a band silently resynced after
+  // a hire — makes fifteen days that were already running disappear.
+  'ESTABLISHMENT_REGISTRATION_RECORDED',
+  'ESTABLISHMENT_PARTICULAR_RECORDED',
+  'ESTABLISHMENT_HEADCOUNT_SYNCED',
+  'ESTABLISHMENT_CLOSURE_RECORDED',
   'APPRENTICESHIP_ASSESSMENT_COMMITTED',
   // Inter-State Migrant Workmen Act, 1979 (#1826). The comparator is audited
   // for the same reason the recorded strength above is: it is the denominator
@@ -416,6 +477,29 @@ const AUDIT_ACTIONS = [
 
   'MIGRANT_RETURN_JOURNEY_ACCRUED',
   'MIGRANT_ASSESSMENT_COMMITTED',
+  // Payment of Gratuity Act, 1972 (#2031). The claim is audited with
+  // `payableFrom` on it because that single date decides both whether the
+  // thirty days have run and how much section 7(3A) interest has accrued —
+  // moving it forward makes an overdue gratuity look current and shrinks a
+  // statutory liability with nothing else on the record changing.
+  //
+  // The forfeiture carries the amount claimed beside the amount permitted. The
+  // gap is the finding: a ₹6,00,000 forfeiture claimed against ₹4,000 of
+  // damage under section 4(6)(a) is the case the module exists to make visible,
+  // and storing only the capped figure would erase that it was attempted.
+  //
+  // The payment carries the interest owed beside the interest paid, because a
+  // late gratuity discharged without the 7(3A) interest is a live liability and
+  // the pair is the only thing that shows it.
+  //
+  // The nomination is audited with the shares because it decides who receives
+  // the money on death, and a share edited afterwards moves an amount between
+  // two named people at the point it is most contested.
+  'GRATUITY_NOMINATION_RECORDED',
+  'GRATUITY_CLAIM_OPENED',
+  'GRATUITY_NOTICE_RECORDED',
+  'GRATUITY_FORFEITURE_RECORDED',
+  'GRATUITY_PAYMENT_RECORDED',
   // International assignments (#1348). Opening one commits the employer to
   // bearing somebody's foreign tax bill for years; a settlement moves money
   // between the employee and the company; and the two threshold events record

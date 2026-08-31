@@ -3,12 +3,10 @@ const ExchangeRate = require('../models/exchangeRate.model');
 const logger = require('../utils/logger');
 
 /**
- * Fetches exchange rates from a public API (Frankfurter API) with USD as base.
- * Falls back to mock rates if request fails or times out.
- * @returns {Promise<Object>} Object containing baseCurrency, rates, and date
+ * Fetches exchange rates from a primary API (Frankfurter).
  */
-function fetchRatesFromApi() {
-  return new Promise((resolve) => {
+function fetchFromFrankfurter() {
+  return new Promise((resolve, reject) => {
     const url = 'https://api.frankfurter.app/latest?from=USD';
     const request = https.get(url, (res) => {
       let data = '';
@@ -24,41 +22,75 @@ function fetchRatesFromApi() {
             });
             return;
           }
-          throw new Error(`API returned status code ${res.statusCode}`);
+          reject(new Error(`Frankfurter API returned status code ${res.statusCode}`));
         } catch (error) {
-          logger.warn('Failed to parse exchange rates API response. Using fallback rates.', { error: error.message });
-          resolve(getFallbackRates());
+          reject(new Error(`Failed to parse Frankfurter response: ${error.message}`));
         }
       });
     });
 
-    request.on('error', (error) => {
-      logger.warn('Forex API network request failed. Using fallback rates.', { error: error.message });
-      resolve(getFallbackRates());
-    });
-
+    request.on('error', (error) => reject(error));
     request.setTimeout(5000, () => {
       request.destroy();
-      logger.warn('Forex API network request timed out. Using fallback rates.');
-      resolve(getFallbackRates());
+      reject(new Error('Frankfurter API timeout'));
     });
   });
 }
 
-function getFallbackRates() {
-  return {
-    baseCurrency: 'USD',
-    rates: {
-      EUR: 0.92,
-      GBP: 0.79,
-      INR: 83.50,
-      CAD: 1.36,
-      AUD: 1.51,
-      JPY: 155.80,
-      SGD: 1.35,
-    },
-    date: new Date(),
-  };
+/**
+ * Fetches exchange rates from secondary API (OpenExchangeRates)
+ */
+function fetchFromOpenExchangeRates() {
+  return new Promise((resolve, reject) => {
+    const apiKey = process.env.OXR_API_KEY;
+    if (!apiKey) {
+      return reject(new Error('OXR_API_KEY not configured'));
+    }
+    const url = `https://openexchangerates.org/api/latest.json?app_id=${apiKey}&base=USD`;
+    const request = https.get(url, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          if (res.statusCode === 200) {
+            const parsed = JSON.parse(data);
+            resolve({
+              baseCurrency: parsed.base || 'USD',
+              rates: parsed.rates,
+              date: new Date(parsed.timestamp ? parsed.timestamp * 1000 : Date.now()),
+            });
+            return;
+          }
+          reject(new Error(`OpenExchangeRates API returned status code ${res.statusCode}`));
+        } catch (error) {
+          reject(new Error(`Failed to parse OpenExchangeRates response: ${error.message}`));
+        }
+      });
+    });
+
+    request.on('error', (error) => reject(error));
+    request.setTimeout(5000, () => {
+      request.destroy();
+      reject(new Error('OpenExchangeRates API timeout'));
+    });
+  });
+}
+
+/**
+ * Orchestrates fetching exchange rates across providers.
+ */
+async function fetchRatesFromApi() {
+  try {
+    return await fetchFromFrankfurter();
+  } catch (frankfurterError) {
+    logger.warn('Primary FX provider (Frankfurter) failed. Trying secondary.', { error: frankfurterError.message });
+    try {
+      return await fetchFromOpenExchangeRates();
+    } catch (oxrError) {
+      logger.error('Secondary FX provider (OpenExchangeRates) failed.', { error: oxrError.message });
+      throw new Error('All FX providers failed to fetch fresh exchange rates.');
+    }
+  }
 }
 
 /**
@@ -87,4 +119,4 @@ async function runForexSyncJob() {
   }
 }
 
-module.exports = { runForexSyncJob, fetchRatesFromApi, getFallbackRates };
+module.exports = { runForexSyncJob, fetchRatesFromApi };

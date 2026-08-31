@@ -48,15 +48,19 @@ const MAX_TENURE_MONTHS = 120;
 const MAX_PRINCIPAL = 100000000;
 const MAX_INTEREST_RATE_PERCENT = 100;
 
+const Decimal = require('decimal.js');
+Decimal.set({ rounding: Decimal.ROUND_HALF_EVEN });
+
 /**
  * Round to paise. Money must never carry binary floating-point noise — #347
  * already showed what an unrounded sum does to a payroll total.
+ * Uses decimal.js for arbitrary precision with banker's rounding.
  *
- * @param {number} value
+ * @param {number|string|Decimal} value
  * @returns {number}
  */
 function round2(value) {
-  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+  return new Decimal(value).toDecimalPlaces(2).toNumber();
 }
 
 /**
@@ -143,21 +147,26 @@ function computeInstallmentAmount({
   if (!Number.isFinite(principal) || principal <= 0) return 0;
   if (!Number.isInteger(tenureMonths) || tenureMonths < 1) return 0;
 
+  const p = new Decimal(principal);
+  const t = new Decimal(tenureMonths);
+
   if (interestMethod === INTEREST_METHOD.NONE || !interestRatePercent) {
-    return round2(principal / tenureMonths);
+    return round2(p.dividedBy(t));
   }
+
+  const rPercent = new Decimal(interestRatePercent);
 
   if (interestMethod === INTEREST_METHOD.FLAT) {
     // Interest on the full principal for the whole tenure, spread evenly.
-    const years = tenureMonths / 12;
-    const totalInterest = (principal * interestRatePercent * years) / 100;
-    return round2((principal + totalInterest) / tenureMonths);
+    const years = t.dividedBy(12);
+    const totalInterest = p.times(rPercent).times(years).dividedBy(100);
+    return round2(p.plus(totalInterest).dividedBy(t));
   }
 
   // Reducing balance — the standard EMI formula.
-  const monthlyRate = interestRatePercent / 100 / 12;
-  const growth = Math.pow(1 + monthlyRate, tenureMonths);
-  return round2((principal * monthlyRate * growth) / (growth - 1));
+  const monthlyRate = rPercent.dividedBy(100).dividedBy(12);
+  const growth = new Decimal(1).plus(monthlyRate).pow(t.toNumber());
+  return round2(p.times(monthlyRate).times(growth).dividedBy(growth.minus(1)));
 }
 
 /**
@@ -210,6 +219,10 @@ function buildAmortizationSchedule(terms) {
     startYear,
   } = validation.value;
 
+  const p = new Decimal(principal);
+  const t = new Decimal(tenureMonths);
+  const rPercent = new Decimal(interestRatePercent || 0);
+
   const installmentAmount = computeInstallmentAmount({
     principal,
     tenureMonths,
@@ -217,20 +230,19 @@ function buildAmortizationSchedule(terms) {
     interestRatePercent,
   });
 
-  const monthlyRate = interestRatePercent / 100 / 12;
+  const monthlyRate = rPercent.dividedBy(100).dividedBy(12);
   const flatMonthlyInterest =
     interestMethod === INTEREST_METHOD.FLAT
       ? round2(
-          (principal * interestRatePercent * (tenureMonths / 12)) /
-            100 /
-            tenureMonths,
+          p.times(rPercent).times(t.dividedBy(12)).dividedBy(100).dividedBy(t)
         )
       : 0;
 
   const schedule = [];
-  let balance = principal;
-  let principalPaid = 0;
-  let interestPaid = 0;
+  let balance = p;
+  let principalPaid = new Decimal(0);
+  let interestPaid = new Decimal(0);
+  const instAmtDec = new Decimal(installmentAmount);
 
   for (let i = 0; i < tenureMonths; i += 1) {
     const period = addMonths(startMonth, startYear, i);
@@ -238,11 +250,11 @@ function buildAmortizationSchedule(terms) {
 
     let interestComponent;
     if (interestMethod === INTEREST_METHOD.REDUCING) {
-      interestComponent = round2(balance * monthlyRate);
+      interestComponent = new Decimal(round2(balance.times(monthlyRate)));
     } else if (interestMethod === INTEREST_METHOD.FLAT) {
-      interestComponent = flatMonthlyInterest;
+      interestComponent = new Decimal(flatMonthlyInterest);
     } else {
-      interestComponent = 0;
+      interestComponent = new Decimal(0);
     }
 
     let principalComponent;
@@ -250,25 +262,25 @@ function buildAmortizationSchedule(terms) {
 
     if (isLast) {
       // Absorb the drift: whatever principal remains is due now.
-      principalComponent = round2(principal - principalPaid);
-      amount = round2(principalComponent + interestComponent);
+      principalComponent = new Decimal(round2(p.minus(principalPaid)));
+      amount = new Decimal(round2(principalComponent.plus(interestComponent)));
     } else {
-      principalComponent = round2(installmentAmount - interestComponent);
-      amount = installmentAmount;
+      principalComponent = new Decimal(round2(instAmtDec.minus(interestComponent)));
+      amount = instAmtDec;
     }
 
-    principalPaid = round2(principalPaid + principalComponent);
-    interestPaid = round2(interestPaid + interestComponent);
-    balance = round2(principal - principalPaid);
+    principalPaid = new Decimal(round2(principalPaid.plus(principalComponent)));
+    interestPaid = new Decimal(round2(interestPaid.plus(interestComponent)));
+    balance = new Decimal(round2(p.minus(principalPaid)));
 
     schedule.push({
       installmentNumber: i + 1,
       month: period.month,
       year: period.year,
-      amount,
-      principalComponent,
-      interestComponent,
-      closingBalance: Math.max(balance, 0),
+      amount: amount.toNumber(),
+      principalComponent: principalComponent.toNumber(),
+      interestComponent: interestComponent.toNumber(),
+      closingBalance: Math.max(balance.toNumber(), 0),
     });
   }
 
@@ -277,8 +289,8 @@ function buildAmortizationSchedule(terms) {
     errors: [],
     schedule,
     installmentAmount,
-    totalPayable: round2(principal + interestPaid),
-    totalInterest: round2(interestPaid),
+    totalPayable: round2(p.plus(interestPaid)),
+    totalInterest: interestPaid.toNumber(),
   };
 }
 

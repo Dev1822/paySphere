@@ -10,10 +10,10 @@ const {
   submitClaim,
   getWalletStatement,
 } = require('../controllers/wellnessWallet.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/allocate', protect, allocateWallet);
-router.post('/submit-claim', protect, submitClaim);
-router.get('/statement/:employeeId', protect, getWalletStatement);
+router.post('/allocate', auth, allocateWallet);
+router.post('/submit-claim', auth, submitClaim);
+router.get('/statement/:employeeId', auth, getWalletStatement);
 
 module.exports = router;

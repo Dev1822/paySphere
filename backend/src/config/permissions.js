@@ -200,6 +200,33 @@ const PERMISSIONS = {
   MANAGE_GIG_WORKER_REGISTER: 'MANAGE_GIG_WORKER_REGISTER',
   MANAGE_AGGREGATOR_TURNOVER: 'MANAGE_AGGREGATOR_TURNOVER',
 
+  // --- Industrial Employment (Standing Orders) Act, 1946 (#2029) -----------
+  //
+  // The split is on which name can make an establishment look like it has
+  // standing orders when the Model orders are what govern it.
+  //
+  // MANAGE_STANDING_ORDERS_CERTIFICATION holds the certified set — the date
+  // authenticated copies were sent, the appeal, and the Schedule matters
+  // covered. Moving the dispatch date earlier brings the orders into force
+  // before they bind anybody, and adding a matter the set does not cover takes
+  // that matter off the Model orders on paper and nowhere else.
+  //
+  // MANAGE_STANDING_ORDERS_REGISTER records the establishment and syncs the
+  // headcount. Clerical, but it is what dates applicability, and applicability
+  // starts the six months.
+  //
+  // PROPOSE_STANDING_ORDERS_MODIFICATION is narrowest. Section 10(1) bars
+  // unilateral amendment and excepts an agreement, so the name that records
+  // 'we agreed this with the union' is the name that can make a barred
+  // modification look permitted.
+  //
+  // Deliberately not the #1828 subsistence names. That module reads whether the
+  // orders are certified; it does not get to decide it.
+  READ_STANDING_ORDERS: 'READ_STANDING_ORDERS',
+  MANAGE_STANDING_ORDERS_REGISTER: 'MANAGE_STANDING_ORDERS_REGISTER',
+  MANAGE_STANDING_ORDERS_CERTIFICATION: 'MANAGE_STANDING_ORDERS_CERTIFICATION',
+  PROPOSE_STANDING_ORDERS_MODIFICATION: 'PROPOSE_STANDING_ORDERS_MODIFICATION',
+
   // --- Employees' State Insurance Act, 1948 (#1768) ------------------------
   //
   // Next to the compliance names because a monthly ESI return is a filing, and
@@ -219,6 +246,37 @@ const PERMISSIONS = {
   READ_ESI: 'READ_ESI',
   MANAGE_ESI_RULES: 'MANAGE_ESI_RULES',
   FILE_ESI_RETURN: 'FILE_ESI_RETURN',
+
+  // --- Payment of Gratuity Act, 1972 (#2031) -------------------------------
+  //
+  // The split is on which name can reduce what an employee or their family is
+  // paid.
+  //
+  // MANAGE_GRATUITY_CLAIM opens the obligation and records the two section 7(2)
+  // notices. `payableFrom` sits here and it is the sharpest field in the
+  // module: moving it forward makes an overdue gratuity look current and
+  // reduces the section 7(3A) interest with nothing else on the record
+  // changing.
+  //
+  // MANAGE_GRATUITY_NOMINATION holds the Form F. Editing a share moves money
+  // between two named people on the day it is most contested, and the person it
+  // was taken from is dead.
+  //
+  // FORFEIT_GRATUITY takes money away. The engine caps it at what section 4(6)
+  // permits, but the sub-section chosen, the damage figure under (a) and
+  // whether termination was for the act under (b) all move that cap.
+  //
+  // RECORD_GRATUITY_PAYMENT is narrowest: it carries the 7(3A) relief, and a
+  // controlling-authority permission recorded that does not exist writes off a
+  // statutory interest liability outright.
+  //
+  // Deliberately not the #1344 valuation names. Those measure the workforce's
+  // obligation under Ind AS 19; these decide what one person is owed.
+  READ_GRATUITY_CLAIM: 'READ_GRATUITY_CLAIM',
+  MANAGE_GRATUITY_CLAIM: 'MANAGE_GRATUITY_CLAIM',
+  MANAGE_GRATUITY_NOMINATION: 'MANAGE_GRATUITY_NOMINATION',
+  FORFEIT_GRATUITY: 'FORFEIT_GRATUITY',
+  RECORD_GRATUITY_PAYMENT: 'RECORD_GRATUITY_PAYMENT',
 
   IMPERSONATE_USER: 'IMPERSONATE_USER',
 
@@ -309,6 +367,29 @@ const PERMISSIONS = {
   READ_INTERNATIONAL_WORKER: 'READ_INTERNATIONAL_WORKER',
   MANAGE_IW_CONTRIBUTION: 'MANAGE_IW_CONTRIBUTION',
   MANAGE_IW_DETERMINATION: 'MANAGE_IW_DETERMINATION',
+
+  // --- Shops and Commercial Establishments Acts (#1972) --------------------
+  //
+  // The split is on which name can make an establishment look registered when
+  // it is not.
+  //
+  // MANAGE_ESTABLISHMENT_REGISTRATION holds the certificate: the commencement
+  // date the registration window runs from, the registration date, and the
+  // expiry. Moving any of the three changes whether the establishment is
+  // trading lawfully, and a `validTo` pushed a year out makes a lapsed
+  // certificate look current with nothing else on the record changing.
+  //
+  // MANAGE_ESTABLISHMENT_PARTICULAR records what a particular says on the
+  // certificate against what it actually is, and syncs the headcount band.
+  // Clerical against the certificate itself — but separate, because a
+  // particular quietly "corrected" to match the establishment closes an
+  // amendment obligation that was owed and leaves no trace that it was.
+  //
+  // Deliberately not the entity permissions. Those record who the company is;
+  // these record whether a place of business is lawfully open.
+  READ_ESTABLISHMENT_REGISTRATION: 'READ_ESTABLISHMENT_REGISTRATION',
+  MANAGE_ESTABLISHMENT_PARTICULAR: 'MANAGE_ESTABLISHMENT_PARTICULAR',
+  MANAGE_ESTABLISHMENT_REGISTRATION: 'MANAGE_ESTABLISHMENT_REGISTRATION',
   MANAGE_EC_CLAIM: 'MANAGE_EC_CLAIM',
 
   // --- Industrial Disputes Act, Chapters VA and VB (#1830) -----------------
@@ -373,6 +454,32 @@ const PERMISSIONS = {
   READ_CONSTRUCTION_CESS: 'READ_CONSTRUCTION_CESS',
   MANAGE_CESS_REGISTER: 'MANAGE_CESS_REGISTER',
   MANAGE_CESS_BASE: 'MANAGE_CESS_BASE',
+
+  // --- Industrial Disputes Act, section 9A (#1973) -------------------------
+  //
+  // The split is on which name can make a notice obligation disappear.
+  //
+  // MANAGE_NOTICE_OF_CHANGE records the change and moves the effective date.
+  // Moving the date is the ordinary remedy for a short notice — it is the thing
+  // the module exists to prompt — so it stays with the clerical name.
+  //
+  // CLASSIFY_NOTICE_OF_CHANGE holds the Fourth Schedule item, the
+  // standing-orders and casual-fluctuation qualifiers, and the section 9B or
+  // settlement exemption. Any of the four takes a change out of the notice
+  // queue entirely and none of them leaves another trace that it did.
+  //
+  // RECORD_PENDING_PROCEEDING is narrower again. Clearing the express
+  // permission reference turns 'you need the Tribunal's permission' into 'you
+  // need to wait twenty-one days', which is the one error here that tells an
+  // employer to commit an offence on a date certain.
+  //
+  // Deliberately not the payroll or roster names. Those change what a workman is
+  // paid and when they work; these record whether the employer was entitled to
+  // change it on the date they picked.
+  READ_NOTICE_OF_CHANGE: 'READ_NOTICE_OF_CHANGE',
+  MANAGE_NOTICE_OF_CHANGE: 'MANAGE_NOTICE_OF_CHANGE',
+  CLASSIFY_NOTICE_OF_CHANGE: 'CLASSIFY_NOTICE_OF_CHANGE',
+  RECORD_PENDING_PROCEEDING: 'RECORD_PENDING_PROCEEDING',
 
   // --- Contract Labour (Regulation and Abolition) Act, 1970 (#1700) --------
   //
@@ -860,6 +967,26 @@ const PERMISSION_DEFINITIONS = [
     description:
       'State the aggregator’s turnover and its Seventh Schedule split, set the rate band and the payout ceiling, finalise a year and commit the assessment',
   },
+  {
+    name: PERMISSIONS.READ_STANDING_ORDERS,
+    description:
+      'View the standing orders register — when the Act became applicable, the six months running against it, what actually governs the establishment today, and the Schedule matters still on the Model orders',
+  },
+  {
+    name: PERMISSIONS.MANAGE_STANDING_ORDERS_REGISTER,
+    description:
+      'Record an industrial establishment under the Act and sync its workmen strength — the sync that dates applicability and starts the section 3(1) six months',
+  },
+  {
+    name: PERMISSIONS.MANAGE_STANDING_ORDERS_CERTIFICATION,
+    description:
+      'Record a certified set of standing orders, the date authenticated copies were sent, any section 6 appeal, and the Schedule matters the set covers — the three things that decide what binds the workmen',
+  },
+  {
+    name: PERMISSIONS.PROPOSE_STANDING_ORDERS_MODIFICATION,
+    description:
+      'Propose a modification to certified standing orders and record the section 10(1) agreement relied on — the exception that turns a barred unilateral amendment into a permitted one',
+  },
 
   {
     name: PERMISSIONS.READ_COMPLIANCE,
@@ -885,6 +1012,31 @@ const PERMISSION_DEFINITIONS = [
     name: PERMISSIONS.FILE_ESI_RETURN,
     description:
       'File the monthly ESI return and record its remittance, which fixes the coverage each employee carries into the next month',
+  },
+  {
+    name: PERMISSIONS.READ_GRATUITY_CLAIM,
+    description:
+      'View the gratuity queue — who is payable and on what ground, the thirty days running against each claim, the section 7(3A) interest already accrued, and the Form F nomination that decides who is paid on death',
+  },
+  {
+    name: PERMISSIONS.MANAGE_GRATUITY_CLAIM,
+    description:
+      'Open a gratuity claim from the last working day and record the two section 7(2) notices — to the payee and to the controlling authority',
+  },
+  {
+    name: PERMISSIONS.MANAGE_GRATUITY_NOMINATION,
+    description:
+      'Record a Form F nomination and its shares — the instrument that decides who receives the amount on the death of an employee',
+  },
+  {
+    name: PERMISSIONS.FORFEIT_GRATUITY,
+    description:
+      'Forfeit gratuity under section 4(6) — the sub-section relied on, the damage quantified under (a), and whether services were terminated for the act under (b)',
+  },
+  {
+    name: PERMISSIONS.RECORD_GRATUITY_PAYMENT,
+    description:
+      'Record payment of gratuity and the section 7(3A) relief — the employee-fault ground together with the controlling authority’s written permission that alone stops the interest',
   },
   {
     name: PERMISSIONS.MANAGE_ROLES,
@@ -1026,6 +1178,21 @@ const PERMISSION_DEFINITIONS = [
       'Record the paragraph 83 status and the Certificate of Coverage — the two determinations that take the statutory wage ceiling off a member, or stop their contribution entirely',
   },
   {
+    name: PERMISSIONS.READ_ESTABLISHMENT_REGISTRATION,
+    description:
+      'View the establishment register — the state Act that applies, each certificate as a countdown, the amendments a change in particulars has already made due, and the hours and weekly holiday position',
+  },
+  {
+    name: PERMISSIONS.MANAGE_ESTABLISHMENT_PARTICULAR,
+    description:
+      'Record what a particular says on the certificate against what it actually is, and sync the headcount band an ordinary hire has moved',
+  },
+  {
+    name: PERMISSIONS.MANAGE_ESTABLISHMENT_REGISTRATION,
+    description:
+      'Record an establishment\u2019s commencement, its registration and the certificate\u2019s validity, and intimate a closure \u2014 the dates that decide whether a place of business is lawfully open',
+  },
+  {
     name: PERMISSIONS.READ_CONSTRUCTION_CESS,
     description:
       'View the construction cess position per project, the advance deducted against the section 5 assessment and the beneficiary register',
@@ -1039,6 +1206,26 @@ const PERMISSION_DEFINITIONS = [
     name: PERMISSIONS.MANAGE_CESS_BASE,
     description:
       'Set the cost of construction and its section 3 exclusions, the notified rate and the section 7 registration, record an assessment order, and commit the assessment',
+  },
+  {
+    name: PERMISSIONS.READ_NOTICE_OF_CHANGE,
+    description:
+      'View the section 9A queue — the Fourth Schedule item on each proposed change, the workmen it obliges notice to, the days left to serve it, and the changes that took effect without notice',
+  },
+  {
+    name: PERMISSIONS.MANAGE_NOTICE_OF_CHANGE,
+    description:
+      'Record a proposed change, determine per person who is a workman under section 2(s), serve the Form E notice, and move a proposed effective date to cure a short notice',
+  },
+  {
+    name: PERMISSIONS.CLASSIFY_NOTICE_OF_CHANGE,
+    description:
+      'Decide the Fourth Schedule item a change falls under, apply the standing-orders and casual-fluctuation qualifiers, and record a section 9B or settlement exemption with its authority — each of which takes a change out of the notice queue',
+  },
+  {
+    name: PERMISSIONS.RECORD_PENDING_PROCEEDING,
+    description:
+      'Record a pending conciliation or adjudication and the express permission obtained under section 33 — the field that decides whether the obligation is a notice period at all',
   },
   {
     name: PERMISSIONS.READ_CONTRACT_LABOUR,
@@ -1418,6 +1605,14 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.MANAGE_GIG_WORKER_REGISTER,
       PERMISSIONS.MANAGE_AGGREGATOR_TURNOVER,
 
+      // #2029. All four. Certifying what binds the workmen and agreeing a
+      // modification to it inside the six-month bar are two halves of the same
+      // check, and the owner is the one account allowed to be both.
+      PERMISSIONS.READ_STANDING_ORDERS,
+      PERMISSIONS.MANAGE_STANDING_ORDERS_REGISTER,
+      PERMISSIONS.MANAGE_STANDING_ORDERS_CERTIFICATION,
+      PERMISSIONS.PROPOSE_STANDING_ORDERS_MODIFICATION,
+
       PERMISSIONS.READ_COMPLIANCE,
       PERMISSIONS.MANAGE_COMPLIANCE,
 
@@ -1428,6 +1623,17 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.MANAGE_ESI_RULES,
       PERMISSIONS.FILE_ESI_RETURN,
 
+      // #2031. All five. Forfeiting gratuity and then certifying that it was
+      // lawfully forfeited are two halves of the same check, and the owner is
+      // the one account allowed to be both. RECORD_GRATUITY_PAYMENT stops here
+      // for the reason APPROVE_PAYROLL does: writing off accrued statutory
+      // interest is forgiving a debt.
+      PERMISSIONS.READ_GRATUITY_CLAIM,
+      PERMISSIONS.MANAGE_GRATUITY_CLAIM,
+      PERMISSIONS.MANAGE_GRATUITY_NOMINATION,
+      PERMISSIONS.FORFEIT_GRATUITY,
+      PERMISSIONS.RECORD_GRATUITY_PAYMENT,
+
       // Held by the owner alone: a role edit changes what every other account
       // in the company can do.
       PERMISSIONS.MANAGE_ROLES,
@@ -1437,6 +1643,14 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_PROFESSIONAL_TAX,
       PERMISSIONS.MANAGE_PROFESSIONAL_TAX,
       PERMISSIONS.MANAGE_PT_RULE,
+
+      // #1973. All four. Deciding that a change is outside the Fourth Schedule
+      // and then effecting it on the date of your choice are two halves of the
+      // same check, and the owner is the one account allowed to be both.
+      PERMISSIONS.READ_NOTICE_OF_CHANGE,
+      PERMISSIONS.MANAGE_NOTICE_OF_CHANGE,
+      PERMISSIONS.CLASSIFY_NOTICE_OF_CHANGE,
+      PERMISSIONS.RECORD_PENDING_PROCEEDING,
 
       PERMISSIONS.IMPERSONATE_USER,
 
@@ -1459,6 +1673,14 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_INTERNATIONAL_WORKER,
       PERMISSIONS.MANAGE_IW_CONTRIBUTION,
       PERMISSIONS.MANAGE_IW_DETERMINATION,
+
+      // #1972. All three. The certificate dates decide whether the
+      // establishment is trading lawfully at all, and there is no figure
+      // elsewhere in the product to check them against — so the owner is the
+      // one account allowed to be both halves of that check.
+      PERMISSIONS.READ_ESTABLISHMENT_REGISTRATION,
+      PERMISSIONS.MANAGE_ESTABLISHMENT_PARTICULAR,
+      PERMISSIONS.MANAGE_ESTABLISHMENT_REGISTRATION,
 
       // #1344. All three. MANAGE_GRATUITY_ASSUMPTIONS stops here for the same
       // reason MANAGE_COMPLIANCE does — it decides what gets reported, not who
@@ -1751,6 +1973,15 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_INTERNATIONAL_WORKER,
       PERMISSIONS.MANAGE_IW_CONTRIBUTION,
 
+      // #1972. Read and the particulars, not the certificate. Recording that
+      // the headcount on the certificate has fallen behind the establishment's
+      // actual strength is register-keeping, and the person who runs the hiring
+      // is the one who notices. The certificate's dates are what decide whether
+      // the establishment is trading lawfully, and moving them is how a lapse
+      // gets made to look like a renewal.
+      PERMISSIONS.READ_ESTABLISHMENT_REGISTRATION,
+      PERMISSIONS.MANAGE_ESTABLISHMENT_PARTICULAR,
+
       PERMISSIONS.READ_VENDOR,
 
       // #1827. Read and the register. Recording a contractor bill with the cess
@@ -1762,6 +1993,15 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_CONSTRUCTION_CESS,
       PERMISSIONS.MANAGE_CESS_REGISTER,
 
+      // #1973. Read and record, not classify and not the proceeding. HR is who
+      // notices the change and who serves the notice, and moving an effective
+      // date to give twenty-one clear days is the remedy they should be able to
+      // apply without waiting for anybody. Deciding that a change falls outside
+      // the Fourth Schedule, and recording that express permission under
+      // section 33 exists, both remove the obligation rather than discharge it.
+      PERMISSIONS.READ_NOTICE_OF_CHANGE,
+      PERMISSIONS.MANAGE_NOTICE_OF_CHANGE,
+
       // #1700. Both. Registering a contractor and recording who is on site each
       // month is HR administration in the ordinary sense — somebody has to walk
       // the site and count — and the return it feeds is a headcount statement
@@ -1769,6 +2009,15 @@ const ROLE_DEFINITIONS = [
       // moves no money.
       PERMISSIONS.READ_CONTRACT_LABOUR,
       PERMISSIONS.MANAGE_CONTRACT_LABOUR,
+
+      // #2029. Read and the register, not the certification and not the
+      // modification. Keeping the workmen strength current is register-keeping
+      // and the person running the hiring is the one who notices — and it is the
+      // sync that starts the six months, so it should not wait on anybody.
+      // Recording what a certified set covers decides what binds the workmen,
+      // and recording an agreement with the union lifts the section 10 bar.
+      PERMISSIONS.READ_STANDING_ORDERS,
+      PERMISSIONS.MANAGE_STANDING_ORDERS_REGISTER,
 
       // #1771. HR engages apprentices and keeps the roll — recruiting them and
       // recording their attendance is HR administration in the ordinary sense.
@@ -1792,6 +2041,17 @@ const ROLE_DEFINITIONS = [
       // does not commit the assessment.
       PERMISSIONS.READ_MIGRANT_WORKMEN,
       PERMISSIONS.MANAGE_MIGRANT_WORKMAN,
+
+      // #2031. Read, the claim and the nomination — not the forfeiture and not
+      // the payment. Opening the claim and collecting the Form F is
+      // record-keeping HR does, and the claim has to be opened on the last
+      // working day rather than when somebody senior gets to it, because that
+      // is when the thirty days start. Forfeiting takes money away, and
+      // recording the 7(3A) relief writes off interest that has already
+      // accrued.
+      PERMISSIONS.READ_GRATUITY_CLAIM,
+      PERMISSIONS.MANAGE_GRATUITY_CLAIM,
+      PERMISSIONS.MANAGE_GRATUITY_NOMINATION,
 
       PERMISSIONS.READ_ROSTER,
       PERMISSIONS.MANAGE_ROSTER,

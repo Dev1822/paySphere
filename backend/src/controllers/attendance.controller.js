@@ -255,7 +255,7 @@ exports.upsertAttendance = async (req, res, next) => {
     const leaveCheck = canTakePaidLeave(priorBalance, totals.paidLeave);
 
     const saved = await Attendance.findOneAndUpdate(
-      { employeeId: employee._id, tenantId: req.tenantId, year, month },
+      { employeeId: employee._id, tenantId: req.tenantId, year, month, lockedAt: null },
       {
         $set: {
           employeeName: employee.fullName,
@@ -433,7 +433,7 @@ exports.bulkMarkAttendance = async (req, res, next) => {
       const totals = computeTotals(validation.days);
 
       await Attendance.findOneAndUpdate(
-        { employeeId: employee._id, tenantId: req.tenantId, year, month },
+        { employeeId: employee._id, tenantId: req.tenantId, year, month, lockedAt: null },
         {
           $set: {
             employeeName: employee.fullName,

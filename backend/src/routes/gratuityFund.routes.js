@@ -10,10 +10,10 @@ const {
   getEmployeeGratuityTimeline,
   runActuarialRevaluation,
 } = require('../controllers/gratuityFund.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.get('/liability-ledger', protect, getGratuityLiabilityLedger);
-router.get('/employee/:employeeId', protect, getEmployeeGratuityTimeline);
-router.post('/actuarial-revaluation', protect, runActuarialRevaluation);
+router.get('/liability-ledger', auth, getGratuityLiabilityLedger);
+router.get('/employee/:employeeId', auth, getEmployeeGratuityTimeline);
+router.post('/actuarial-revaluation', auth, runActuarialRevaluation);
 
 module.exports = router;

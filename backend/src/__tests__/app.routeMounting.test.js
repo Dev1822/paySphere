@@ -90,6 +90,7 @@ const MOUNTED_ROUTES = [
   ['/api/injury-compensation', 'get', '/api/injury-compensation/claims'],
   ['/api/layoffs', 'get', '/api/layoffs/rules'],
   ['/api/esi', 'get', '/api/esi/rules'],
+  ['/api/gratuity-entitlement', 'get', '/api/gratuity-entitlement/rules'],
   ['/api/gratuity', 'get', '/api/gratuity/valuations'],
   ['/api/eps', 'get', '/api/eps/valuations'],
   ['/api/professional-tax', 'get', '/api/professional-tax/rules'],
@@ -108,6 +109,7 @@ const MOUNTED_ROUTES = [
   ['/api/young-persons', 'get', '/api/young-persons/rules'],
 
   ['/api/labour-welfare-fund', 'get', '/api/labour-welfare-fund/rules'],
+  ['/api/standing-orders', 'get', '/api/standing-orders/rules'],
   ['/api/notifications', 'get', '/api/notifications'],
   [
     '/api/monthly-updates',
@@ -125,6 +127,7 @@ const MOUNTED_ROUTES = [
   ['/api/integrations', 'get', '/api/integrations'],
   ['/api/compliance', 'get', '/api/compliance/config'],
   ['/api/aggregator-contribution', 'get', '/api/aggregator-contribution/rules'],
+  ['/api/notice-of-change', 'get', '/api/notice-of-change/rules'],
   ['/api/email', 'post', '/api/email/webhooks'],
 
   // Mounted in #1009. Each of these had a router, a controller, models and in
@@ -140,6 +143,7 @@ const MOUNTED_ROUTES = [
   ['/api/lta', 'get', '/api/lta/queue'],
   ['/api/appraisals', 'get', '/api/appraisals/my-review'],
   ['/api/international-workers', 'get', '/api/international-workers/rules'],
+  ['/api/establishments', 'get', '/api/establishments/rules'],
   ['/api/contracts', 'post', '/api/contracts/issue'],
   ['/api/forecasts', 'get', '/api/forecasts'],
   ['/api/accounting', 'get', '/api/accounting/mappings'],
@@ -222,6 +226,7 @@ const ROUTER_MOUNTS = {
   clientInvoice: '/api/clients',
   compliance: '/api/compliance',
   aggregatorContribution: '/api/aggregator-contribution',
+  standingOrders: '/api/standing-orders',
   epfRemittance: '/api/epf-remittance',
 
   contract: '/api/contracts',
@@ -242,6 +247,7 @@ const ROUTER_MOUNTS = {
   forecast: '/api/forecasts',
   eps: '/api/eps',
   gratuity: '/api/gratuity',
+  gratuityEntitlement: '/api/gratuity-entitlement',
   grievance: '/api/grievances',
 
   // Mounted at the root — `app.use(healthRoutes)` with no prefix — on purpose,
@@ -265,6 +271,7 @@ const ROUTER_MOUNTS = {
   payEquity: '/api/pay-equity',
   pension: '/api/pension',
   internationalWorker: '/api/international-workers',
+  shopsEstablishments: '/api/establishments',
   payroll: '/api/payroll',
   pyq: '/api/pyqs',
   recruitment: '/api/recruitment',
@@ -292,6 +299,7 @@ const ROUTER_MOUNTS = {
   esi: '/api/esi',
   vendor: '/api/vendors',
   constructionCess: '/api/construction-cess',
+  noticeOfChange: '/api/notice-of-change',
   wageDeduction: '/api/wage-deductions',
   webhook: '/api/webhooks',
   workingHours: '/api/working-hours',

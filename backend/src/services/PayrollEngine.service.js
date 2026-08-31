@@ -237,20 +237,14 @@ class PayrollEngine {
       const tenantId = req.tenantId;
       const userId = req.userId;
 
-      let rateDoc = await ExchangeRate.findOne().sort({ date: -1 });
-      if (!rateDoc) {
-        rateDoc = {
-          rates: new Map([
-            ['EUR', 0.92],
-            ['GBP', 0.79],
-            ['INR', 83.5],
-            ['CAD', 1.36],
-            ['AUD', 1.51],
-            ['JPY', 155.2],
-            ['SGD', 1.34],
-            ['USD', 1.0],
-          ]),
-        };
+      const rateDoc = await ExchangeRate.findOne().sort({ date: -1 });
+      
+      // Use 48 hours to account for weekends when FX markets are closed
+      const FORTY_EIGHT_HOURS = 48 * 60 * 60 * 1000;
+      if (!rateDoc || !rateDoc.date || (Date.now() - new Date(rateDoc.date).getTime() > FORTY_EIGHT_HOURS)) {
+        const error = new Error('Fresh exchange rates are not available (rates are older than 48 hours). Please ensure the exchange rate synchronization job is running before processing payroll.');
+        error.status = 409;
+        throw error;
       }
 
       const getRateVal = (target) => {
@@ -507,11 +501,26 @@ class PayrollEngine {
         throw conflictError;
       }
 
+      // Multi-tenant PEO Escrow Pre-Flight Check
+      const { checkPayrollFunding } = require('./escrowReconciliation.service');
+      await checkPayrollFunding(tenantId, preparedItems);
+
       try {
         session = await mongoose.startSession();
         session.startTransaction();
       } catch {
         session = null;
+      }
+
+      // Apply retroactive adjustments (Arrears Injector Middleware)
+      const { injectApprovedArrears } = require('./retroCalculator.service');
+      for (const item of preparedItems) {
+        const injected = await injectApprovedArrears(tenantId, item.employee._id, item.netSalary, item.deductions);
+        item.netSalary = injected.netSalary;
+        item.deductions = injected.deductions;
+        if (injected.arrearsAmount > 0) {
+          item.bonus += injected.arrearsAmount;
+        }
       }
 
       const bulkOps = preparedItems.map((item) => {
