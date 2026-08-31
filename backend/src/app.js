@@ -924,6 +924,10 @@ app.use('/api/skills', skillInventoryRoutes);
 // department dimension the matrix uses.
 app.use('/api/competencies', competencyRoutes);
 
+// Total Compensation Statements — CTC breakdown generation, per-employee statements, and bulk export.
+const compensationStatementRoutes = require('./routes/compensationStatement.routes');
+app.use('/api/compensation-statements', compensationStatementRoutes);
+
 // ─── 404 Handler ──────────────────────────────────────────────────────────
 // Must be registered AFTER all valid routes but BEFORE error handlers.
 // Uses NotFoundError if available, otherwise falls back to a standard Error
