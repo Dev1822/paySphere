@@ -378,6 +378,7 @@ const fbpRoutes = require('./routes/fbp.routes');
 const teamRoutes = require('./routes/team.routes');
 const healthChallengeRoutes = require('./routes/healthChallenge.routes');
 const offboardingRoutes = require('./routes/offboarding.routes');
+const competencyRoutes = require('./routes/competency.routes');
 const {
   tenantRouter: subscriptionTenantRoutes,
   adminRouter: subscriptionAdminRoutes,
@@ -998,6 +999,20 @@ app.use('/api/offboarding', offboardingRoutes);
 
 // Skill Inventory & Competency Framework
 app.use('/api/skills', skillInventoryRoutes);
+
+// Employee competency tracking — skills, proficiency levels, gap analysis.
+// Placed next to team because the two share the employee directory and the
+// department dimension the matrix uses.
+app.use('/api/competencies', competencyRoutes);
+
+// Pulse Surveys (#1201) — lightweight employee engagement polling.
+// CRUD endpoints live in pulseSurvey.routes; analytics aggregation in
+// surveyAnalytics.routes.  Both are mounted under the same prefix so the
+// frontend can call /api/pulse-surveys/… consistently.
+const pulseSurveyRoutes = require('./routes/pulseSurvey.routes');
+const surveyAnalyticsRoutes = require('./routes/surveyAnalytics.routes');
+app.use('/api/pulse-surveys', pulseSurveyRoutes);
+app.use('/api/pulse-surveys/analytics', surveyAnalyticsRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────
 // Must be registered AFTER all valid routes but BEFORE error handlers.
