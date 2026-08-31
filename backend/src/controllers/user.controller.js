@@ -25,6 +25,7 @@ const { getDefaultRole } = require('../seeds/rbac.seed');
 const { resolveAccountType } = require('../config/accountTypes');
 const { ensureTenantForUser } = require('../services/tenant.service');
 const { createAuditLog } = require('../services/audit.service');
+const redisClient = require('../config/redis');
 
 const GOOGLE_CLIENT_ID =
   process.env.GOOGLE_CLIENT_ID ||
@@ -1192,6 +1193,18 @@ exports.logout = async (req, res, next) => {
         const decoded = jwt.verify(accessToken, process.env.JWT_SECRET, {
           ignoreExpiration: true,
         });
+        
+        // Add to Redis blacklist (Token Replay Prevention #2088)
+        if (redisClient && redisClient.status === "ready") {
+          // Calculate TTL based on token expiration
+          const now = Math.floor(Date.now() / 1000);
+          const ttl = decoded.exp ? decoded.exp - now : 86400; // default 24h
+          
+          if (ttl > 0) {
+            await redisClient.setex(`blacklist:${accessToken}`, ttl, 'true');
+          }
+        }
+
         if (decoded && decoded.id) {
           await User.findByIdAndUpdate(decoded.id, {
             $inc: { tokenVersion: 1 },
