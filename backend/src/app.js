@@ -587,7 +587,6 @@ app.use('/api/bulk-operations', bulkOperationRoutes);
 app.use('/api/payroll/forecast', forecastRoutes);
 app.use('/api/payroll/retroactive', retroactiveRoutes);
 app.use('/api/payroll/sandbox', sandboxRoutes);
-app.use('/api/payroll/forecast', forecastRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/payroll', payrollApprovalRoutes);
 app.use('/api/payroll-comparison', payrollComparisonRoutes);

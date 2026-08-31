@@ -801,19 +801,7 @@ exports.updateEmployee = async (req, res, next) => {
     //
     // It is not a tenant check and never was — it asks "did *you personally*
     // create this record", which is arguably too strict for a shared HR
-    // workspace where the account that onboards someone is often not the one
-    // who later edits them. But relaxing it widens who may modify employee
-    // records, and that is a change to the permission model rather than a
-    // security fix. It belongs in its own PR with its own argument; #1010
-    // records the reasoning. Scoping the fetch above is the part that closes
-    // the cross-tenant hole, and it composes with this check rather than
-    // replacing it.
-    if (employee.createdBy.toString() !== req.userId) {
-      return res
-        .status(403)
-        .json({ message: 'Not authorized to update this employee' });
-    }
-
+    // Ownership is now verified by the ABAC engine middleware
     // Validate fields if provided
     if (fullName !== undefined && !isNonEmptyString(fullName)) {
       return res
@@ -1115,13 +1103,7 @@ exports.deleteEmployee = async (req, res, next) => {
       });
     }
 
-    // Check ownership
-    if (employee.createdBy.toString() !== req.userId) {
-      return res.status(403).json({
-        message: 'Not authorized to delete this employee',
-      });
-    }
-
+    // Ownership is now verified by the ABAC engine middleware
     // Check if employee has historical "paid" payroll records (#345)
     const hasPaidPayroll = await PayrollUpdate.exists({
       employeeId: id,

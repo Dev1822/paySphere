@@ -111,9 +111,8 @@ class PayrollEngine {
     const ledger = attendanceByEmployee.get(String(employee._id));
 
     if (ledger && ledger.totals) {
-      const derived = derivePayrollInputs(ledger.totals);
-      leaveDays = derived.leaveDays;
-      overtimeHours = derived.overtimeHours;
+      leaveDays = ledger.totals.unpaidLeave || 0;
+      overtimeHours = ledger.totals.overtimeHours || 0;
       attendanceSource = 'ledger';
     }
 
@@ -253,6 +252,7 @@ class PayrollEngine {
       }
 
       const getRateVal = (target) => {
+        console.log('RATEDOC IS: ', rateDoc);
         const targetUpper = (target || 'USD').toUpperCase();
         if (targetUpper === 'USD') return 1.0;
         if (rateDoc && rateDoc.rates) {
