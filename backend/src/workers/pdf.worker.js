@@ -498,43 +498,112 @@ async function handleHtmlPdfGeneration(payload) {
   doc.end();
 }
 
-// Message-based worker entry point
-parentPort.on('message', async (msg) => {
-  try {
-    switch (msg.type) {
-      case 'GENERATE_COMPANY_REPORT':
-        await handleCompanyReportGeneration(msg.payload);
-        break;
-      case 'GENERATE_PAYSLIP':
-        await handlePayslipGeneration(msg.payload);
-        break;
-      case 'GENERATE_DYNAMIC_PAYSLIP': {
-        const { renderPayslipPdf } = require('../utils/payslipRenderer.pdf');
-        try {
-          const pdfData = await renderPayslipPdf(
-            msg.payload.assembledData,
-            msg.payload.currency,
-            msg.payload.pdfOptions,
-          );
-          parentPort.postMessage({ success: true, pdfData });
-        } catch (e) {
-          parentPort.postMessage({ success: false, error: e.message });
-        }
-        break;
+async function processPdfEvent(event, payload) {
+  switch (event) {
+    case 'PdfGeneration':
+    case 'GENERATE_COMPANY_REPORT':
+      if (payload.type === 'company_report') {
+        await handleCompanyReportGeneration(payload);
+      } else {
+        await handleCompanyReportGeneration(payload);
       }
-      case 'GENERATE_FORM_16': // Added for Issue #933
-        await handleForm16Generation(msg.payload);
-        break;
-      case 'GENERATE_HTML_PDF':
-        await handleHtmlPdfGeneration(msg.payload);
-        break;
-      default:
-        parentPort.postMessage({
-          success: false,
-          error: `Unknown PDF generation type: ${msg.type}`,
-        });
+      break;
+    case 'GENERATE_PAYSLIP':
+    case 'PayrollFinalized':
+      if (payload.type === 'dynamic') {
+        const { renderPayslipPdf } = require('../utils/payslipRenderer.pdf');
+        const pdfData = await renderPayslipPdf(
+          payload.assembledData,
+          payload.currency,
+          payload.pdfOptions,
+        );
+        if (parentPort) parentPort.postMessage({ success: true, pdfData });
+        return pdfData;
+      } else {
+        await handlePayslipGeneration(payload);
+      }
+      break;
+    case 'GENERATE_DYNAMIC_PAYSLIP': {
+      const { renderPayslipPdf } = require('../utils/payslipRenderer.pdf');
+      const pdfData = await renderPayslipPdf(
+        payload.assembledData,
+        payload.currency,
+        payload.pdfOptions,
+      );
+      if (parentPort) parentPort.postMessage({ success: true, pdfData });
+      return pdfData;
     }
-  } catch (error) {
-    parentPort.postMessage({ success: false, error: error.message });
+    case 'GENERATE_FORM_16':
+      await handleForm16Generation(payload);
+      break;
+    case 'GENERATE_HTML_PDF':
+    case 'EmployeeOnboarded':
+    case 'OffboardingInitiated':
+      await handleHtmlPdfGeneration(payload);
+      break;
+    default:
+      throw new Error(`Unknown PDF generation event: ${event}`);
   }
-});
+}
+
+if (parentPort) {
+  // Message-based worker entry point
+  parentPort.on('message', async (msg) => {
+    try {
+      // Support both legacy msg.type and standard EDA msg.event
+      const event = msg.event || msg.type;
+      await processPdfEvent(event, msg.payload || msg);
+    } catch (error) {
+      parentPort.postMessage({ success: false, error: error.message });
+    }
+  });
+}
+
+// BullMQ Worker Integration
+const { Worker: BullWorker } = require('bullmq');
+const redisConnection = require('../config/redis');
+
+async function processPdfJob(job) {
+  const { event, payload } = job.data;
+  logger.info(`Processing PDF job for event: ${event}`);
+  try {
+    await processPdfEvent(event, payload);
+    return { generated: true };
+  } catch (error) {
+    logger.error(`PDF Job failed for event: ${event}`, {
+      error: error.message,
+    });
+    throw error;
+  }
+}
+
+let bullWorker = null;
+
+function startPdfWorker() {
+  if (bullWorker) return bullWorker;
+
+  bullWorker = new BullWorker('pdf-generation', processPdfJob, {
+    connection: redisConnection,
+    concurrency: 3,
+  });
+
+  bullWorker.on('completed', (job) => {
+    logger.debug(`PDF job ${job.id} completed successfully`);
+  });
+
+  bullWorker.on('failed', (job, err) => {
+    logger.error(`PDF job ${job?.id} failed`, { error: err.message });
+  });
+
+  logger.info('PDF worker started', { queue: 'pdf-generation' });
+  return bullWorker;
+}
+
+async function stopPdfWorker() {
+  if (bullWorker) {
+    await bullWorker.close();
+    bullWorker = null;
+  }
+}
+
+module.exports = { startPdfWorker, stopPdfWorker, processPdfJob };
