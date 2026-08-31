@@ -173,12 +173,13 @@ exports.updateRules = async (req, res, next) => {
     }
 
     const before = await EpfRemittanceRules.findOne({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     }).lean();
 
     const rules = await EpfRemittanceRules.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment },
+      {
+        establishment
+      },
       { $set: { ...update, updatedBy: req.userId } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -213,8 +214,7 @@ exports.listMonths = async (req, res, next) => {
     const establishment = readEstablishment(req.query.establishment);
 
     const months = await EpfRemittanceMonth.find({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     })
       .sort({ year: -1, month: -1 })
       .limit(240)
@@ -288,7 +288,11 @@ exports.recordMonth = async (req, res, next) => {
     }
 
     const record = await EpfRemittanceMonth.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment, year, month },
+      {
+        establishment,
+        year,
+        month
+      },
       {
         $set: {
           basis,
@@ -360,8 +364,7 @@ exports.recordRemittance = async (req, res, next) => {
     }
 
     const record = await EpfRemittanceMonth.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!record) {
@@ -407,8 +410,7 @@ exports.listWaivers = async (req, res, next) => {
     const establishment = readEstablishment(req.query.establishment);
 
     const waivers = await EpfDamagesWaiver.find({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     })
       .sort({ fromYear: -1, fromMonth: -1 })
       .lean();
@@ -485,7 +487,6 @@ exports.recordWaiver = async (req, res, next) => {
     }
 
     const waiver = await EpfDamagesWaiver.create({
-      tenantId: req.tenantId,
       establishment,
       ...bounds,
       state,
@@ -494,7 +495,7 @@ exports.recordWaiver = async (req, res, next) => {
       orderReference: String(req.body.orderReference || '').trim(),
       appliedOn: req.body.appliedOn ? new Date(req.body.appliedOn) : undefined,
       decidedOn: req.body.decidedOn ? new Date(req.body.decidedOn) : undefined,
-      recordedBy: req.userId,
+      recordedBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -533,13 +534,14 @@ exports.getPosition = async (req, res, next) => {
     }
 
     const { rules, result, monthCount } = await computePosition({
-      tenantId: req.tenantId,
       establishment,
+
       range: {
         from: parseWageMonth(req.query.from),
         to: parseWageMonth(req.query.to),
       },
-      asAt,
+
+      asAt
     });
 
     return res.json({
@@ -562,8 +564,7 @@ exports.listAssessments = async (req, res, next) => {
     const establishment = readEstablishment(req.query.establishment);
 
     const assessments = await EpfRemittanceAssessment.find({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     })
       .sort({ asAt: -1 })
       .limit(60)
@@ -597,10 +598,9 @@ exports.commitAssessment = async (req, res, next) => {
     };
 
     const { result, monthCount } = await computePosition({
-      tenantId: req.tenantId,
       establishment,
       range,
-      asAt,
+      asAt
     });
 
     if (monthCount === 0) {
@@ -611,7 +611,6 @@ exports.commitAssessment = async (req, res, next) => {
     }
 
     const assessment = await EpfRemittanceAssessment.create({
-      tenantId: req.tenantId,
       establishment,
       asAt,
       periodFrom: range.from ? wageMonthKey(range.from) : '',
@@ -624,7 +623,7 @@ exports.commitAssessment = async (req, res, next) => {
       arrears: result.arrears,
       heldInTrust: result.heldInTrust,
       findings: result.findings,
-      committedBy: req.userId,
+      committedBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {

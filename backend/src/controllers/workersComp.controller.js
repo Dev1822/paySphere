@@ -13,8 +13,11 @@ exports.createClassification = async (req, res, next) => {
     try {
         const { ncciCode, description, ratePer100, officerMaxRemuneration, isExecutiveCode } = req.body;
         const classification = await RiskClassification.create({
-            tenantId: req.tenantId, ncciCode, description, ratePer100,
-            officerMaxRemuneration, isExecutiveCode
+            ncciCode,
+            description,
+            ratePer100,
+            officerMaxRemuneration,
+            isExecutiveCode
         });
         res.status(201).json({ message: 'Risk classification created', classification });
     } catch (error) {
@@ -28,7 +31,9 @@ exports.mapEmployee = async (req, res, next) => {
         const { employeeId, riskClassificationId, isCorporateOfficer } = req.body;
 
         const mapping = await EmployeeRiskMapping.findOneAndUpdate(
-            { employeeId, tenantId: req.tenantId },
+            {
+                employeeId
+            },
             { riskClassificationId, isCorporateOfficer, effectiveFrom: new Date() },
             { upsert: true, new: true }
         );
@@ -49,7 +54,7 @@ exports.processPayrollBatch = async (req, res, next) => {
 
         for (const entry of entries) {
             const mapping = await EmployeeRiskMapping.findOne({
-                employeeId: entry.employeeId, tenantId: req.tenantId
+                employeeId: entry.employeeId
             }).populate('riskClassificationId');
 
             if (!mapping || !mapping.riskClassificationId) continue; // Skip unmapped employees
@@ -59,11 +64,16 @@ exports.processPayrollBatch = async (req, res, next) => {
             const premium = calculatePremium(cappedPayroll, risk.ratePer100);
 
             const ledger = await WCPremiumLedger.create({
-                tenantId: req.tenantId, payrollRunId, employeeId: entry.employeeId,
-                riskClassificationId: risk._id, ncciCode: risk.ncciCode,
-                grossPayroll: entry.grossPayroll, cappedPayroll,
-                premiumRate: risk.ratePer100, estimatedPremium: premium,
-                periodMonth, periodYear
+                payrollRunId,
+                employeeId: entry.employeeId,
+                riskClassificationId: risk._id,
+                ncciCode: risk.ncciCode,
+                grossPayroll: entry.grossPayroll,
+                cappedPayroll,
+                premiumRate: risk.ratePer100,
+                estimatedPremium: premium,
+                periodMonth,
+                periodYear
             });
 
             ledgers.push(ledger);
@@ -79,7 +89,9 @@ exports.runAnnualAudit = async (req, res, next) => {
         const { auditYear, experienceModifier } = req.body;
 
         // Fetch all ledgers for the year
-        const ledgers = await WCPremiumLedger.find({ tenantId: req.tenantId, periodYear: auditYear });
+        const ledgers = await WCPremiumLedger.find({
+            periodYear: auditYear
+        });
 
         const totalEstimatedPaid = ledgers.reduce((sum, l) => sum + l.estimatedPremium, 0);
 
@@ -90,7 +102,8 @@ exports.runAnnualAudit = async (req, res, next) => {
         const variance = generateAuditVariance(totalEstimatedPaid, totalActualBase, experienceModifier || 1.0);
 
         const report = await WCAuditReport.create({
-            tenantId: req.tenantId, auditYear, experienceModifier: experienceModifier || 1.0,
+            auditYear,
+            experienceModifier: experienceModifier || 1.0,
             totalEstimatedPremiumPaid: Math.round(totalEstimatedPaid * 100) / 100,
             totalActualPremiumCalculated: variance.finalLiability,
             varianceAmount: variance.varianceAmount,
@@ -104,14 +117,18 @@ exports.runAnnualAudit = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const classifications = await RiskClassification.find({ tenantId: req.tenantId, isActive: true });
-        const mappings = await EmployeeRiskMapping.find({ tenantId: req.tenantId })
+        const classifications = await RiskClassification.find({
+            isActive: true
+        });
+        const mappings = await EmployeeRiskMapping.find({})
             .populate('employeeId', 'fullName')
             .populate('riskClassificationId', 'ncciCode description');
 
         const currentYear = new Date().getFullYear();
         const ytdPremiums = await WCPremiumLedger.aggregate([
-            { $match: { tenantId: req.tenantId, periodYear: currentYear } },
+            { $match: {
+                periodYear: currentYear
+            } },
             { $group: { _id: '$ncciCode', totalPayroll: { $sum: '$cappedPayroll' }, totalPremium: { $sum: '$estimatedPremium' } } }
         ]);
 

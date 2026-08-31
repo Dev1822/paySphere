@@ -154,7 +154,7 @@ exports.getRules = async (req, res, next) => {
  */
 exports.listAgeRecords = async (req, res, next) => {
   try {
-    const records = await AgeRecord.find({ tenantId: req.tenantId })
+    const records = await AgeRecord.find({})
       .sort({ dateOfBirth: -1 })
       .limit(500)
       .lean();
@@ -223,9 +223,8 @@ exports.recordAge = async (req, res, next) => {
 
     const record = await AgeRecord.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         subjectType: req.body.subjectType || 'EMPLOYEE',
-        subjectId: req.body.subjectId,
+        subjectId: req.body.subjectId
       },
       {
         $set: {
@@ -284,8 +283,7 @@ exports.getRegister = async (req, res, next) => {
     const establishment = readEstablishment(req.query.establishment);
 
     const entries = await YoungPersonRegister.find({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     })
       .populate('ageRecordId')
       .sort({ createdAt: -1 })
@@ -320,8 +318,7 @@ exports.upsertRegisterEntry = async (req, res, next) => {
     }
 
     const record = await AgeRecord.findOne({
-      _id: req.body.ageRecordId,
-      tenantId: req.tenantId,
+      _id: req.body.ageRecordId
     }).lean();
 
     if (!record) {
@@ -367,9 +364,8 @@ exports.upsertRegisterEntry = async (req, res, next) => {
 
     const entry = await YoungPersonRegister.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         establishment,
-        ageRecordId: record._id,
+        ageRecordId: record._id
       },
       {
         $set: {
@@ -416,7 +412,11 @@ exports.upsertRegisterEntry = async (req, res, next) => {
       req,
     });
 
-    await triggerComplianceAlerts({ tenantId: req.tenantId, record, entry, req });
+    await triggerComplianceAlerts({
+      record,
+      entry,
+      req
+    });
 
     return res.status(201).json({ entry, classification });
   } catch (error) {
@@ -444,8 +444,7 @@ exports.recordDays = async (req, res, next) => {
     }
 
     const entry = await YoungPersonRegister.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!entry) {
@@ -484,7 +483,11 @@ exports.recordDays = async (req, res, next) => {
 
     const record = await AgeRecord.findById(entry.ageRecordId);
     if (record) {
-      await triggerComplianceAlerts({ tenantId: req.tenantId, record, entry, req });
+      await triggerComplianceAlerts({
+        record,
+        entry,
+        req
+      });
     }
 
     return res.status(201).json({ entry });
@@ -504,8 +507,7 @@ exports.getAssessment = async (req, res, next) => {
     const establishment = readEstablishment(req.query.establishment);
 
     const result = await computePosition({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     });
 
     // The guard, run on the way out rather than trusted. A future field that
@@ -538,8 +540,7 @@ exports.listFindings = async (req, res, next) => {
     const establishment = readEstablishment(req.query.establishment);
 
     const findings = await EmploymentFinding.find({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     })
       .sort({ severity: 1, createdAt: -1 })
       .limit(500)
@@ -572,7 +573,9 @@ exports.resolveFinding = async (req, res, next) => {
     }
 
     const finding = await EmploymentFinding.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       { $set: { resolvedOn: new Date(), resolution, recordedBy: req.userId } },
       { new: true },
     );
@@ -609,8 +612,7 @@ exports.listAssessments = async (req, res, next) => {
     const establishment = readEstablishment(req.query.establishment);
 
     const assessments = await EmploymentAssessment.find({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     })
       .sort({ asAt: -1 })
       .limit(60)
@@ -635,8 +637,7 @@ exports.commitAssessment = async (req, res, next) => {
     const asAt = new Date();
 
     const result = await computePosition({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     });
 
     if (result.people.length === 0) {
@@ -651,9 +652,8 @@ exports.commitAssessment = async (req, res, next) => {
     // Resolutions survive because they live on the resolved rows, which are
     // preserved by code below.
     const resolved = await EmploymentFinding.find({
-      tenantId: req.tenantId,
       establishment,
-      resolvedOn: { $ne: null },
+      resolvedOn: { $ne: null }
     }).lean();
 
     const resolvedKeys = new Set(
@@ -661,9 +661,8 @@ exports.commitAssessment = async (req, res, next) => {
     );
 
     await EmploymentFinding.deleteMany({
-      tenantId: req.tenantId,
       establishment,
-      resolvedOn: null,
+      resolvedOn: null
     });
 
     const documents = result.findings
@@ -672,40 +671,40 @@ exports.commitAssessment = async (req, res, next) => {
           !resolvedKeys.has(`${finding.code}:${String(finding.personId)}`),
       )
       .map((finding) => ({
-        tenantId: req.tenantId,
-        establishment,
-        code: finding.code,
-        section: finding.section,
-        severity: finding.severity,
-        ageRecordId: finding.personId,
-        name: finding.name,
-        classification: finding.classification,
-        ageYears: finding.ageYears ?? null,
-        occurredOn: finding.date ? new Date(finding.date) : undefined,
-        minutes: finding.minutes ?? null,
-        limitMinutes: finding.limitMinutes ?? null,
-        matched: finding.matched || [],
-        note: finding.note || '',
-        recordedBy: req.userId,
-      }));
+      establishment,
+      code: finding.code,
+      section: finding.section,
+      severity: finding.severity,
+      ageRecordId: finding.personId,
+      name: finding.name,
+      classification: finding.classification,
+      ageYears: finding.ageYears ?? null,
+      occurredOn: finding.date ? new Date(finding.date) : undefined,
+      minutes: finding.minutes ?? null,
+      limitMinutes: finding.limitMinutes ?? null,
+      matched: finding.matched || [],
+      note: finding.note || '',
+      recordedBy: req.userId
+    }));
 
     if (documents.length > 0) {
       await EmploymentFinding.insertMany(documents);
     }
 
     const assessment = await EmploymentAssessment.create({
-      tenantId: req.tenantId,
       establishment,
       asAt,
       childrenEngaged: result.childrenEngaged,
       adolescentsEngaged: result.adolescentsEngaged,
       prohibitedCount: result.prohibited.length,
+
       breachCount: result.findings.filter(
         (finding) => finding.severity === SEVERITY.BREACH,
       ).length,
+
       scheduleSnapshot: result.schedule,
       rulesSnapshot: result.rules,
-      committedBy: req.userId,
+      committedBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {

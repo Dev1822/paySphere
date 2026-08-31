@@ -8,8 +8,13 @@ const { calculateDailyOvertime, check7thDayStreak, preventPyramiding } = require
 exports.saveMatrix = async (req, res, next) => {
     try {
         const matrix = await StateOvertimeMatrix.findOneAndUpdate(
-            { tenantId: req.tenantId, stateCode: req.body.stateCode.toUpperCase() },
-            { ...req.body, tenantId: req.tenantId, stateCode: req.body.stateCode.toUpperCase() },
+            {
+                stateCode: req.body.stateCode.toUpperCase()
+            },
+            {
+                ...req.body,
+                stateCode: req.body.stateCode.toUpperCase()
+            },
             { upsert: true, new: true }
         );
         res.status(200).json({ message: 'Matrix saved', matrix });
@@ -18,7 +23,10 @@ exports.saveMatrix = async (req, res, next) => {
 
 exports.assignAWS = async (req, res, next) => {
     try {
-        const aws = await AlternativeWorkweekSchedule.create({ ...req.body, tenantId: req.tenantId, approvedBy: req.userId });
+        const aws = await AlternativeWorkweekSchedule.create({
+            ...req.body,
+            approvedBy: req.userId
+        });
         res.status(201).json({ message: 'AWS assigned', aws });
     } catch (error) { next(error); }
 };
@@ -26,11 +34,14 @@ exports.assignAWS = async (req, res, next) => {
 exports.processDailyTimesheet = async (req, res, next) => {
     try {
         const { employeeId, workDate, hoursWorked, stateCode, dayOfWeek } = req.body;
-        const matrix = await StateOvertimeMatrix.findOne({ tenantId: req.tenantId, stateCode: stateCode.toUpperCase() });
+        const matrix = await StateOvertimeMatrix.findOne({
+            stateCode: stateCode.toUpperCase()
+        });
         if (!matrix) return res.status(400).json({ message: 'State matrix not configured' });
 
         const aws = await AlternativeWorkweekSchedule.findOne({
-            employeeId, tenantId: req.tenantId, effectiveFrom: { $lte: workDate },
+            employeeId,
+            effectiveFrom: { $lte: workDate },
             $or: [{ effectiveTo: null }, { effectiveTo: { $gte: workDate } }]
         });
 
@@ -44,7 +55,10 @@ exports.processDailyTimesheet = async (req, res, next) => {
         }
 
         const ledger = await DailyTimesheetLedger.findOneAndUpdate(
-            { tenantId: req.tenantId, employeeId, workDate: new Date(workDate) },
+            {
+                employeeId,
+                workDate: new Date(workDate)
+            },
             { ...dailyCalc, isSeventhDay: seventhDay.isSeventhDay },
             { upsert: true, new: true }
         );
@@ -55,8 +69,8 @@ exports.processDailyTimesheet = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const matrices = await StateOvertimeMatrix.find({ tenantId: req.tenantId });
-        const awsSchedules = await AlternativeWorkweekSchedule.find({ tenantId: req.tenantId })
+        const matrices = await StateOvertimeMatrix.find({});
+        const awsSchedules = await AlternativeWorkweekSchedule.find({})
             .populate('employeeId', 'fullName').sort({ effectiveFrom: -1 }).limit(20);
         res.status(200).json({ matrices, awsSchedules });
     } catch (error) { next(error); }

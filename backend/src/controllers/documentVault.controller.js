@@ -9,7 +9,6 @@ const {
   EmployeeDocument,
   ESignatureRequest,
 } = require('../models/documentVault.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
 
@@ -22,14 +21,13 @@ exports.createCategory = async (req, res, next) => {
     const { name, description, icon, color, accessLevel, retentionDays } = req.body;
 
     const category = await DocumentCategory.create({
-      tenantId: req.tenantId,
       name,
       description: description || '',
       icon: icon || 'file',
       color: color || '#6366f1',
       accessLevel: accessLevel || 'HR_ONLY',
       retentionDays: retentionDays || 2555,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -50,7 +48,7 @@ exports.createCategory = async (req, res, next) => {
 exports.getCategories = async (req, res, next) => {
   try {
     const categories = await DocumentCategory.find(
-      tenantFilter(req, { isActive: true }),
+      { isActive: true },
     ).sort({ name: 1 }).lean();
 
     res.status(200).json({ categories });
@@ -68,7 +66,7 @@ exports.uploadDocument = async (req, res, next) => {
     const { employeeId, categoryId, title, description, fileName, fileUrl, fileSize, mimeType, isConfidential, tags, expiryDate } = req.body;
 
     const category = await DocumentCategory.findOne(
-      tenantFilter(req, { _id: categoryId, isActive: true }),
+      { _id: categoryId, isActive: true },
     );
     if (!category) {
       return res.status(404).json({ message: 'Document category not found' });
@@ -77,7 +75,6 @@ exports.uploadDocument = async (req, res, next) => {
     const fileHash = crypto.createHash('sha256').update(fileUrl + title).digest('hex');
 
     const document = await EmployeeDocument.create({
-      tenantId: req.tenantId,
       employeeId,
       categoryId,
       title,
@@ -90,7 +87,7 @@ exports.uploadDocument = async (req, res, next) => {
       uploadedBy: req.userId,
       isConfidential: isConfidential || false,
       tags: tags || [],
-      expiryDate: expiryDate ? new Date(expiryDate) : null,
+      expiryDate: expiryDate ? new Date(expiryDate) : null
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -113,7 +110,7 @@ exports.getEmployeeDocuments = async (req, res, next) => {
     const { employeeId } = req.params;
     const { categoryId, status, tag } = req.query;
 
-    const filter = tenantFilter(req, { employeeId });
+    const filter = { employeeId };
     if (categoryId) filter.categoryId = categoryId;
     if (status) filter.status = status;
     if (tag) filter.tags = tag;
@@ -135,7 +132,7 @@ exports.getDocument = async (req, res, next) => {
     const { documentId } = req.params;
 
     const document = await EmployeeDocument.findOne(
-      tenantFilter(req, { _id: documentId }),
+      { _id: documentId },
     )
       .populate('categoryId', 'name icon color accessLevel')
       .populate('uploadedBy', 'name email')
@@ -168,7 +165,7 @@ exports.updateDocument = async (req, res, next) => {
     const { title, description, tags, isConfidential, status } = req.body;
 
     const document = await EmployeeDocument.findOneAndUpdate(
-      tenantFilter(req, { _id: documentId }),
+      { _id: documentId },
       {
         $set: {
           ...(title !== undefined && { title }),
@@ -202,7 +199,7 @@ exports.deleteDocument = async (req, res, next) => {
     const { documentId } = req.params;
 
     const document = await EmployeeDocument.findOneAndDelete(
-      tenantFilter(req, { _id: documentId }),
+      { _id: documentId },
     );
 
     if (!document) {
@@ -233,7 +230,7 @@ exports.createSignatureRequest = async (req, res, next) => {
     const { documentId, title, message, signers, accessCode, expiresInDays } = req.body;
 
     const document = await EmployeeDocument.findOne(
-      tenantFilter(req, { _id: documentId }),
+      { _id: documentId },
     );
     if (!document) {
       return res.status(404).json({ message: 'Document not found' });
@@ -243,11 +240,11 @@ exports.createSignatureRequest = async (req, res, next) => {
     expiresAt.setDate(expiresAt.getDate() + (expiresInDays || 14));
 
     const request = await ESignatureRequest.create({
-      tenantId: req.tenantId,
       documentId,
       requestedBy: req.userId,
       title,
       message: message || '',
+
       signers: signers.map((s, i) => ({
         userId: s.userId,
         name: s.name,
@@ -255,9 +252,11 @@ exports.createSignatureRequest = async (req, res, next) => {
         order: s.order || i + 1,
         status: 'PENDING',
       })),
+
       status: 'SENT',
       accessCode: accessCode || null,
       expiresAt,
+
       auditTrail: [
         {
           event: 'CREATED',
@@ -273,7 +272,7 @@ exports.createSignatureRequest = async (req, res, next) => {
           timestamp: new Date(),
           details: 'Request sent to all signers',
         },
-      ],
+      ]
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -295,7 +294,7 @@ exports.getSignatureRequests = async (req, res, next) => {
   try {
     const { status, mySignatures } = req.query;
 
-    const filter = tenantFilter(req, {});
+    const filter = {};
     if (status) filter.status = status;
 
     // If user wants only their pending signatures
@@ -322,7 +321,7 @@ exports.signDocument = async (req, res, next) => {
     const { signerEmail, signatureData, accessCode } = req.body;
 
     const request = await ESignatureRequest.findOne(
-      tenantFilter(req, { _id: requestId, status: { $in: ['SENT', 'IN_PROGRESS'] } }),
+      { _id: requestId, status: { $in: ['SENT', 'IN_PROGRESS'] } },
     );
 
     if (!request) {
@@ -411,7 +410,7 @@ exports.declineSignature = async (req, res, next) => {
     const { signerEmail, reason } = req.body;
 
     const request = await ESignatureRequest.findOne(
-      tenantFilter(req, { _id: requestId, status: { $in: ['SENT', 'IN_PROGRESS'] } }),
+      { _id: requestId, status: { $in: ['SENT', 'IN_PROGRESS'] } },
     );
 
     if (!request) {
@@ -452,7 +451,7 @@ exports.cancelSignatureRequest = async (req, res, next) => {
     const { requestId } = req.params;
 
     const request = await ESignatureRequest.findOne(
-      tenantFilter(req, { _id: requestId, requestedBy: req.userId, status: { $ne: 'COMPLETED' } }),
+      { _id: requestId, requestedBy: req.userId, status: { $ne: 'COMPLETED' } },
     );
 
     if (!request) {
@@ -480,7 +479,7 @@ exports.getAuditTrail = async (req, res, next) => {
     const { requestId } = req.params;
 
     const request = await ESignatureRequest.findOne(
-      tenantFilter(req, { _id: requestId }),
+      { _id: requestId },
     ).lean();
 
     if (!request) {
@@ -523,22 +522,22 @@ exports.getDashboard = async (req, res, next) => {
       recentDocuments,
       recentSignatures,
     ] = await Promise.all([
-      EmployeeDocument.countDocuments(tenantFilter(req, {})),
-      EmployeeDocument.countDocuments(tenantFilter(req, { status: 'ACTIVE' })),
+      EmployeeDocument.countDocuments({}),
+      EmployeeDocument.countDocuments({ status: 'ACTIVE' }),
       ESignatureRequest.countDocuments(
-        tenantFilter(req, { status: { $in: ['SENT', 'IN_PROGRESS'] }, expiresAt: { $gt: now } }),
+        { status: { $in: ['SENT', 'IN_PROGRESS'] }, expiresAt: { $gt: now } },
       ),
-      ESignatureRequest.countDocuments(tenantFilter(req, { status: 'COMPLETED' })),
+      ESignatureRequest.countDocuments({ status: 'COMPLETED' }),
       EmployeeDocument.countDocuments(
-        tenantFilter(req, { expiryDate: { $lt: now }, status: 'ACTIVE' }),
+        { expiryDate: { $lt: now }, status: 'ACTIVE' },
       ),
-      EmployeeDocument.find(tenantFilter(req, {}))
+      EmployeeDocument.find({})
         .populate('categoryId', 'name icon color')
         .populate('employeeId', 'fullName')
         .sort({ createdAt: -1 })
         .limit(5)
         .lean(),
-      ESignatureRequest.find(tenantFilter(req, {}))
+      ESignatureRequest.find({})
         .populate('documentId', 'title')
         .populate('requestedBy', 'name')
         .sort({ createdAt: -1 })

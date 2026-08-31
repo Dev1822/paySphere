@@ -112,7 +112,7 @@ async function assembleWorkforce(tenantId) {
  */
 exports.listRules = async (req, res, next) => {
   try {
-    const rules = await LabourWelfareFundRule.find({ tenantId: req.tenantId })
+    const rules = await LabourWelfareFundRule.find({})
       .sort({ state: 1, effectiveFrom: -1 })
       .lean();
 
@@ -180,7 +180,6 @@ exports.createRule = async (req, res, next) => {
     }
 
     const rule = await LabourWelfareFundRule.create({
-      tenantId: req.tenantId,
       state: String(req.body.state || '').toUpperCase(),
       enactment: req.body.enactment || '',
       effectiveFrom,
@@ -192,7 +191,7 @@ exports.createRule = async (req, res, next) => {
       remittanceDueDays: Number(req.body.remittanceDueDays) || 15,
       lateInterestRate: Number(req.body.lateInterestRate) || 0,
       notes: req.body.notes || '',
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -334,38 +333,35 @@ exports.commitContribution = async (req, res, next) => {
     }
 
     const contribution = await LabourWelfareFundContribution.findOneAndUpdate(
-      { tenantId: req.tenantId, state, year, month },
+      {
+        state,
+        year,
+        month
+      },
       {
         $set: {
-          tenantId: req.tenantId,
           state,
           month,
           year,
-
           periodStart: result.period.periodStart,
           periodEnd: result.period.periodEnd,
           periodLabel: result.period.label,
           periodicity: result.period.periodicity,
-
           headcountAtPeriodEnd: result.headcountAtPeriodEnd,
           liableCount: result.liableCount,
           excludedCount: result.excludedCount,
-
           employeeTotal: result.employeeTotal,
           employerTotal: result.employerTotal,
           total: result.total,
-
           lines: result.lines,
           exclusions: result.exclusions,
-
           dueBy: result.remittance.dueBy,
           paidOn: result.remittance.paidOn,
           challanReference: req.body.challanReference || '',
           daysLate: result.remittance.daysLate,
           interest: result.remittance.interest,
-
           ruleId: rule._id,
-          committedBy: req.userId,
+          committedBy: req.userId
         },
       },
       { new: true, upsert: true, setDefaultsOnInsert: true },
@@ -400,7 +396,7 @@ exports.commitContribution = async (req, res, next) => {
  */
 exports.listContributions = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (req.query.state) filter.state = String(req.query.state).toUpperCase();
     if (req.query.outstanding === 'true') filter.paidOn = null;
 
@@ -447,8 +443,7 @@ exports.recordRemittance = async (req, res, next) => {
     }
 
     const contribution = await LabourWelfareFundContribution.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!contribution) {
@@ -508,8 +503,7 @@ exports.exportRegister = async (req, res, next) => {
     }
 
     const contribution = await LabourWelfareFundContribution.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!contribution) {

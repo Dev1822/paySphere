@@ -12,8 +12,12 @@ exports.initiateI9 = async (req, res, next) => {
     try {
         const { employeeId } = req.body;
         const record = await I9Record.findOneAndUpdate(
-            { employeeId, tenantId: req.tenantId },
-            { $setOnInsert: { tenantId: req.tenantId, employeeId } },
+            {
+                employeeId
+            },
+            { $setOnInsert: {
+                employeeId
+            } },
             { upsert: true, new: true }
         );
         res.status(201).json({ message: 'I-9 initiated', record });
@@ -23,7 +27,9 @@ exports.initiateI9 = async (req, res, next) => {
 exports.completeSection1 = async (req, res, next) => {
     try {
         const { employeeId } = req.body;
-        const record = await I9Record.findOne({ employeeId, tenantId: req.tenantId });
+        const record = await I9Record.findOne({
+            employeeId
+        });
         if (!record) return res.status(404).json({ message: 'I-9 record not found' });
 
         record.section1Completed = true;
@@ -37,7 +43,9 @@ exports.completeSection1 = async (req, res, next) => {
 exports.verifySection2 = async (req, res, next) => {
     try {
         const { employeeId } = req.body;
-        const record = await I9Record.findOne({ employeeId, tenantId: req.tenantId });
+        const record = await I9Record.findOne({
+            employeeId
+        });
         if (!record) return res.status(404).json({ message: 'I-9 record not found' });
 
         record.section2Completed = true;
@@ -63,7 +71,10 @@ exports.addAuthorizationDocument = async (req, res, next) => {
         const { employeeId, documentType, documentNumber, expirationDate } = req.body;
 
         const auth = await EmploymentAuthorization.create({
-            tenantId: req.tenantId, employeeId, documentType, documentNumber, expirationDate
+            employeeId,
+            documentType,
+            documentNumber,
+            expirationDate
         });
 
         res.status(201).json({ message: 'Authorization document added', auth });
@@ -74,7 +85,6 @@ exports.runDailyComplianceScan = async (req, res, next) => {
     try {
         const today = new Date();
         const authorizations = await EmploymentAuthorization.find({
-            tenantId: req.tenantId,
             reverificationStatus: { $in: ['Valid', 'Expiring Soon'] }
         });
 
@@ -100,11 +110,12 @@ exports.runDailyComplianceScan = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const pendingSection2 = await I9Record.find({ tenantId: req.tenantId, section2Completed: false })
+        const pendingSection2 = await I9Record.find({
+            section2Completed: false
+        })
             .populate('employeeId', 'fullName department');
 
         const expiringDocs = await EmploymentAuthorization.find({
-            tenantId: req.tenantId,
             reverificationStatus: { $in: ['Expiring Soon', 'Expired'] }
         }).populate('employeeId', 'fullName');
 

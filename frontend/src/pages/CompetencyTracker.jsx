@@ -75,7 +75,7 @@ export default function CompetencyTracker() {
     } catch (err) {
       console.error('Failed to fetch gap analysis', err);
     }
-  }, [profile?.employeeId]);
+  }, [profile]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
   useEffect(() => {

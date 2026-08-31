@@ -1,6 +1,5 @@
 const bulkOperationService = require('../services/bulkOperation.service');
 const BulkOperation = require('../models/bulkOperation.model');
-const { tenantFilter } = require('../utils/tenantScope');
 
 exports.previewBulkOperation = async (req, res, next) => {
   try {
@@ -69,7 +68,7 @@ exports.rollbackBulkOperation = async (req, res, next) => {
 
 exports.getBulkOperations = async (req, res, next) => {
   try {
-    const operations = await BulkOperation.find(tenantFilter(req, {}))
+    const operations = await BulkOperation.find({})
       .sort({ createdAt: -1 })
       .lean();
 

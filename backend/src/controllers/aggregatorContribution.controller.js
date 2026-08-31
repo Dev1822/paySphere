@@ -198,7 +198,7 @@ exports.updateRules = async (req, res, next) => {
     }
 
     const rules = await AggregatorRules.findOneAndUpdate(
-      { tenantId: req.tenantId },
+      {},
       { $set: { ...update, updatedBy: req.userId } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -226,7 +226,7 @@ exports.updateRules = async (req, res, next) => {
  */
 exports.listTurnover = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (req.query.financialYear) {
       filter.financialYear = resolveFinancialYear(req.query);
     }
@@ -259,9 +259,8 @@ exports.recordTurnover = async (req, res, next) => {
     const name = String(req.body.name).trim();
 
     const before = await AggregatorTurnover.findOne({
-      tenantId: req.tenantId,
       name,
-      financialYear,
+      financialYear
     }).lean();
 
     if (before?.turnoverFinalised && req.body.turnoverFinalised !== false) {
@@ -295,7 +294,10 @@ exports.recordTurnover = async (req, res, next) => {
     }
 
     const turnover = await AggregatorTurnover.findOneAndUpdate(
-      { tenantId: req.tenantId, name, financialYear },
+      {
+        name,
+        financialYear
+      },
       { $set: { ...update, updatedBy: req.userId } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -343,7 +345,7 @@ exports.recordTurnover = async (req, res, next) => {
  */
 exports.listWorkers = async (req, res, next) => {
   try {
-    const workers = await GigWorker.find({ tenantId: req.tenantId })
+    const workers = await GigWorker.find({})
       .sort({ name: 1 })
       .limit(1000)
       .lean();
@@ -384,7 +386,9 @@ exports.recordWorker = async (req, res, next) => {
       : [];
 
     const worker = await GigWorker.findOneAndUpdate(
-      { tenantId: req.tenantId, name: String(req.body.name).trim() },
+      {
+        name: String(req.body.name).trim()
+      },
       {
         $set: {
           contactReference:
@@ -443,9 +447,8 @@ exports.previewAssessment = async (req, res, next) => {
 
     return res.json(
       await buildAssessment({
-        tenantId: req.tenantId,
         name,
-        query: req.query,
+        query: req.query
       }),
     );
   } catch (error) {
@@ -458,9 +461,7 @@ exports.previewAssessment = async (req, res, next) => {
  */
 exports.listAssessments = async (req, res, next) => {
   try {
-    const assessments = await AggregatorAssessment.find({
-      tenantId: req.tenantId,
-    })
+    const assessments = await AggregatorAssessment.find({})
       .sort({ financialYear: -1, name: 1 })
       .limit(50)
       .select('-findings')
@@ -484,15 +485,17 @@ exports.commitAssessment = async (req, res, next) => {
     }
 
     const { financialYear, rules, result } = await buildAssessment({
-      tenantId: req.tenantId,
       name,
-      query: req.body,
+      query: req.body
     });
 
     const { contribution, accrual } = result;
 
     const assessment = await AggregatorAssessment.findOneAndUpdate(
-      { tenantId: req.tenantId, name, financialYear },
+      {
+        name,
+        financialYear
+      },
       {
         $set: {
           rules,

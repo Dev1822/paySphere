@@ -8,7 +8,6 @@ import { Request, Response, NextFunction } from 'express';
 
 const PYQ = require('../models/pyq.model');
 const PYQTrend = require('../models/pyqTrend.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const { generatePYQTrend } = require('../utils/gemini');
 
 export interface AuthenticatedRequest extends Request {
@@ -54,7 +53,7 @@ export interface LatestTrendQuery {
 export const createPYQ = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { subject, exam, year, question, chapter, difficulty, tags } = req.body as CreatePYQBody;
-    const filter = tenantFilter(req);
+    const filter = {};
 
     if (!subject || !exam || !year || !question || !chapter || !difficulty) {
       res.status(400).json({ message: 'Missing required fields' });
@@ -69,7 +68,6 @@ export const createPYQ = async (req: AuthenticatedRequest, res: Response, next: 
       chapter,
       difficulty,
       tags: tags || [],
-      tenantId: filter.tenantId,
       createdBy: req.userId,
     });
 
@@ -85,7 +83,7 @@ export const createPYQ = async (req: AuthenticatedRequest, res: Response, next: 
 export const bulkUploadPYQs = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { pyqs } = req.body as BulkUploadPYQBody;
-    const filter = tenantFilter(req);
+    const filter = {};
 
     if (!Array.isArray(pyqs) || pyqs.length === 0) {
       res.status(400).json({ message: "Invalid payload: 'pyqs' array is required and cannot be empty" });
@@ -101,7 +99,6 @@ export const bulkUploadPYQs = async (req: AuthenticatedRequest, res: Response, n
         ...q,
         year: Number(q.year),
         tags: q.tags || [],
-        tenantId: filter.tenantId,
         createdBy: req.userId,
       };
     });
@@ -125,7 +122,7 @@ export const getPYQs = async (req: AuthenticatedRequest, res: Response, next: Ne
     if (year) clause.year = Number(year);
     if (chapter) clause.chapter = new RegExp(chapter.trim(), 'i');
 
-    const filter = tenantFilter(req, clause);
+    const filter = clause;
     const results = await PYQ.find(filter).sort({ year: -1, chapter: 1 });
     res.status(200).json(results);
   } catch (error) {
@@ -139,7 +136,7 @@ export const getPYQs = async (req: AuthenticatedRequest, res: Response, next: Ne
 export const generateTrendForecast = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { subject, exam, forecastYear } = req.body as TrendForecastBody;
-    const filter = tenantFilter(req);
+    const filter = {};
 
     if (!subject || !exam || !forecastYear) {
       res.status(400).json({ message: 'Missing required fields: subject, exam, and forecastYear are required' });
@@ -148,7 +145,6 @@ export const generateTrendForecast = async (req: AuthenticatedRequest, res: Resp
 
     // Fetch past 10 years of PYQ data (tenant scoped)
     const pyqs = await PYQ.find({
-      tenantId: filter.tenantId,
       subject: new RegExp(subject.trim(), 'i'),
       exam: new RegExp(exam.trim(), 'i'),
     }).lean();
@@ -159,7 +155,6 @@ export const generateTrendForecast = async (req: AuthenticatedRequest, res: Resp
     // Update or Insert the trend analysis cache
     const forecast = await PYQTrend.findOneAndUpdate(
       {
-        tenantId: filter.tenantId,
         subject: subject.trim(),
         exam: exam.trim(),
         forecastYear: Number(forecastYear),
@@ -191,10 +186,10 @@ export const getLatestTrendForecast = async (req: AuthenticatedRequest, res: Res
       return;
     }
 
-    const filter = tenantFilter(req, {
+    const filter = {
       subject: new RegExp(subject.trim(), 'i'),
       exam: new RegExp(exam.trim(), 'i'),
-    });
+    };
 
     const forecast = await PYQTrend.findOne(filter).sort({ forecastYear: -1 });
     if (!forecast) {

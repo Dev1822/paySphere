@@ -19,13 +19,18 @@ exports.triggerAggregation = async (req, res, next) => {
     try {
         const { taxYear } = req.body;
 
-        let batch = await YearEndProcessing.findOne({ tenantId: req.tenantId, taxYear }).session(session);
+        let batch = await YearEndProcessing.findOne({
+            taxYear
+        }).session(session);
         if (batch && batch.status === 'Completed') {
             throw new Error('Year-end processing for this tax year is already completed.');
         }
 
         if (!batch) {
-            batch = await YearEndProcessing.create([{ tenantId: req.tenantId, taxYear, triggeredBy: req.userId }], { session });
+            batch = await YearEndProcessing.create([{
+                taxYear,
+                triggeredBy: req.userId
+            }], { session });
             batch = batch[0];
         }
 
@@ -33,7 +38,7 @@ exports.triggerAggregation = async (req, res, next) => {
         await batch.save({ session });
 
         // Fetch all employees and their YTD payroll data
-        const employees = await Employee.find({ tenantId: req.tenantId }).session(session);
+        const employees = await Employee.find({}).session(session);
 
         // Mocking YTD aggregation from PayrollUpdate model
         // In production, this would be a complex $group aggregation pipeline
@@ -52,7 +57,10 @@ exports.triggerAggregation = async (req, res, next) => {
             const boxes = calculateW2Boxes(data);
 
             await W2BoxData.findOneAndUpdate(
-                { tenantId: req.tenantId, employeeId: data.employee._id, taxYear },
+                {
+                    employeeId: data.employee._id,
+                    taxYear
+                },
                 { ...boxes, processingBatchId: batch._id },
                 { upsert: true, session }
             );
@@ -86,7 +94,10 @@ exports.triggerAggregation = async (req, res, next) => {
 exports.generateMagneticMedia = async (req, res, next) => {
     try {
         const { taxYear } = req.body;
-        const batch = await YearEndProcessing.findOne({ tenantId: req.tenantId, taxYear, status: 'Completed' });
+        const batch = await YearEndProcessing.findOne({
+            taxYear,
+            status: 'Completed'
+        });
         if (!batch) return res.status(400).json({ message: 'Must complete aggregation before generating magnetic media.' });
 
         const w2Records = await W2BoxData.find({ processingBatchId: batch._id }).populate('employeeId');
@@ -130,9 +141,13 @@ exports.generateMagneticMedia = async (req, res, next) => {
 
         const fileName = `EFW2_W2_${taxYear}_${employerData.ein}.txt`;
         const mediaFile = await MagneticMediaFile.create({
-            tenantId: req.tenantId, processingBatchId: batch._id, taxYear,
-            fileName, fileContent, totalRWRecords: w2Records.length,
-            totalWagesSubmitted: roTotals.box1, generatedBy: req.userId
+            processingBatchId: batch._id,
+            taxYear,
+            fileName,
+            fileContent,
+            totalRWRecords: w2Records.length,
+            totalWagesSubmitted: roTotals.box1,
+            generatedBy: req.userId
         });
 
         res.status(201).json({ message: 'EFW2 Magnetic Media file generated', mediaFile });
@@ -141,11 +156,13 @@ exports.generateMagneticMedia = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const batches = await YearEndProcessing.find({ tenantId: req.tenantId }).sort({ taxYear: -1 });
-        const files = await MagneticMediaFile.find({ tenantId: req.tenantId }).sort({ createdAt: -1 }).limit(10);
+        const batches = await YearEndProcessing.find({}).sort({ taxYear: -1 });
+        const files = await MagneticMediaFile.find({}).sort({ createdAt: -1 }).limit(10);
 
         // Fetch discrepancy flags
-        const discrepancies = await W2BoxData.find({ tenantId: req.tenantId, hasDiscrepancy: true })
+        const discrepancies = await W2BoxData.find({
+            hasDiscrepancy: true
+        })
             .populate('employeeId', 'fullName')
             .limit(50);
 
@@ -155,7 +172,9 @@ exports.getDashboard = async (req, res, next) => {
 
 exports.downloadFile = async (req, res, next) => {
     try {
-        const file = await MagneticMediaFile.findOne({ _id: req.params.fileId, tenantId: req.tenantId });
+        const file = await MagneticMediaFile.findOne({
+            _id: req.params.fileId
+        });
         if (!file) return res.status(404).json({ message: 'File not found' });
 
         res.setHeader('Content-Type', 'text/plain');

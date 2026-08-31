@@ -17,7 +17,10 @@ exports.submitDisclosure = async (req, res, next) => {
         if (!validation.isValid) return res.status(400).json({ message: validation.reason });
 
         const disclosure = await InventionDisclosure.create({
-            tenantId: req.tenantId, title, description, inventors, submittedBy: req.userId
+            title,
+            description,
+            inventors,
+            submittedBy: req.userId
         });
 
         res.status(201).json({ message: 'Invention disclosure submitted', disclosure });
@@ -34,15 +37,19 @@ exports.recordMilestone = async (req, res, next) => {
         if (!disclosure) throw new Error('Disclosure not found');
 
         const milestone = await PatentMilestone.create([{
-            tenantId: req.tenantId, disclosureId, stage, achievedDate: new Date(),
-            patentNumber, bonusAmountTotal
+            disclosureId,
+            stage,
+            achievedDate: new Date(),
+            patentNumber,
+            bonusAmountTotal
         }], { session });
 
         // Calculate splits and create pending payouts
         const payouts = calculateSplitPayouts(bonusAmountTotal, disclosure.inventors);
         const payoutDocs = payouts.map(p => ({
-            tenantId: req.tenantId, milestoneId: milestone[0]._id,
-            employeeId: p.employeeId, amount: p.amount
+            milestoneId: milestone[0]._id,
+            employeeId: p.employeeId,
+            amount: p.amount
         }));
 
         if (payoutDocs.length > 0) {
@@ -86,16 +93,19 @@ exports.injectToPayroll = async (req, res, next) => {
 
 exports.getMyIP = async (req, res, next) => {
     try {
-        const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+        const employee = await Employee.findOne({
+            userId: req.userId
+        });
         if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
         // Find disclosures where this employee is an inventor
         const disclosures = await InventionDisclosure.find({
-            tenantId: req.tenantId,
             'inventors.employeeId': employee._id
         }).sort({ createdAt: -1 });
 
-        const payouts = await IPBonusPayout.find({ employeeId: employee._id, tenantId: req.tenantId })
+        const payouts = await IPBonusPayout.find({
+            employeeId: employee._id
+        })
             .populate('milestoneId', 'stage patentNumber');
 
         res.status(200).json({ disclosures, payouts });

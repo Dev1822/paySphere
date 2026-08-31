@@ -16,7 +16,6 @@ exports.registerDevice = async (req, res, next) => {
         const { deviceName, deviceSerial, deviceIp, location } = req.body;
 
         const device = await BiometricDevice.create({
-            tenantId: req.tenantId,
             deviceName,
             deviceSerial,
             deviceIp,
@@ -71,7 +70,7 @@ exports.ingestPunch = async (req, res, next) => {
 exports.getLogs = async (req, res, next) => {
     try {
         const { status, date } = req.query;
-        const query = { tenantId: req.tenantId };
+        const query = {};
 
         if (status) query.status = status;
 

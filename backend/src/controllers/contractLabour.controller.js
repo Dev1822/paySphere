@@ -194,7 +194,7 @@ async function assembleEstablishment(tenantId, asAt) {
  */
 exports.listContractors = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (req.query.active === 'true') filter.active = true;
 
     const contractors = await ContractLabourContractor.find(filter)
@@ -213,11 +213,12 @@ exports.listContractors = async (req, res, next) => {
 exports.createContractor = async (req, res, next) => {
   try {
     const contractor = await ContractLabourContractor.create({
-      tenantId: req.tenantId,
       name: req.body.name,
+
       vendorId: mongoose.isValidObjectId(req.body.vendorId)
         ? req.body.vendorId
         : null,
+
       establishment: req.body.establishment || '',
       workNature: req.body.workNature || '',
       licenceNumber: req.body.licenceNumber || '',
@@ -227,7 +228,7 @@ exports.createContractor = async (req, res, next) => {
       licensedWorkmen: Number(req.body.licensedWorkmen) || 0,
       securityDeposit: Number(req.body.securityDeposit) || 0,
       notes: req.body.notes || '',
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -267,7 +268,9 @@ exports.updateLicence = async (req, res, next) => {
     }
 
     const contractor = await ContractLabourContractor.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       {
         $set: {
           licenceNumber: req.body.licenceNumber || '',
@@ -323,8 +326,7 @@ exports.recordDeployment = async (req, res, next) => {
     }
 
     const contractor = await ContractLabourContractor.findOne({
-      _id: contractorId,
-      tenantId: req.tenantId,
+      _id: contractorId
     }).lean();
 
     if (!contractor) {
@@ -364,20 +366,24 @@ exports.recordDeployment = async (req, res, next) => {
       : [];
 
     const deployment = await ContractLabourDeployment.findOneAndUpdate(
-      { tenantId: req.tenantId, contractorId, month },
+      {
+        contractorId,
+        month
+      },
       {
         $set: {
-          tenantId: req.tenantId,
           contractorId,
           month,
+
           workmen:
             Number(req.body.workmen) ||
             designations.reduce((sum, line) => sum + line.workmen, 0),
+
           wageBill: Number(req.body.wageBill) || 0,
           designations,
           remittances,
           dailyHeadcounts,
-          createdBy: req.userId,
+          createdBy: req.userId
         },
       },
       { new: true, upsert: true, setDefaultsOnInsert: true },
@@ -411,13 +417,10 @@ exports.getAssessment = async (req, res, next) => {
     const returnYear =
       Number(req.query.returnYear) || asAt.getUTCFullYear() - 1;
     const filing = await ContractLabourReturn.findOne({
-      tenantId: req.tenantId,
-      year: returnYear,
+      year: returnYear
     }).lean();
 
-    const previous = await ContractLabourReturn.findOne({
-      tenantId: req.tenantId,
-    })
+    const previous = await ContractLabourReturn.findOne({})
       .sort({ year: -1 })
       .lean();
 
@@ -468,10 +471,11 @@ exports.recordReturn = async (req, res, next) => {
     const status = annualReturnStatus(year, asAt, asAt);
 
     const filing = await ContractLabourReturn.findOneAndUpdate(
-      { tenantId: req.tenantId, year },
+      {
+        year
+      },
       {
         $set: {
-          tenantId: req.tenantId,
           year,
           dueBy: status.dueBy,
           filedOn: asAt,
@@ -479,7 +483,7 @@ exports.recordReturn = async (req, res, next) => {
           exposureAtFiling: assessment.exposure,
           contractorCount: assessment.contractors.length,
           peakWorkmen: assessment.applicability.peakWorkmen,
-          filedBy: req.userId,
+          filedBy: req.userId
         },
       },
       { new: true, upsert: true, setDefaultsOnInsert: true },
@@ -531,10 +535,10 @@ exports.exportRegister = async (req, res, next) => {
     }
 
     const [contractors, deployments] = await Promise.all([
-      ContractLabourContractor.find({ tenantId: req.tenantId })
+      ContractLabourContractor.find({})
         .sort({ name: 1 })
         .lean(),
-      ContractLabourDeployment.find({ tenantId: req.tenantId })
+      ContractLabourDeployment.find({})
         .sort({ month: 1 })
         .lean(),
     ]);

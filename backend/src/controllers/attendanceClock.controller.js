@@ -44,7 +44,7 @@ const {
 async function resolveEmployee(req) {
   const requested = req.body?.employeeId || req.query?.employeeId;
 
-  const filter = { tenantId: req.tenantId };
+  const filter = {};
 
   if (requested) {
     if (!mongoose.Types.ObjectId.isValid(requested)) {
@@ -169,10 +169,9 @@ exports.clockIn = async (req, res, next) => {
 
     const paid = await PayrollUpdate.findOne({
       employeeId: employee._id,
-      tenantId: req.tenantId,
       year,
       month,
-      status: 'paid',
+      status: 'paid'
     }).select('_id');
 
     if (paid) {
@@ -198,8 +197,7 @@ exports.clockIn = async (req, res, next) => {
 
     const coordinates = readCoordinate(req.body);
     const offices = await OfficeLocation.find({
-      tenantId: req.tenantId,
-      isActive: true,
+      isActive: true
     }).lean();
 
     const located = coordinates
@@ -237,11 +235,10 @@ exports.clockIn = async (req, res, next) => {
       new Attendance({
         employeeId: employee._id,
         employeeName: employee.fullName,
-        tenantId: req.tenantId,
         createdBy: req.userId,
         year,
         month,
-        days: [],
+        days: []
       });
 
     let dayEntry = doc.days.find((d) => d.day === day);
@@ -437,7 +434,7 @@ exports.getClockStatus = async (req, res, next) => {
  */
 exports.listOfficeLocations = async (req, res, next) => {
   try {
-    const locations = await OfficeLocation.find({ tenantId: req.tenantId })
+    const locations = await OfficeLocation.find({})
       .sort({ createdAt: -1 })
       .lean();
 
@@ -482,13 +479,12 @@ exports.createOfficeLocation = async (req, res, next) => {
     }
 
     const location = await OfficeLocation.create({
-      tenantId: req.tenantId,
       name: String(body.name || '').trim(),
       address: String(body.address || '').trim(),
       geometry,
       radiusMeters: body.radiusMeters,
       isActive: body.isActive !== false,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -537,7 +533,9 @@ exports.updateOfficeLocation = async (req, res, next) => {
     // Scoped by tenant, so an id from another company is a 404 rather than an
     // edit of their fence.
     const location = await OfficeLocation.findOneAndUpdate(
-      { _id: id, tenantId: req.tenantId },
+      {
+        _id: id
+      },
       { $set: update },
       { new: true, runValidators: true },
     );
@@ -570,8 +568,7 @@ exports.deleteOfficeLocation = async (req, res, next) => {
     }
 
     const location = await OfficeLocation.findOneAndDelete({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
 
     if (!location) {

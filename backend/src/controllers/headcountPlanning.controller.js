@@ -30,7 +30,6 @@ exports.createRequisition = async (req, res, next) => {
     }
 
     const requisition = await HeadcountRequisition.create({
-      tenantId: req.tenantId,
       requisitionCode,
       type,
       replacedEmployeeId: replacedEmployeeId || null,
@@ -41,7 +40,7 @@ exports.createRequisition = async (req, res, next) => {
       currency,
       justification,
       managerId: managerId || null,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     return res
@@ -63,8 +62,7 @@ exports.approveRequisition = async (req, res, next) => {
     const { level } = req.body; // 'HR' or 'Finance'
 
     const requisition = await HeadcountRequisition.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
 
     if (!requisition) {
@@ -95,9 +93,8 @@ exports.approveRequisition = async (req, res, next) => {
       const currentYear = new Date().getFullYear();
       await HeadcountPlan.updateOne(
         {
-          tenantId: req.tenantId,
           department: requisition.department,
-          fiscalYear: currentYear,
+          fiscalYear: currentYear
         },
         {
           $inc: {

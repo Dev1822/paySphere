@@ -16,8 +16,8 @@ const { calculateEMI, generateSchedule } = require('../utils/amortizationEngine.
  */
 exports.getPolicy = async (req, res, next) => {
   try {
-    let policy = await LoanPolicy.findOne({ tenantId: req.tenantId });
-    if (!policy) policy = await LoanPolicy.create({ tenantId: req.tenantId });
+    let policy = await LoanPolicy.findOne({});
+    if (!policy) policy = await LoanPolicy.create({});
     res.status(200).json({ policy });
   } catch (error) {
     next(error);
@@ -30,10 +30,12 @@ exports.getPolicy = async (req, res, next) => {
 exports.requestLoan = async (req, res, next) => {
   try {
     const { type, principalAmount, tenureMonths, purpose } = req.body;
-    const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+    const employee = await Employee.findOne({
+      userId: req.userId
+    });
     if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
-    const policy = await LoanPolicy.findOne({ tenantId: req.tenantId });
+    const policy = await LoanPolicy.findOne({});
     const maxAmount = type === 'Salary Advance' ? policy.maxAdvanceAmount : policy.maxLoanAmount;
 
     if (principalAmount > maxAmount) {
@@ -44,7 +46,6 @@ exports.requestLoan = async (req, res, next) => {
     }
 
     const loan = await LoanRequest.create({
-      tenantId: req.tenantId,
       employeeId: employee._id,
       type,
       principalAmount,
@@ -116,10 +117,14 @@ exports.approveLoan = async (req, res, next) => {
  */
 exports.getMyLoans = async (req, res, next) => {
   try {
-    const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+    const employee = await Employee.findOne({
+      userId: req.userId
+    });
     if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
-    const loans = await LoanRequest.find({ employeeId: employee._id, tenantId: req.tenantId }).sort({ createdAt: -1 });
+    const loans = await LoanRequest.find({
+      employeeId: employee._id
+    }).sort({ createdAt: -1 });
 
     // Fetch schedule for active loans
     const activeLoanIds = loans.filter(l => l.status === 'Approved').map(l => l._id);

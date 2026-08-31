@@ -16,22 +16,23 @@ exports.createAnnouncement = async (req, res, next) => {
 
     const announcement = await Announcement.create({
       title: sanitizeText(title),
-      content, // HTML rich text content
+
+      // HTML rich text content
+      content,
+
       category: category || 'general',
       priority: priority || 'medium',
       isPinned: Boolean(isPinned),
-      tenantId: req.tenantId,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
-      tenantId: req.tenantId,
       action: 'SETTINGS_UPDATE',
       resourceType: 'User',
       resourceIds: [announcement._id],
       details: { title: announcement.title, category: announcement.category },
-      req,
+      req
     });
 
     return res.status(201).json({
@@ -47,7 +48,7 @@ exports.createAnnouncement = async (req, res, next) => {
 exports.getAnnouncements = async (req, res, next) => {
   try {
     const { category, search } = req.query;
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
 
     if (category) {
       filter.category = category;
@@ -72,8 +73,7 @@ exports.deleteAnnouncement = async (req, res, next) => {
   try {
     const { id } = req.params;
     const announcement = await Announcement.findOneAndDelete({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
 
     if (!announcement) {

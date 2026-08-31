@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const asyncContext = require('./asyncContext');
 
 /**
  * Building tenant-scoped query filters, and refusing to build one without a
@@ -65,6 +66,10 @@ function isUsableTenantId(tenantId) {
  * @returns {import("mongoose").Types.ObjectId|string|null}
  */
 function getTenantId(req) {
+  const context = asyncContext.getStore();
+  if (context && context.tenantId && isUsableTenantId(context.tenantId)) {
+    return context.tenantId;
+  }
   return isUsableTenantId(req?.tenantId) ? req.tenantId : null;
 }
 
@@ -161,6 +166,18 @@ function requireTenantScope() {
   };
 }
 
+/**
+ * Bypass tenant isolation for a specific execution context.
+ * Useful for super-admin operations or cron jobs that need cross-tenant access.
+ * 
+ * @param {Function} callback The function to execute without tenant filtering.
+ * @returns {Promise<any>} The result of the callback
+ */
+function bypass(callback) {
+  const currentStore = asyncContext.getStore() || {};
+  return asyncContext.run({ ...currentStore, bypass: true }, callback);
+}
+
 module.exports = {
   MissingTenantError,
   isUsableTenantId,
@@ -169,4 +186,5 @@ module.exports = {
   tenantFilter,
   sameTenant,
   requireTenantScope,
+  bypass,
 };

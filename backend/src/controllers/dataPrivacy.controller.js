@@ -14,8 +14,12 @@ const logger = require('../utils/logger');
 exports.createMaskingRule = async (req, res, next) => {
     try {
         const rule = await PIIMaskingRule.findOneAndUpdate(
-            { tenantId: req.tenantId, fieldName: req.body.fieldName },
-            { ...req.body, tenantId: req.tenantId },
+            {
+                fieldName: req.body.fieldName
+            },
+            {
+                ...req.body
+            },
             { upsert: true, new: true }
         );
         res.status(200).json({ message: 'Masking rule saved', rule });
@@ -27,8 +31,12 @@ exports.recordConsent = async (req, res, next) => {
         const { employeeId, consentType, isGranted, consentVersion } = req.body;
 
         const updateData = {
-            tenantId: req.tenantId, employeeId, consentType,
-            isGranted, consentVersion, ipAddress: req.ip, userAgent: req.headers['user-agent']
+            employeeId,
+            consentType,
+            isGranted,
+            consentVersion,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent']
         };
 
         if (isGranted) {
@@ -39,7 +47,10 @@ exports.recordConsent = async (req, res, next) => {
         }
 
         const consent = await PrivacyConsent.findOneAndUpdate(
-            { tenantId: req.tenantId, employeeId, consentType },
+            {
+                employeeId,
+                consentType
+            },
             updateData,
             { upsert: true, new: true }
         );
@@ -53,8 +64,12 @@ exports.requestErasure = async (req, res, next) => {
         const { employeeId, requestType } = req.body;
 
         const request = await DataErasureRequest.create({
-            tenantId: req.tenantId, employeeId, requestType, requestedBy: req.userId,
-            hasLegalHold: true // Default to true until compliance officer reviews
+            employeeId,
+            requestType,
+            requestedBy: req.userId,
+
+            // Default to true until compliance officer reviews
+            hasLegalHold: true
         });
 
         res.status(201).json({ message: 'Erasure request submitted', request });
@@ -92,10 +107,13 @@ exports.processErasure = async (req, res, next) => {
 
         // Log the erasure
         await DataAuditLog.create([{
-            tenantId: req.tenantId, userId: req.userId, userRole: 'ComplianceAdmin',
-            action: 'Executed Erasure', targetEmployeeId: request.employeeId,
+            userId: req.userId,
+            userRole: 'ComplianceAdmin',
+            action: 'Executed Erasure',
+            targetEmployeeId: request.employeeId,
             fieldsAccessed: ['firstName', 'lastName', 'ssn', 'homeAddress'],
-            ipAddress: req.ip, wasMasked: false
+            ipAddress: req.ip,
+            wasMasked: false
         }], { session });
 
         await session.commitTransaction();
@@ -115,16 +133,24 @@ exports.getMaskedEmployeeData = async (req, res, next) => {
         const userRoles = req.userRoles || ['StandardUser'];
         const userRole = userRoles[0] || 'StandardUser';
 
-        const employee = await Employee.findOne({ _id: employeeId, tenantId: req.tenantId })
-            .setOptions({ tenantId: req.tenantId, userRole });
+        const employee = await Employee.findOne({
+            _id: employeeId
+        })
+            .setOptions({
+            userRole
+        });
 
         if (!employee) return res.status(404).json({ message: 'Employee not found' });
 
         // Log the access in DataAuditLog
         await DataAuditLog.create({
-            tenantId: req.tenantId, userId: req.userId, userRole,
-            action: 'Viewed PII', targetEmployeeId: employeeId,
-            fieldsAccessed: ['bankAccount', 'ssn'], ipAddress: req.ip, wasMasked: true
+            userId: req.userId,
+            userRole,
+            action: 'Viewed PII',
+            targetEmployeeId: employeeId,
+            fieldsAccessed: ['bankAccount', 'ssn'],
+            ipAddress: req.ip,
+            wasMasked: true
         });
 
         res.status(200).json({ data: employee, wasMasked: true });
@@ -133,10 +159,12 @@ exports.getMaskedEmployeeData = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const rules = await PIIMaskingRule.find({ tenantId: req.tenantId }).sort({ fieldName: 1 });
-        const pendingErasure = await DataErasureRequest.find({ tenantId: req.tenantId, status: 'Pending Review' })
+        const rules = await PIIMaskingRule.find({}).sort({ fieldName: 1 });
+        const pendingErasure = await DataErasureRequest.find({
+            status: 'Pending Review'
+        })
             .populate('employeeId', 'fullName');
-        const recentLogs = await DataAuditLog.find({ tenantId: req.tenantId })
+        const recentLogs = await DataAuditLog.find({})
             .populate('userId', 'fullName')
             .sort({ createdAt: -1 }).limit(50);
 
@@ -146,7 +174,7 @@ exports.getDashboard = async (req, res, next) => {
 
 exports.getPolicies = async (req, res, next) => {
     try {
-        const policies = await DataPrivacyPolicy.find({ tenantId: req.tenantId });
+        const policies = await DataPrivacyPolicy.find({});
         res.json({ policies });
     } catch (error) { next(error); }
 };
@@ -155,7 +183,7 @@ exports.createOrUpdatePolicy = async (req, res, next) => {
     try {
         const { rules, isActive } = req.body;
         const policy = await DataPrivacyPolicy.findOneAndUpdate(
-            { tenantId: req.tenantId },
+            {},
             { $set: { rules: rules || [], isActive: isActive !== false } },
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
@@ -179,12 +207,11 @@ exports.revealPII = async (req, res, next) => {
 
         const unmasked = await requestUnmaskedPII({
             userId: req.userId,
-            tenantId: req.tenantId,
             employeeId,
             fields,
             reason,
             userRole,
-            req,
+            req
         });
 
         res.json({ data: unmasked });

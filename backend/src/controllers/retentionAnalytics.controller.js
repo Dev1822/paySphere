@@ -11,7 +11,6 @@
 
 const Employee = require('../models/employee.model');
 const SalaryHistory = require('../models/salaryHistory.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -123,7 +122,7 @@ function riskLevel(score) {
  */
 exports.getFlightRiskScores = async (req, res, next) => {
   try {
-    const filter = tenantFilter(req, { isActive: true, deletedAt: null });
+    const filter = { isActive: true, deletedAt: null };
     const employees = await Employee.find(filter).select(
       'fullName department role monthlySalary joiningDate employmentStatus jobLevel',
     );
@@ -160,8 +159,7 @@ exports.getFlightRiskScores = async (req, res, next) => {
     // Fetch salary history for time-since-last-raise calculations
     const employeeIds = employees.map((e) => e._id);
     const salaryHistories = await SalaryHistory.find({
-      tenantId: req.tenantId,
-      employeeId: { $in: employeeIds },
+      employeeId: { $in: employeeIds }
     })
       .select('employeeId createdAt newSalary previousSalary')
       .sort({ createdAt: -1 });
@@ -266,7 +264,7 @@ exports.getAttritionTrends = async (req, res, next) => {
 
     // All employees (active + inactive) to compute rates
     const allEmployees = await Employee.find(
-      tenantFilter(req, { createdAt: { $gte: twelveMonthsAgo } }),
+      { createdAt: { $gte: twelveMonthsAgo } },
     ).select('department isActive employmentStatus createdAt');
 
     // Group by month
@@ -294,7 +292,7 @@ exports.getAttritionTrends = async (req, res, next) => {
 
     // Fetch currently inactive employees as separation proxy
     const inactiveEmployees = await Employee.find(
-      tenantFilter(req, { isActive: false }),
+      { isActive: false },
     ).select('department updatedAt');
 
     // Estimate separations per month based on inactive employee updatedAt
@@ -308,7 +306,7 @@ exports.getAttritionTrends = async (req, res, next) => {
 
     // Compute running headcount and attrition rate
     const baseHeadcount = await Employee.countDocuments(
-      tenantFilter(req, { isActive: true, deletedAt: null }),
+      { isActive: true, deletedAt: null },
     );
 
     let runningHeadcount = baseHeadcount;
@@ -344,7 +342,7 @@ exports.getAttritionTrends = async (req, res, next) => {
 
     // Get department headcounts for rate calculation
     const activeEmployees = await Employee.find(
-      tenantFilter(req, { isActive: true, deletedAt: null }),
+      { isActive: true, deletedAt: null },
     ).select('department');
 
     const deptCounts = {};
@@ -388,7 +386,7 @@ exports.getAttritionTrends = async (req, res, next) => {
 exports.getCompensationBenchmark = async (req, res, next) => {
   try {
     const employees = await Employee.find(
-      tenantFilter(req, { isActive: true, deletedAt: null }),
+      { isActive: true, deletedAt: null },
     ).select('fullName department role jobLevel monthlySalary joiningDate');
 
     if (employees.length === 0) {
@@ -525,11 +523,11 @@ exports.getCompensationBenchmark = async (req, res, next) => {
 exports.getRetentionDashboard = async (req, res, next) => {
   try {
     const activeEmployees = await Employee.find(
-      tenantFilter(req, { isActive: true, deletedAt: null }),
+      { isActive: true, deletedAt: null },
     ).select('fullName department monthlySalary joiningDate');
 
     const inactiveEmployees = await Employee.find(
-      tenantFilter(req, { isActive: false }),
+      { isActive: false },
     ).select('department updatedAt');
 
     const now = new Date();

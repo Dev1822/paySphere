@@ -121,7 +121,7 @@ exports.getRules = async (req, res, next) => {
  */
 exports.listRateTables = async (req, res, next) => {
   try {
-    const tables = await TaxRateTable.find({ tenantId: req.tenantId })
+    const tables = await TaxRateTable.find({})
       .sort({ assessmentYear: -1, regime: 1 })
       .lean();
 
@@ -176,7 +176,10 @@ exports.recordRateTable = async (req, res, next) => {
     }
 
     const table = await TaxRateTable.findOneAndUpdate(
-      { tenantId: req.tenantId, assessmentYear, regime: req.body.regime },
+      {
+        assessmentYear,
+        regime: req.body.regime
+      },
       {
         $set: {
           slabs: sorted,
@@ -227,8 +230,7 @@ exports.listAssessedYears = async (req, res, next) => {
     }
 
     const years = await AssessedYear.find({
-      tenantId: req.tenantId,
-      employeeId: req.query.employeeId,
+      employeeId: req.query.employeeId
     })
       .sort({ financialYear: -1 })
       .lean();
@@ -280,9 +282,8 @@ exports.recordAssessedYear = async (req, res, next) => {
 
     const year = await AssessedYear.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         employeeId: req.body.employeeId,
-        financialYear,
+        financialYear
       },
       {
         $set: {
@@ -366,25 +367,30 @@ exports.recordClaim = async (req, res, next) => {
     });
 
     const claim = await ArrearReliefClaim.create({
-      tenantId: req.tenantId,
       employeeId: req.body.employeeId,
       amount,
       paidOn,
       relatesFrom,
       relatesTo,
+
       allocation: allocation.map((row) => ({
         financialYear: row.financialYear,
         amount: row.amount,
         basis: row.basis,
       })),
+
       regime: req.body.regime,
+
       totalIncomeExcludingArrears:
         Number(req.body.totalIncomeExcludingArrears) || 0,
+
       returnFiledOn: readDate(req.body.returnFiledOn),
+
       arrearRunId: mongoose.isValidObjectId(req.body.arrearRunId)
         ? req.body.arrearRunId
         : undefined,
-      recordedBy: req.userId,
+
+      recordedBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -425,8 +431,7 @@ exports.recordFurnishing = async (req, res, next) => {
     }
 
     const claim = await ArrearReliefClaim.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!claim) return res.status(404).json({ message: 'Claim not found' });
 
@@ -440,7 +445,9 @@ exports.recordFurnishing = async (req, res, next) => {
     const assessmentYear = assessmentYearOf(financialYearOf(claim.paidOn));
 
     const furnishing = await FormTenEFurnishing.findOneAndUpdate(
-      { tenantId: req.tenantId, claimId: claim._id },
+      {
+        claimId: claim._id
+      },
       {
         $set: {
           employeeId: claim.employeeId,
@@ -488,18 +495,15 @@ exports.applyRelief = async (req, res, next) => {
     }
 
     const claim = await ArrearReliefClaim.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!claim) return res.status(404).json({ message: 'Claim not found' });
 
     const { rateTables, assessedYears } = await loadBasis({
-      tenantId: req.tenantId,
-      employeeId: claim.employeeId,
+      employeeId: claim.employeeId
     });
     const furnishings = await loadFurnishings({
-      tenantId: req.tenantId,
-      claimIds: [claim._id],
+      claimIds: [claim._id]
     });
 
     const assessment = assessArrear({
@@ -566,14 +570,12 @@ exports.getFormTenE = async (req, res, next) => {
     }
 
     const claim = await ArrearReliefClaim.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
     if (!claim) return res.status(404).json({ message: 'Claim not found' });
 
     const { rateTables, assessedYears } = await loadBasis({
-      tenantId: req.tenantId,
-      employeeId: claim.employeeId,
+      employeeId: claim.employeeId
     });
 
     const assessment = assessArrear({
@@ -610,19 +612,16 @@ exports.getPosition = async (req, res, next) => {
     const employeeId = req.query.employeeId;
 
     const claims = await ArrearReliefClaim.find({
-      tenantId: req.tenantId,
-      employeeId,
+      employeeId
     })
       .sort({ paidOn: -1 })
       .lean();
 
     const { rateTables, assessedYears } = await loadBasis({
-      tenantId: req.tenantId,
-      employeeId,
+      employeeId
     });
     const furnishings = await loadFurnishings({
-      tenantId: req.tenantId,
-      claimIds: claims.map((claim) => claim._id),
+      claimIds: claims.map((claim) => claim._id)
     });
 
     const result = assessEmployee({

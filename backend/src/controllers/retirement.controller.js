@@ -10,8 +10,12 @@ const logger = require('../utils/logger');
 exports.configurePlan = async (req, res, next) => {
     try {
         const config = await RetirementPlanConfig.findOneAndUpdate(
-            { tenantId: req.tenantId, planYear: req.body.planYear },
-            { ...req.body, tenantId: req.tenantId },
+            {
+                planYear: req.body.planYear
+            },
+            {
+                ...req.body
+            },
             { upsert: true, new: true }
         );
         res.status(200).json({ message: 'Plan configured', config });
@@ -21,7 +25,9 @@ exports.configurePlan = async (req, res, next) => {
 exports.runNDTTest = async (req, res, next) => {
     try {
         const { planYear, testType } = req.body;
-        const ledgers = await EmployeeDeferralLedger.find({ tenantId: req.tenantId, planYear });
+        const ledgers = await EmployeeDeferralLedger.find({
+            planYear
+        });
 
         const hceLedgers = ledgers.filter(l => l.isHCE);
         const nhceLedgers = ledgers.filter(l => l.isNHCE);
@@ -32,9 +38,12 @@ exports.runNDTTest = async (req, res, next) => {
         const result = evaluateADPTest(hceADP, nhceADP);
 
         const testRecord = await NDTTestResult.create({
-            tenantId: req.tenantId, planYear, testType,
-            hcePercentage: hceADP, nhcePercentage: nhceADP,
-            passed: result.passed, correctiveActionRequired: !result.passed,
+            planYear,
+            testType,
+            hcePercentage: hceADP,
+            nhcePercentage: nhceADP,
+            passed: result.passed,
+            correctiveActionRequired: !result.passed,
             generatedBy: req.userId
         });
 
@@ -45,10 +54,14 @@ exports.runNDTTest = async (req, res, next) => {
 exports.runTrueUpBatch = async (req, res, next) => {
     try {
         const { planYear } = req.body;
-        const config = await RetirementPlanConfig.findOne({ tenantId: req.tenantId, planYear });
+        const config = await RetirementPlanConfig.findOne({
+            planYear
+        });
         if (!config) return res.status(404).json({ message: 'Plan not configured' });
 
-        const ledgers = await EmployeeDeferralLedger.find({ tenantId: req.tenantId, planYear });
+        const ledgers = await EmployeeDeferralLedger.find({
+            planYear
+        });
         const trueUps = [];
 
         for (const ledger of ledgers) {
@@ -66,8 +79,12 @@ exports.runTrueUpBatch = async (req, res, next) => {
 exports.getDashboard = async (req, res, next) => {
     try {
         const currentYear = new Date().getFullYear();
-        const config = await RetirementPlanConfig.findOne({ tenantId: req.tenantId, planYear: currentYear });
-        const tests = await NDTTestResult.find({ tenantId: req.tenantId, planYear: currentYear }).sort({ createdAt: -1 });
+        const config = await RetirementPlanConfig.findOne({
+            planYear: currentYear
+        });
+        const tests = await NDTTestResult.find({
+            planYear: currentYear
+        }).sort({ createdAt: -1 });
         res.status(200).json({ config, tests });
     } catch (error) { next(error); }
 };

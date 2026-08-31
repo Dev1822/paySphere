@@ -537,7 +537,9 @@ exports.updateRules = async (req, res, next) => {
     }
 
     const rules = await PerquisiteRules.findOneAndUpdate(
-      { tenantId: req.tenantId, previousYear },
+      {
+        previousYear
+      },
       { $set: { ...update, updatedBy: req.userId } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -567,7 +569,7 @@ exports.updateRules = async (req, res, next) => {
  */
 exports.listGrants = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
 
     if (mongoose.isValidObjectId(req.query.employeeId)) {
       filter.employeeId = req.query.employeeId;
@@ -608,8 +610,7 @@ exports.createGrant = async (req, res, next) => {
 
     const grant = await PerquisiteGrant.create({
       ...req.body,
-      tenantId: req.tenantId,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -641,8 +642,7 @@ exports.deleteGrant = async (req, res, next) => {
     }
 
     const grant = await PerquisiteGrant.findOneAndDelete({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!grant) {
@@ -673,7 +673,9 @@ exports.previewStatement = async (req, res, next) => {
       Number(req.query.previousYear) || previousYearFor(new Date());
 
     return res.json(
-      await buildStatement({ tenantId: req.tenantId, previousYear }),
+      await buildStatement({
+        previousYear
+      }),
     );
   } catch (error) {
     return next(error);
@@ -689,12 +691,13 @@ exports.commitStatement = async (req, res, next) => {
       Number(req.body?.previousYear) || previousYearFor(new Date());
 
     const { rules, result } = await buildStatement({
-      tenantId: req.tenantId,
-      previousYear,
+      previousYear
     });
 
     const statement = await PerquisiteStatement.findOneAndUpdate(
-      { tenantId: req.tenantId, previousYear },
+      {
+        previousYear
+      },
       {
         $set: {
           rules,
@@ -766,7 +769,7 @@ exports.commitStatement = async (req, res, next) => {
 exports.listStatements = async (req, res, next) => {
   try {
     const statements = await PerquisiteStatement.find(
-      { tenantId: req.tenantId },
+      {},
       '-findings -employees',
     )
       .sort({ previousYear: -1 })
@@ -798,8 +801,7 @@ exports.getEmployeeStatement = async (req, res, next) => {
       Number(req.query.previousYear) || previousYearFor(new Date());
 
     const employee = await Employee.findOne({
-      _id: req.params.employeeId,
-      tenantId: req.tenantId,
+      _id: req.params.employeeId
     })
       .select('fullName monthlySalary')
       .lean();
@@ -812,16 +814,13 @@ exports.getEmployeeStatement = async (req, res, next) => {
 
     const [grants, structures, loans] = await Promise.all([
       PerquisiteGrant.find({
-        tenantId: req.tenantId,
-        employeeId: employee._id,
+        employeeId: employee._id
       }).lean(),
       SalaryStructure.find({
-        tenantId: req.tenantId,
-        employeeId: employee._id,
+        employeeId: employee._id
       }).lean(),
       AmortizationSchedule.find({
-        tenantId: req.tenantId,
-        employeeId: employee._id,
+        employeeId: employee._id
       }).lean(),
     ]);
 

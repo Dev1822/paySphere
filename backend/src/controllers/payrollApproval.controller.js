@@ -12,12 +12,11 @@
 const WorkflowInstance  = require('../models/workflowInstance.model');
 const approvalEngine    = require('../services/approvalEngine');
 const approvalService   = require('../services/payrollApproval.service');
-const { tenantFilter }  = require('../utils/tenantScope');
 const logger            = require('../utils/logger');
 
 async function findInstance(payrollId, tenantId) {
   return WorkflowInstance.findOne({
-    ...tenantFilter({ tenantId }),
+    ...{},
     targetEntityId: payrollId,
     targetEntityType: 'PayrollUpdate',
     status: { $in: ['pending', 'in_progress'] },
@@ -130,7 +129,7 @@ async function releaseLock(req, res) {
 async function getApprovalStatus(req, res) {
   try {
     const instance = await WorkflowInstance.findOne({
-      ...tenantFilter({ tenantId: req.tenantId }),
+      ...{},
       targetEntityId: req.params.payrollId,
       targetEntityType: 'PayrollUpdate',
     })
@@ -176,12 +175,13 @@ async function saveApprovalWorkflow(req, res, next) {
 
     const ApprovalWorkflow = require('../models/approvalWorkflow.model');
     await ApprovalWorkflow.updateMany(
-      { tenantId: req.tenantId, isActive: true },
+      {
+        isActive: true
+      },
       { $set: { isActive: false, effectiveTo: new Date() } }
     );
 
     const workflow = await ApprovalWorkflow.create({
-      tenantId: req.tenantId,
       name,
       sequence,
       isActive: true,

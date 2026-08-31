@@ -32,7 +32,9 @@ exports.issueContract = async (req, res, next) => {
     try {
         const { templateId, candidateName, candidateEmail, variables } = req.body;
 
-        const template = await ContractTemplate.findOne({ _id: templateId, tenantId: req.tenantId });
+        const template = await ContractTemplate.findOne({
+            _id: templateId
+        });
         if (!template) return res.status(404).json({ message: 'Template not found' });
 
         const populatedHtml = populateTemplate(template.htmlContent, variables);
@@ -70,7 +72,6 @@ exports.issueContract = async (req, res, next) => {
         const mockPdfUrl = pdfBuffer ? `/mock-storage/contract-${magicToken}.pdf` : '';
 
         const contract = await IssuedContract.create({
-            tenantId: req.tenantId,
             templateId,
             candidateName,
             candidateEmail,

@@ -12,7 +12,6 @@
 
 const Employee = require('../models/employee.model');
 const SalaryHistory = require('../models/salaryHistory.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 // ─── Constants ────────────────────────────────────────────────────────────
@@ -61,11 +60,12 @@ function applyRevision(salaries, scenario) {
       case 'departmentWise':
         hikePercent = scenario.departmentHikes?.[emp.department] || scenario.defaultHike || 0;
         break;
-      case 'performanceBased':
+      case 'performanceBased': {
         // Map performance rating to hike
         const band = scenario.performanceBands?.find((b) => b.rating === emp.performanceRating);
         hikePercent = band ? band.hikePercent : (scenario.defaultHike || 0);
         break;
+      }
       default:
         hikePercent = scenario.uniformPercent || 0;
     }
@@ -124,7 +124,7 @@ exports.getForecast = async (req, res, next) => {
     const clampedAttrition = Math.max(0, Math.min(50, Number(annualAttritionRate) || 10));
 
     // Fetch current employees
-    const empFilter = tenantFilter(req, { isActive: true, deletedAt: null });
+    const empFilter = { isActive: true, deletedAt: null };
     if (departmentFilter.length > 0) {
       empFilter.department = { $in: departmentFilter };
     }
@@ -297,7 +297,7 @@ exports.compareScenarios = async (req, res, next) => {
     const clampedAttrition = Math.max(0, Math.min(50, Number(annualAttritionRate) || 10));
 
     const employees = await Employee.find(
-      tenantFilter(req, { isActive: true, deletedAt: null }),
+      { isActive: true, deletedAt: null },
     ).select('fullName department role jobLevel monthlySalary joiningDate');
 
     if (employees.length === 0) {
@@ -386,7 +386,7 @@ exports.compareScenarios = async (req, res, next) => {
 exports.getCostSummary = async (req, res, next) => {
   try {
     const employees = await Employee.find(
-      tenantFilter(req, { isActive: true, deletedAt: null }),
+      { isActive: true, deletedAt: null },
     ).select('department role jobLevel monthlySalary');
 
     if (employees.length === 0) {

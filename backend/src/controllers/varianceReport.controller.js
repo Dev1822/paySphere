@@ -1,5 +1,4 @@
 'use strict';
-const { requireTenant } = require('../utils/tenantScope');
 const { getMonthlyVariance, getAnnualForecast } = require('../services/varianceReport.service');
 const Budget = require('../models/budget.model');
 

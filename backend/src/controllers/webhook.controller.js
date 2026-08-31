@@ -3,7 +3,6 @@ const mongoose = require('mongoose');
 const WebhookEndpoint = require('../models/webhookEndpoint.model');
 const WebhookDelivery = require('../models/webhookDelivery.model');
 const eventBus = require('../services/event.service');
-const { requireTenant } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 /**

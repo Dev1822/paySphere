@@ -16,13 +16,17 @@ exports.recordPayment = async (req, res, next) => {
         const { contractorId, taxYear, paymentDate, necAmount, miscAmount } = req.body;
 
         // Check TIN status for Backup Withholding Guardrail
-        const tinRecord = await TINValidationRecord.findOne({ contractorId, tenantId: req.tenantId });
+        const tinRecord = await TINValidationRecord.findOne({
+            contractorId
+        });
         const tinStatus = tinRecord ? tinRecord.irsMatchStatus : 'Pending';
 
         const withholding = calculateBackupWithholding(necAmount + miscAmount, tinStatus);
 
         const ledger = await ContractorPaymentLedger.create({
-            tenantId: req.tenantId, contractorId, taxYear, paymentDate: new Date(paymentDate),
+            contractorId,
+            taxYear,
+            paymentDate: new Date(paymentDate),
             box1_NEC_NonemployeeCompensation: necAmount,
             box3_MISC_OtherIncome: miscAmount,
             box4_MISC_FederalTaxWithheld: withholding.withholdingAmount,
@@ -48,7 +52,9 @@ exports.validateTIN = async (req, res, next) => {
         const requiresBackupWithholding = status === 'Mismatch';
 
         const record = await TINValidationRecord.findOneAndUpdate(
-            { contractorId, tenantId: req.tenantId },
+            {
+                contractorId
+            },
             {
                 tinType, tinValue, legalName, irsMatchStatus: status,
                 requiresBackupWithholding, lastValidatedAt: new Date()
@@ -66,7 +72,9 @@ exports.generateFIREFile = async (req, res, next) => {
 
         // Aggregate YTD payments per contractor
         const aggregations = await ContractorPaymentLedger.aggregate([
-            { $match: { tenantId: req.tenantId, taxYear } },
+            { $match: {
+                taxYear
+            } },
             {
                 $group: {
                     _id: '$contractorId',
@@ -106,8 +114,11 @@ exports.generateFIREFile = async (req, res, next) => {
 
         const fileName = `IRS_FIRE_1099_${taxYear}_${payerTIN}.txt`;
         const draft = await Form1099Draft.create({
-            tenantId: req.tenantId, taxYear, totalNECRecords: necCount, totalMISCRecords: miscCount,
-            fileContent, fileName
+            taxYear,
+            totalNECRecords: necCount,
+            totalMISCRecords: miscCount,
+            fileContent,
+            fileName
         });
 
         res.status(201).json({ message: 'FIRE file generated', draft });
@@ -119,7 +130,9 @@ exports.getDashboard = async (req, res, next) => {
         const currentYear = new Date().getFullYear();
 
         const accumulations = await ContractorPaymentLedger.aggregate([
-            { $match: { tenantId: req.tenantId, taxYear: currentYear } },
+            { $match: {
+                taxYear: currentYear
+            } },
             {
                 $group: {
                     _id: '$contractorId',
@@ -129,8 +142,8 @@ exports.getDashboard = async (req, res, next) => {
             }
         ]);
 
-        const tinRecords = await TINValidationRecord.find({ tenantId: req.tenantId });
-        const drafts = await Form1099Draft.find({ tenantId: req.tenantId }).sort({ createdAt: -1 }).limit(5);
+        const tinRecords = await TINValidationRecord.find({});
+        const drafts = await Form1099Draft.find({}).sort({ createdAt: -1 }).limit(5);
 
         res.status(200).json({ accumulations, tinRecords, drafts });
     } catch (error) { next(error); }

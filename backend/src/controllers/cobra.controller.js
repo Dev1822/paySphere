@@ -13,8 +13,10 @@ exports.logQualifyingEvent = async (req, res, next) => {
         const { employeeId, eventType, eventDate, coverageEndDate, baseMonthlyPremium } = req.body;
 
         const event = await COBRAQualifyingEvent.create({
-            tenantId: req.tenantId, employeeId, eventType,
-            eventDate: new Date(eventDate), coverageEndDate: new Date(coverageEndDate)
+            employeeId,
+            eventType,
+            eventDate: new Date(eventDate),
+            coverageEndDate: new Date(coverageEndDate)
         });
 
         // Check ERISA Deadline immediately
@@ -68,11 +70,15 @@ exports.submitElection = async (req, res, next) => {
         maxCoverageEndDate.setMonth(maxCoverageEndDate.getMonth() + maxMonths);
 
         const election = await COBRAElection.create([{
-            tenantId: req.tenantId, eventId, electionDate: new Date(electionDate),
-            coverageStartDate: event.coverageEndDate, maxCoverageEndDate,
-            baseMonthlyPremium, adminFeeRate: premiumCalc.adminFeeRate,
+            eventId,
+            electionDate: new Date(electionDate),
+            coverageStartDate: event.coverageEndDate,
+            maxCoverageEndDate,
+            baseMonthlyPremium,
+            adminFeeRate: premiumCalc.adminFeeRate,
             totalMonthlyPremium: premiumCalc.totalMonthlyPremium,
-            isDisabilityExtension, status: 'Active'
+            isDisabilityExtension,
+            status: 'Active'
         }], { session });
 
         // Generate first month billing ledger
@@ -81,10 +87,14 @@ exports.submitElection = async (req, res, next) => {
         firstGraceEndDate.setDate(firstGraceEndDate.getDate() + 45); // 45-day initial grace period
 
         await PremiumBillingLedger.create([{
-            tenantId: req.tenantId, electionId: election[0]._id,
-            coverageMonth: firstDueDate.getMonth() + 1, coverageYear: firstDueDate.getFullYear(),
-            amountDue: premiumCalc.totalMonthlyPremium, dueDate: firstDueDate,
-            gracePeriodEndDate: firstGraceEndDate, isFirstPayment: true, status: 'Unpaid'
+            electionId: election[0]._id,
+            coverageMonth: firstDueDate.getMonth() + 1,
+            coverageYear: firstDueDate.getFullYear(),
+            amountDue: premiumCalc.totalMonthlyPremium,
+            dueDate: firstDueDate,
+            gracePeriodEndDate: firstGraceEndDate,
+            isFirstPayment: true,
+            status: 'Unpaid'
         }], { session });
 
         event.status = 'Elected';
@@ -126,13 +136,17 @@ exports.recordPayment = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const events = await COBRAQualifyingEvent.find({ tenantId: req.tenantId })
+        const events = await COBRAQualifyingEvent.find({})
             .populate('employeeId', 'fullName').sort({ eventDate: -1 }).limit(50);
 
-        const elections = await COBRAElection.find({ tenantId: req.tenantId, status: 'Active' })
+        const elections = await COBRAElection.find({
+            status: 'Active'
+        })
             .populate({ path: 'eventId', populate: { path: 'employeeId', select: 'fullName' } });
 
-        const unpaidLedgers = await PremiumBillingLedger.find({ tenantId: req.tenantId, status: { $in: ['Unpaid', 'Grace Period'] } })
+        const unpaidLedgers = await PremiumBillingLedger.find({
+            status: { $in: ['Unpaid', 'Grace Period'] }
+        })
             .populate({ path: 'electionId', populate: { path: 'eventId', populate: { path: 'employeeId', select: 'fullName' } } });
 
         // Calculate compliance metrics

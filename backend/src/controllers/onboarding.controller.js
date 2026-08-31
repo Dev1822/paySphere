@@ -62,11 +62,10 @@ exports.createPlan = async (req, res, next) => {
     }
 
     const plan = await OnboardingPlan.create({
-      tenantId: req.tenantId,
       name: sanitizeText(name),
       description: description ? sanitizeText(description) : '',
       tasks: sanitisedTasks,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -97,7 +96,7 @@ exports.createPlan = async (req, res, next) => {
 exports.getPlans = async (req, res, next) => {
   try {
     const { isActive } = req.query;
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (isActive !== undefined) filter.isActive = isActive === 'true';
 
     const plans = await OnboardingPlan.find(filter)
@@ -120,8 +119,7 @@ exports.getPlanById = async (req, res, next) => {
   try {
     const { id } = req.params;
     const plan = await OnboardingPlan.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     }).populate('createdBy', 'fullName email');
 
     if (!plan)
@@ -144,8 +142,7 @@ exports.updatePlan = async (req, res, next) => {
     const { name, description, isActive } = req.body;
 
     const plan = await OnboardingPlan.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!plan)
       return res.status(404).json({ message: 'Onboarding plan not found' });
@@ -205,8 +202,7 @@ exports.addTaskToPlan = async (req, res, next) => {
     }
 
     const plan = await OnboardingPlan.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!plan)
       return res.status(404).json({ message: 'Onboarding plan not found' });
@@ -253,8 +249,7 @@ exports.deletePlan = async (req, res, next) => {
 
     // Check if any tasks reference this plan
     const activeTasks = await OnboardingTask.countDocuments({
-      planId: id,
-      tenantId: req.tenantId,
+      planId: id
     });
     if (activeTasks > 0) {
       return res.status(400).json({
@@ -263,8 +258,7 @@ exports.deletePlan = async (req, res, next) => {
     }
 
     const plan = await OnboardingPlan.findOneAndDelete({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!plan)
       return res.status(404).json({ message: 'Onboarding plan not found' });
@@ -306,8 +300,7 @@ exports.startOnboarding = async (req, res, next) => {
 
     const plan = await OnboardingPlan.findOne({
       _id: planId,
-      tenantId: req.tenantId,
-      isActive: true,
+      isActive: true
     });
     if (!plan)
       return res
@@ -315,8 +308,7 @@ exports.startOnboarding = async (req, res, next) => {
         .json({ message: 'Active onboarding plan not found' });
 
     const employee = await Employee.findOne({
-      _id: employeeId,
-      tenantId: req.tenantId,
+      _id: employeeId
     });
     if (!employee)
       return res.status(404).json({ message: 'Employee not found' });
@@ -324,8 +316,7 @@ exports.startOnboarding = async (req, res, next) => {
     // Check for existing onboarding
     const existingTasks = await OnboardingTask.countDocuments({
       employeeId,
-      planId,
-      tenantId: req.tenantId,
+      planId
     });
     if (existingTasks > 0) {
       return res
@@ -335,17 +326,18 @@ exports.startOnboarding = async (req, res, next) => {
 
     const joinDate = new Date(joiningDate);
     const taskInstances = plan.tasks.map((t) => ({
-      tenantId: req.tenantId,
       employeeId,
       planId: plan._id,
       templateTaskId: t._id,
       title: t.title,
       description: t.description,
       department: t.department,
+
       dueDate: new Date(
         joinDate.getTime() + t.dueOffsetDays * 24 * 60 * 60 * 1000,
       ),
-      status: 'Pending',
+
+      status: 'Pending'
     }));
 
     const created = await OnboardingTask.insertMany(taskInstances);
@@ -369,9 +361,8 @@ exports.startOnboarding = async (req, res, next) => {
     if (employee.employmentStatus === EMPLOYMENT_STATUS.PROBATION) {
       try {
         await ProbationTrackerService.initiateProbation({
-          tenantId: req.tenantId,
           employeeId: employee._id,
-          createdBy: req.userId,
+          createdBy: req.userId
         });
       } catch (probationErr) {
         logger.error('Failed to auto-initiate probation during onboarding', {
@@ -402,8 +393,7 @@ exports.getEmployeeTasks = async (req, res, next) => {
     const { employeeId } = req.params;
 
     const tasks = await OnboardingTask.find({
-      employeeId,
-      tenantId: req.tenantId,
+      employeeId
     })
       .sort({ dueDate: 1 })
       .populate('assigneeId', 'fullName email');
@@ -433,8 +423,7 @@ exports.updateTaskStatus = async (req, res, next) => {
     }
 
     const task = await OnboardingTask.findOne({
-      _id: taskId,
-      tenantId: req.tenantId,
+      _id: taskId
     });
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
@@ -481,8 +470,7 @@ exports.getOnboardingProgress = async (req, res, next) => {
     const { employeeId } = req.params;
 
     const tasks = await OnboardingTask.find({
-      employeeId,
-      tenantId: req.tenantId,
+      employeeId
     });
 
     if (tasks.length === 0) {
@@ -601,18 +589,16 @@ exports.uploadDocument = async (req, res, next) => {
       return res.status(400).json({ message: 'fileName is required' });
 
     const employee = await Employee.findOne({
-      _id: employeeId,
-      tenantId: req.tenantId,
+      _id: employeeId
     });
     if (!employee)
       return res.status(404).json({ message: 'Employee not found' });
 
     const doc = await OnboardingDocument.create({
-      tenantId: req.tenantId,
       employeeId,
       documentType: sanitizeText(documentType),
       fileUrl,
-      fileName: sanitizeText(fileName),
+      fileName: sanitizeText(fileName)
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -656,8 +642,7 @@ exports.verifyDocument = async (req, res, next) => {
     }
 
     const doc = await OnboardingDocument.findOne({
-      _id: documentId,
-      tenantId: req.tenantId,
+      _id: documentId
     });
     if (!doc) return res.status(404).json({ message: 'Document not found' });
 
@@ -702,8 +687,7 @@ exports.getEmployeeDocuments = async (req, res, next) => {
     const { employeeId } = req.params;
 
     const documents = await OnboardingDocument.find({
-      employeeId,
-      tenantId: req.tenantId,
+      employeeId
     }).sort({ createdAt: -1 });
 
     return res.status(200).json({ documents });

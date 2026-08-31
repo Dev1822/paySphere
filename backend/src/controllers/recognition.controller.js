@@ -10,9 +10,9 @@ const logger = require('../utils/logger');
 
 exports.getConfig = async (req, res, next) => {
     try {
-        let config = await RecognitionConfig.findOne({ tenantId: req.tenantId });
+        let config = await RecognitionConfig.findOne({});
         if (!config) {
-            config = await RecognitionConfig.create({ tenantId: req.tenantId });
+            config = await RecognitionConfig.create({});
         }
         res.status(200).json({ config });
     } catch (error) { next(error); }
@@ -22,7 +22,7 @@ exports.updateConfig = async (req, res, next) => {
     try {
         const { monthlyAllowance, maxCarryOver, redemptionRate, isActive } = req.body;
         const config = await RecognitionConfig.findOneAndUpdate(
-            { tenantId: req.tenantId },
+            {},
             { monthlyAllowance, maxCarryOver, redemptionRate, isActive, updatedAt: new Date() },
             { upsert: true, new: true }
         );
@@ -32,12 +32,18 @@ exports.updateConfig = async (req, res, next) => {
 
 exports.getMyBalance = async (req, res, next) => {
     try {
-        const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+        const employee = await Employee.findOne({
+            userId: req.userId
+        });
         if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
-        let balance = await KudosBalance.findOne({ tenantId: req.tenantId, employeeId: employee._id });
+        let balance = await KudosBalance.findOne({
+            employeeId: employee._id
+        });
         if (!balance) {
-            balance = await KudosBalance.create({ tenantId: req.tenantId, employeeId: employee._id });
+            balance = await KudosBalance.create({
+                employeeId: employee._id
+            });
         }
         res.status(200).json({ balance });
     } catch (error) { next(error); }
@@ -46,16 +52,22 @@ exports.getMyBalance = async (req, res, next) => {
 exports.giveKudos = async (req, res, next) => {
     try {
         const { receiverId, points, message, isPublic } = req.body;
-        const sender = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+        const sender = await Employee.findOne({
+            userId: req.userId
+        });
         if (!sender) return res.status(404).json({ message: 'Sender profile not found' });
         if (sender._id.toString() === receiverId) return res.status(400).json({ message: 'Cannot award Kudos to yourself.' });
 
-        let senderBalance = await KudosBalance.findOne({ tenantId: req.tenantId, employeeId: sender._id });
+        let senderBalance = await KudosBalance.findOne({
+            employeeId: sender._id
+        });
         if (!senderBalance || senderBalance.availablePoints < points) {
             return res.status(400).json({ message: 'Insufficient Kudos balance.' });
         }
 
-        const receiver = await Employee.findOne({ _id: receiverId, tenantId: req.tenantId });
+        const receiver = await Employee.findOne({
+            _id: receiverId
+        });
         if (!receiver) return res.status(404).json({ message: 'Receiver not found' });
 
         // Deduct from sender
@@ -63,9 +75,13 @@ exports.giveKudos = async (req, res, next) => {
         await senderBalance.save();
 
         // Credit to receiver
-        let receiverBalance = await KudosBalance.findOne({ tenantId: req.tenantId, employeeId: receiver._id });
+        let receiverBalance = await KudosBalance.findOne({
+            employeeId: receiver._id
+        });
         if (!receiverBalance) {
-            receiverBalance = new KudosBalance({ tenantId: req.tenantId, employeeId: receiver._id });
+            receiverBalance = new KudosBalance({
+                employeeId: receiver._id
+            });
         }
         receiverBalance.availablePoints += points;
         receiverBalance.lifetimeEarned += points;
@@ -73,7 +89,6 @@ exports.giveKudos = async (req, res, next) => {
 
         // Log transaction
         const ledger = await KudosLedger.create({
-            tenantId: req.tenantId,
             senderId: sender._id,
             receiverId: receiver._id,
             points,
@@ -88,7 +103,9 @@ exports.giveKudos = async (req, res, next) => {
 
 exports.getFeed = async (req, res, next) => {
     try {
-        const feed = await KudosLedger.find({ tenantId: req.tenantId, isPublic: true })
+        const feed = await KudosLedger.find({
+            isPublic: true
+        })
             .populate('senderId', 'fullName profilePicture')
             .populate('receiverId', 'fullName profilePicture')
             .sort({ createdAt: -1 })
@@ -100,12 +117,16 @@ exports.getFeed = async (req, res, next) => {
 exports.redeemKudos = async (req, res, next) => {
     try {
         const { points } = req.body;
-        const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
-        const config = await RecognitionConfig.findOne({ tenantId: req.tenantId });
+        const employee = await Employee.findOne({
+            userId: req.userId
+        });
+        const config = await RecognitionConfig.findOne({});
 
         if (!config) return res.status(400).json({ message: 'Recognition program not configured.' });
 
-        let balance = await KudosBalance.findOne({ tenantId: req.tenantId, employeeId: employee._id });
+        let balance = await KudosBalance.findOne({
+            employeeId: employee._id
+        });
         if (!balance || balance.availablePoints < points) {
             return res.status(400).json({ message: 'Insufficient Kudos for redemption.' });
         }
@@ -117,7 +138,6 @@ exports.redeemKudos = async (req, res, next) => {
         await balance.save();
 
         await KudosLedger.create({
-            tenantId: req.tenantId,
             senderId: employee._id,
             receiverId: employee._id,
             points: -points,

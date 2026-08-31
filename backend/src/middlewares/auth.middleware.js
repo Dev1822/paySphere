@@ -22,6 +22,7 @@
 
 const jwt = require('jsonwebtoken');
 
+const asyncContext = require('../utils/asyncContext');
 const User = require('../models/user.model');
 const { validateApiKey } = require('../services/apiKey.service');
 const { resolveAccountType } = require('../config/accountTypes');
@@ -166,7 +167,9 @@ const auth = async (req, res, next) => {
       };
       req.userId = apiKeyDoc.createdBy.toString();
 
-      next();
+      asyncContext.run({ tenantId: req.tenantId, bypass: false }, () => {
+        next();
+      });
       return;
     }
 
@@ -207,7 +210,9 @@ const auth = async (req, res, next) => {
       req.impersonatorEmail = decoded.impersonatorEmail;
     }
 
-    next();
+    asyncContext.run({ tenantId: req.tenantId, bypass: false }, () => {
+      next();
+    });
   } catch (error) {
     if (error.name === 'MissingTenantError') {
       res.status(403).json({ message: error.message });

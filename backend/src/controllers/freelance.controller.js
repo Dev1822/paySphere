@@ -16,7 +16,10 @@ exports.createContract = async (req, res, next) => {
 
         // Check Budget Guardrail
         const currentSpend = await FreelanceContract.aggregate([
-            { $match: { tenantId: req.tenantId, department, status: { $in: ['Funded', 'In Progress'] } } },
+            { $match: {
+                department,
+                status: { $in: ['Funded', 'In Progress'] }
+            } },
             { $group: { _id: null, total: { $sum: '$totalBudget' } } }
         ]);
         const currentDepartmentSpend = currentSpend.length > 0 ? currentSpend[0].total : 0;
@@ -29,8 +32,11 @@ exports.createContract = async (req, res, next) => {
         }
 
         const contract = await FreelanceContract.create([{
-            tenantId: req.tenantId,
-            contractorId, contractorName, title, department, totalBudget,
+            contractorId,
+            contractorName,
+            title,
+            department,
+            totalBudget,
             platformFeeRate: platformFeeRate || 0.025,
             withholdingTaxRate: withholdingTaxRate || 0.10,
             departmentBudgetLimit: deptLimit,
@@ -65,7 +71,6 @@ exports.fundEscrow = async (req, res, next) => {
         await contract.save({ session });
 
         await EscrowLedger.create([{
-            tenantId: req.tenantId,
             contractId: contract._id,
             transactionType: 'Initial Funding',
             amount: amount,
@@ -116,14 +121,20 @@ exports.approveMilestone = async (req, res, next) => {
         // Ledger entries
         await EscrowLedger.create([
             {
-                tenantId: req.tenantId, contractId: contract._id, transactionType: 'Milestone Release',
-                amount: -deductions.netPayout, balanceAfter: contract.lockedAmount,
-                description: `Net payout for ${milestone.title}`, processedBy: req.userId
+                contractId: contract._id,
+                transactionType: 'Milestone Release',
+                amount: -deductions.netPayout,
+                balanceAfter: contract.lockedAmount,
+                description: `Net payout for ${milestone.title}`,
+                processedBy: req.userId
             },
             {
-                tenantId: req.tenantId, contractId: contract._id, transactionType: 'Fee Deduction',
-                amount: -deductions.platformFee, balanceAfter: contract.lockedAmount,
-                description: `Platform fee (${contract.platformFeeRate * 100}%)`, processedBy: req.userId
+                contractId: contract._id,
+                transactionType: 'Fee Deduction',
+                amount: -deductions.platformFee,
+                balanceAfter: contract.lockedAmount,
+                description: `Platform fee (${contract.platformFeeRate * 100}%)`,
+                processedBy: req.userId
             }
         ], { session });
 
@@ -140,14 +151,16 @@ exports.approveMilestone = async (req, res, next) => {
 
 exports.getContracts = async (req, res, next) => {
     try {
-        const contracts = await FreelanceContract.find({ tenantId: req.tenantId }).sort({ createdAt: -1 });
+        const contracts = await FreelanceContract.find({}).sort({ createdAt: -1 });
         res.status(200).json({ contracts });
     } catch (error) { next(error); }
 };
 
 exports.getLedger = async (req, res, next) => {
     try {
-        const ledger = await EscrowLedger.find({ contractId: req.params.contractId, tenantId: req.tenantId }).sort({ createdAt: -1 });
+        const ledger = await EscrowLedger.find({
+            contractId: req.params.contractId
+        }).sort({ createdAt: -1 });
         res.status(200).json({ ledger });
     } catch (error) { next(error); }
 };

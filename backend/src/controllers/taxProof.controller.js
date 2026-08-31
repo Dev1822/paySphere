@@ -9,7 +9,6 @@ const {
   calculateTDSAdjustment,
   aggregateApprovedDeductions,
 } = require('../utils/tdsAdjuster');
-const { tenantFilter } = require('../utils/tenantScope');
 const eventBus = require('../services/event.service');
 
 /**
@@ -22,19 +21,17 @@ exports.submitProof = async (req, res, next) => {
 
     // In a real app, req.userId would map to the employeeId, or HR submits on behalf
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     });
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
 
     const proof = await TaxProof.create({
-      tenantId: req.tenantId,
       employeeId: employee._id,
       financialYear,
       sectionType,
       claimedAmount: Number(claimedAmount),
-      receiptUrls: receiptUrls || [],
+      receiptUrls: receiptUrls || []
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -67,15 +64,13 @@ exports.submitProof = async (req, res, next) => {
 exports.getMyProofs = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     });
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
 
     const proofs = await TaxProof.find({
-      employeeId: employee._id,
-      tenantId: req.tenantId,
+      employeeId: employee._id
     }).sort({ createdAt: -1 });
     const aggregated = aggregateApprovedDeductions(proofs);
 
@@ -92,7 +87,7 @@ exports.getMyProofs = async (req, res, next) => {
 exports.getVerificationQueue = async (req, res, next) => {
   try {
     const { status, financialYear } = req.query;
-    const query = { tenantId: req.tenantId };
+    const query = {};
 
     if (status) query.status = status;
     if (financialYear) query.financialYear = Number(financialYear);
@@ -128,7 +123,7 @@ exports.verifyProof = async (req, res, next) => {
     // tenant, so ObjectId-versus-string cannot arise, and another
     // company's proof is unfetchable rather than fetched and then rejected.
     const proof = await TaxProof.findOne(
-      tenantFilter(req, { _id: req.params.id }),
+      { _id: req.params.id },
     );
 
     if (!proof) {

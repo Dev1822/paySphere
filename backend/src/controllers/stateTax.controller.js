@@ -11,8 +11,15 @@ const logger = require('../utils/logger');
 exports.createAgreement = async (req, res, next) => {
     try {
         const agreement = await ReciprocityAgreement.findOneAndUpdate(
-            { tenantId: req.tenantId, residentState: req.body.residentState.toUpperCase(), workState: req.body.workState.toUpperCase() },
-            { ...req.body, tenantId: req.tenantId, residentState: req.body.residentState.toUpperCase(), workState: req.body.workState.toUpperCase() },
+            {
+                residentState: req.body.residentState.toUpperCase(),
+                workState: req.body.workState.toUpperCase()
+            },
+            {
+                ...req.body,
+                residentState: req.body.residentState.toUpperCase(),
+                workState: req.body.workState.toUpperCase()
+            },
             { upsert: true, new: true }
         );
         res.status(200).json({ message: 'Reciprocity agreement saved', agreement });
@@ -24,11 +31,16 @@ exports.updateEmployeeProfile = async (req, res, next) => {
         const { employeeId, residentState, primaryWorkState, hasReciprocityExemption, exemptionFormUrl } = req.body;
 
         const profile = await StateTaxProfile.findOneAndUpdate(
-            { employeeId, tenantId: req.tenantId },
             {
-                tenantId: req.tenantId, employeeId, residentState: residentState.toUpperCase(),
-                primaryWorkState: primaryWorkState.toUpperCase(), hasReciprocityExemption,
-                exemptionFormUrl, exemptionFormUploaded: !!exemptionFormUrl
+                employeeId
+            },
+            {
+                employeeId,
+                residentState: residentState.toUpperCase(),
+                primaryWorkState: primaryWorkState.toUpperCase(),
+                hasReciprocityExemption,
+                exemptionFormUrl,
+                exemptionFormUploaded: !!exemptionFormUrl
             },
             { upsert: true, new: true }
         );
@@ -41,12 +53,13 @@ exports.evaluateTaxLiability = async (req, res, next) => {
     try {
         const { employeeId, grossPay, daysWorkedInWorkState } = req.body;
 
-        const profile = await StateTaxProfile.findOne({ employeeId, tenantId: req.tenantId });
+        const profile = await StateTaxProfile.findOne({
+            employeeId
+        });
         if (!profile) return res.status(404).json({ message: 'State tax profile not found for employee.' });
 
         // 1. Check Reciprocity
         const agreement = await ReciprocityAgreement.findOne({
-            tenantId: req.tenantId,
             residentState: profile.residentState,
             workState: profile.primaryWorkState,
             isActive: true
@@ -61,7 +74,9 @@ exports.evaluateTaxLiability = async (req, res, next) => {
         }
 
         // 3. Calculate Local Tax (Mocked: fetch first matching jurisdiction for work state)
-        const jurisdiction = await LocalTaxJurisdiction.findOne({ tenantId: req.tenantId, stateCode: profile.primaryWorkState });
+        const jurisdiction = await LocalTaxJurisdiction.findOne({
+            stateCode: profile.primaryWorkState
+        });
         const localTax = calculateLocalTax(grossPay, jurisdiction, profile.residentState === profile.primaryWorkState);
 
         const result = {
@@ -81,9 +96,9 @@ exports.evaluateTaxLiability = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const agreements = await ReciprocityAgreement.find({ tenantId: req.tenantId }).sort({ residentState: 1 });
-        const jurisdictions = await LocalTaxJurisdiction.find({ tenantId: req.tenantId });
-        const profiles = await StateTaxProfile.find({ tenantId: req.tenantId })
+        const agreements = await ReciprocityAgreement.find({}).sort({ residentState: 1 });
+        const jurisdictions = await LocalTaxJurisdiction.find({});
+        const profiles = await StateTaxProfile.find({})
             .populate('employeeId', 'fullName')
             .limit(100);
 

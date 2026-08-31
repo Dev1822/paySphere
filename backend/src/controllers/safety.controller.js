@@ -22,9 +22,17 @@ exports.logIncident = async (req, res, next) => {
         const reportingCheck = checkImmediateReporting(severity, new Date(incidentDate), new Date());
 
         const incident = await WorkplaceIncident.create({
-            tenantId: req.tenantId, employeeId, incidentDate: new Date(incidentDate),
-            description, location, isWorkRelated, severity, isRecordable, isDART,
-            daysAway, daysRestricted, daysTransferred,
+            employeeId,
+            incidentDate: new Date(incidentDate),
+            description,
+            location,
+            isWorkRelated,
+            severity,
+            isRecordable,
+            isDART,
+            daysAway,
+            daysRestricted,
+            daysTransferred,
             requiresImmediateReporting: reportingCheck.requiresReporting
         });
 
@@ -58,7 +66,6 @@ exports.generate300A = async (req, res, next) => {
         const { year, totalHoursWorked } = req.body;
 
         const incidents = await WorkplaceIncident.find({
-            tenantId: req.tenantId,
             incidentDate: {
                 $gte: new Date(`${year}-01-01`),
                 $lte: new Date(`${year}-12-31`)
@@ -69,7 +76,9 @@ exports.generate300A = async (req, res, next) => {
 
         // Upsert the annual ledger
         const ledger = await DARTLedger.findOneAndUpdate(
-            { tenantId: req.tenantId, year },
+            {
+                year
+            },
             { ...summary },
             { upsert: true, new: true }
         );
@@ -83,11 +92,13 @@ exports.getDashboard = async (req, res, next) => {
     try {
         const currentYear = new Date().getFullYear();
 
-        const recentIncidents = await WorkplaceIncident.find({ tenantId: req.tenantId })
+        const recentIncidents = await WorkplaceIncident.find({})
             .populate('employeeId', 'fullName department')
             .sort({ incidentDate: -1 }).limit(50);
 
-        const ledger = await DARTLedger.findOne({ tenantId: req.tenantId, year: currentYear });
+        const ledger = await DARTLedger.findOne({
+            year: currentYear
+        });
 
         // Calculate overdue alerts
         const overdueAlerts = recentIncidents.filter(inc => {

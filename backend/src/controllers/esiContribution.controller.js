@@ -258,11 +258,10 @@ async function runAssessment(req) {
 
   const rules = await resolveRules(req.tenantId, subCode);
   const { rows, period } = await assembleperiod({
-    tenantId: req.tenantId,
     subCode,
     month,
     year,
-    rules,
+    rules
   });
 
   const result = assessPeriod(rows, {
@@ -336,12 +335,13 @@ exports.updateRules = async (req, res, next) => {
     }
 
     const before = await EsiRules.findOne({
-      tenantId: req.tenantId,
-      subCode,
+      subCode
     }).lean();
 
     const rules = await EsiRules.findOneAndUpdate(
-      { tenantId: req.tenantId, subCode },
+      {
+        subCode
+      },
       { $set: { ...update, updatedBy: req.userId } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -443,7 +443,11 @@ exports.fileReturn = async (req, res, next) => {
       : { interest: 0, damages: 0, band: null, daysLate: 0 };
 
     const esiReturn = await EsiReturn.findOneAndUpdate(
-      { tenantId: req.tenantId, subCode, month, year },
+      {
+        subCode,
+        month,
+        year
+      },
       {
         $set: {
           periodKey: period.key,
@@ -508,9 +512,8 @@ exports.fileReturn = async (req, res, next) => {
       return {
         updateOne: {
           filter: {
-            tenantId: req.tenantId,
             employeeId: employee.employeeId,
-            periodKey: period.key,
+            periodKey: period.key
           },
           update: {
             $set: {
@@ -558,7 +561,7 @@ exports.fileReturn = async (req, res, next) => {
  */
 exports.listReturns = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (typeof req.query.subCode === 'string') {
       filter.subCode = req.query.subCode.trim();
     }
@@ -584,8 +587,7 @@ exports.getReturn = async (req, res, next) => {
     }
 
     const esiReturn = await EsiReturn.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!esiReturn) {
@@ -614,8 +616,7 @@ exports.getCoverage = async (req, res, next) => {
     const period = contributionPeriodFor(at);
 
     const states = await EsiCoverageState.find({
-      tenantId: req.tenantId,
-      periodKey: period.key,
+      periodKey: period.key
     })
       .populate('employeeId', 'fullName')
       .sort({ status: 1 })

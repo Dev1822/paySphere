@@ -19,7 +19,6 @@ exports.getTodaysCelebrations = async (req, res, next) => {
         tomorrow.setDate(tomorrow.getDate() + 1);
 
         const celebrations = await Celebration.find({
-            tenantId: req.tenantId,
             eventDate: { $gte: today, $lt: tomorrow }
         })
             .populate('employeeId', 'fullName profilePicture department')
@@ -44,7 +43,6 @@ exports.getUpcomingCelebrations = async (req, res, next) => {
         nextWeek.setDate(nextWeek.getDate() + 7);
 
         const celebrations = await Celebration.find({
-            tenantId: req.tenantId,
             eventDate: { $gte: today, $lt: nextWeek }
         })
             .populate('employeeId', 'fullName profilePicture')
@@ -63,8 +61,7 @@ exports.getUpcomingCelebrations = async (req, res, next) => {
 exports.reactToCelebration = async (req, res, next) => {
     try {
         const celebration = await Celebration.findOne({
-            _id: req.params.id,
-            tenantId: req.tenantId
+            _id: req.params.id
         });
 
         if (!celebration) {

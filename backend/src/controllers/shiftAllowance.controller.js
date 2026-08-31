@@ -10,14 +10,18 @@ const logger = require('../utils/logger');
 
 exports.createRule = async (req, res, next) => {
     try {
-        const rule = await AllowanceRule.create({ ...req.body, tenantId: req.tenantId });
+        const rule = await AllowanceRule.create({
+            ...req.body
+        });
         res.status(201).json({ message: 'Allowance rule created', rule });
     } catch (error) { next(error); }
 };
 
 exports.getRules = async (req, res, next) => {
     try {
-        const rules = await AllowanceRule.find({ tenantId: req.tenantId, isActive: true });
+        const rules = await AllowanceRule.find({
+            isActive: true
+        });
         res.status(200).json({ rules });
     } catch (error) { next(error); }
 };
@@ -26,8 +30,10 @@ exports.assignOnCall = async (req, res, next) => {
     try {
         const { employeeId, startDate, endDate, dailyStipend } = req.body;
         const schedule = await OnCallSchedule.create({
-            tenantId: req.tenantId, employeeId, startDate: new Date(startDate),
-            endDate: new Date(endDate), dailyStipend
+            employeeId,
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+            dailyStipend
         });
         res.status(201).json({ message: 'On-call schedule created', schedule });
     } catch (error) { next(error); }
@@ -42,14 +48,17 @@ exports.calculateMonthlyAllowances = async (req, res, next) => {
     try {
         const { month, year, employeeId, punchLogs, baseHourlyRate, publicHolidays } = req.body;
 
-        const rules = await AllowanceRule.find({ tenantId: req.tenantId, isActive: true });
+        const rules = await AllowanceRule.find({
+            isActive: true
+        });
 
         // 1. Calculate Shift Differentials
         const shiftItems = calculateShiftAllowances(punchLogs, rules, baseHourlyRate, publicHolidays || []);
 
         // 2. Calculate On-Call Stipends
         const onCallSchedules = await OnCallSchedule.find({
-            tenantId: req.tenantId, employeeId, status: { $in: ['Scheduled', 'Completed'] }
+            employeeId,
+            status: { $in: ['Scheduled', 'Completed'] }
         });
         const onCallItem = calculateOnCallStipends(onCallSchedules, month, year);
 
@@ -57,12 +66,17 @@ exports.calculateMonthlyAllowances = async (req, res, next) => {
         if (onCallItem.amount > 0) allItems.push(onCallItem);
 
         // 3. Save to PayoutLineItem (Clear existing drafts for this month first)
-        await PayoutLineItem.deleteMany({ tenantId: req.tenantId, employeeId, month, year, status: 'Calculated' });
+        await PayoutLineItem.deleteMany({
+            employeeId,
+            month,
+            year,
+            status: 'Calculated'
+        });
 
         const payloads = allItems.map(item => ({
-            tenantId: req.tenantId,
             employeeId,
-            month, year,
+            month,
+            year,
             componentName: item.componentName,
             ruleId: item.ruleId,
             premiumHours: item.premiumHours,
@@ -83,7 +97,7 @@ exports.calculateMonthlyAllowances = async (req, res, next) => {
 exports.getAuditBatch = async (req, res, next) => {
     try {
         const { month, year } = req.query;
-        const query = { tenantId: req.tenantId };
+        const query = {};
         if (month) query.month = Number(month);
         if (year) query.year = Number(year);
 
@@ -99,7 +113,9 @@ exports.approveBatch = async (req, res, next) => {
     try {
         const { itemIds } = req.body;
         await PayoutLineItem.updateMany(
-            { _id: { $in: itemIds }, tenantId: req.tenantId },
+            {
+                _id: { $in: itemIds }
+            },
             { $set: { status: 'Approved' } }
         );
         res.status(200).json({ message: 'Batch approved for payroll injection' });

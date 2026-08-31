@@ -8,8 +8,13 @@ const { evaluateWOTCCap, check28DaySLA } = require('../utils/wtcAllocationEngine
 exports.addTargetGroup = async (req, res, next) => {
     try {
         const group = await WOTCTargetGroup.findOneAndUpdate(
-            { tenantId: req.tenantId, groupCode: req.body.groupCode.toUpperCase() },
-            { ...req.body, tenantId: req.tenantId, groupCode: req.body.groupCode.toUpperCase() },
+            {
+                groupCode: req.body.groupCode.toUpperCase()
+            },
+            {
+                ...req.body,
+                groupCode: req.body.groupCode.toUpperCase()
+            },
             { upsert: true, new: true }
         );
         res.status(200).json({ message: 'Target group saved', group });
@@ -18,7 +23,9 @@ exports.addTargetGroup = async (req, res, next) => {
 
 exports.logCertification = async (req, res, next) => {
     try {
-        const cert = await WOTCCertificationTracker.create({ ...req.body, tenantId: req.tenantId });
+        const cert = await WOTCCertificationTracker.create({
+            ...req.body
+        });
         res.status(201).json({ message: 'Certification logged', cert });
     } catch (error) { next(error); }
 };
@@ -29,7 +36,10 @@ exports.allocatePayrollWages = async (req, res, next) => {
         const allocations = [];
 
         for (const p of employeePayouts) {
-            const cert = await WOTCCertificationTracker.findOne({ employeeId: p.employeeId, tenantId: req.tenantId, form8850Submitted: true });
+            const cert = await WOTCCertificationTracker.findOne({
+                employeeId: p.employeeId,
+                form8850Submitted: true
+            });
             if (!cert) continue;
 
             const group = await WOTCTargetGroup.findById(cert.targetGroupId);
@@ -39,9 +49,12 @@ exports.allocatePayrollWages = async (req, res, next) => {
             const calc = evaluateWOTCCap(p.grossWages, ytd, group.maxQualifiedWages);
 
             const ledger = await QualifiedWageLedger.create({
-                tenantId: req.tenantId, certificationId: cert._id, payrollRunId,
-                grossWages: p.grossWages, allocatedWages: calc.allocatedWages,
-                ytdAllocatedWages: calc.newYtd, capReached: calc.capReached
+                certificationId: cert._id,
+                payrollRunId,
+                grossWages: p.grossWages,
+                allocatedWages: calc.allocatedWages,
+                ytdAllocatedWages: calc.newYtd,
+                capReached: calc.capReached
             });
             allocations.push(ledger);
         }
@@ -51,8 +64,8 @@ exports.allocatePayrollWages = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const groups = await WOTCTargetGroup.find({ tenantId: req.tenantId });
-        const certs = await WOTCCertificationTracker.find({ tenantId: req.tenantId })
+        const groups = await WOTCTargetGroup.find({});
+        const certs = await WOTCCertificationTracker.find({})
             .populate('employeeId', 'fullName').populate('targetGroupId', 'groupCode');
 
         const slaAlerts = certs.map(c => ({

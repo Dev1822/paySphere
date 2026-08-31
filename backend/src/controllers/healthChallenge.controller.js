@@ -66,7 +66,6 @@ exports.createChallenge = async (req, res, next) => {
     }
 
     const challenge = await HealthChallenge.create({
-      tenantId: req.tenantId,
       title,
       description,
       category,
@@ -81,7 +80,7 @@ exports.createChallenge = async (req, res, next) => {
       teamSize: teamSize || 4,
       leaderboardVisible: leaderboardVisible !== false,
       reminderEnabled: reminderEnabled !== false,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emitAuditLog({
@@ -101,7 +100,7 @@ exports.createChallenge = async (req, res, next) => {
 
 exports.getChallenges = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (req.query.category) filter.category = req.query.category;
     if (req.query.isActive === 'true') filter.isActive = true;
     if (req.query.isOpen === 'true') filter.isOpen = true;
@@ -125,8 +124,7 @@ exports.getChallengeById = async (req, res, next) => {
     }
 
     const challenge = await HealthChallenge.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     })
       .populate('createdBy', 'fullName')
       .lean();
@@ -137,13 +135,11 @@ exports.getChallengeById = async (req, res, next) => {
     // Get participation stats
     const [participantCount, totalCheckIns] = await Promise.all([
       ChallengeParticipation.countDocuments({
-        tenantId: req.tenantId,
         challengeId: challenge._id,
-        status: 'Active',
+        status: 'Active'
       }),
       DailyCheckIn.countDocuments({
-        tenantId: req.tenantId,
-        challengeId: challenge._id,
+        challengeId: challenge._id
       }),
     ]);
 
@@ -167,8 +163,7 @@ exports.updateChallenge = async (req, res, next) => {
     }
 
     const challenge = await HealthChallenge.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!challenge)
       return res.status(404).json({ message: 'Challenge not found' });
@@ -207,8 +202,7 @@ exports.joinChallenge = async (req, res, next) => {
     }
 
     const challenge = await HealthChallenge.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!challenge)
       return res.status(404).json({ message: 'Challenge not found' });
@@ -220,8 +214,7 @@ exports.joinChallenge = async (req, res, next) => {
       return res.status(400).json({ message: 'Challenge is no longer active' });
 
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id fullName department');
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
@@ -229,9 +222,8 @@ exports.joinChallenge = async (req, res, next) => {
     // Check max participants
     if (challenge.maxParticipants > 0) {
       const count = await ChallengeParticipation.countDocuments({
-        tenantId: req.tenantId,
         challengeId: challenge._id,
-        status: 'Active',
+        status: 'Active'
       });
       if (count >= challenge.maxParticipants) {
         return res.status(400).json({ message: 'Challenge is full' });
@@ -240,9 +232,8 @@ exports.joinChallenge = async (req, res, next) => {
 
     // Check duplicate
     const existing = await ChallengeParticipation.findOne({
-      tenantId: req.tenantId,
       challengeId: challenge._id,
-      employeeId: employee._id,
+      employeeId: employee._id
     });
     if (existing) {
       if (existing.status === 'Active') {
@@ -259,11 +250,10 @@ exports.joinChallenge = async (req, res, next) => {
     }
 
     const participation = await ChallengeParticipation.create({
-      tenantId: req.tenantId,
       challengeId: challenge._id,
       employeeId: employee._id,
       enrolledAt: new Date(),
-      status: 'Active',
+      status: 'Active'
     });
 
     eventBus.emitAuditLog({
@@ -293,17 +283,15 @@ exports.leaveChallenge = async (req, res, next) => {
     }
 
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id');
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
 
     const participation = await ChallengeParticipation.findOne({
-      tenantId: req.tenantId,
       challengeId: req.params.id,
       employeeId: employee._id,
-      status: 'Active',
+      status: 'Active'
     });
     if (!participation)
       return res
@@ -324,15 +312,13 @@ exports.leaveChallenge = async (req, res, next) => {
 exports.getMyParticipations = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id');
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
 
     const participations = await ChallengeParticipation.find({
-      tenantId: req.tenantId,
-      employeeId: employee._id,
+      employeeId: employee._id
     })
       .populate(
         'challengeId',
@@ -361,25 +347,22 @@ exports.submitCheckIn = async (req, res, next) => {
     const { checkInDate, value, note, photoUrl } = req.body;
 
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id');
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
 
     const challenge = await HealthChallenge.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!challenge)
       return res.status(404).json({ message: 'Challenge not found' });
 
     // Verify participation
     const participation = await ChallengeParticipation.findOne({
-      tenantId: req.tenantId,
       challengeId: challenge._id,
       employeeId: employee._id,
-      status: 'Active',
+      status: 'Active'
     });
     if (!participation) {
       return res
@@ -409,10 +392,9 @@ exports.submitCheckIn = async (req, res, next) => {
 
     // Upsert check-in
     let checkIn = await DailyCheckIn.findOne({
-      tenantId: req.tenantId,
       challengeId: challenge._id,
       employeeId: employee._id,
-      checkInDate: date,
+      checkInDate: date
     });
 
     if (checkIn) {
@@ -423,7 +405,6 @@ exports.submitCheckIn = async (req, res, next) => {
       await checkIn.save();
     } else {
       checkIn = await DailyCheckIn.create({
-        tenantId: req.tenantId,
         challengeId: challenge._id,
         employeeId: employee._id,
         checkInDate: date,
@@ -431,15 +412,14 @@ exports.submitCheckIn = async (req, res, next) => {
         goalMet,
         note: note || '',
         photoUrl: photoUrl || '',
-        deviceSource: req.body.deviceSource || '',
+        deviceSource: req.body.deviceSource || ''
       });
     }
 
     // Update participation stats
     const allCheckIns = await DailyCheckIn.find({
-      tenantId: req.tenantId,
       challengeId: challenge._id,
-      employeeId: employee._id,
+      employeeId: employee._id
     }).sort({ checkInDate: 1 });
 
     const dates = allCheckIns.map((ci) => ci.checkInDate);
@@ -508,16 +488,14 @@ exports.getMyCheckIns = async (req, res, next) => {
     }
 
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id');
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
 
     const filter = {
-      tenantId: req.tenantId,
       challengeId: req.params.id,
-      employeeId: employee._id,
+      employeeId: employee._id
     };
     if (req.query.from)
       filter.checkInDate = {
@@ -552,8 +530,7 @@ exports.getLeaderboard = async (req, res, next) => {
     }
 
     const challenge = await HealthChallenge.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!challenge)
@@ -566,8 +543,7 @@ exports.getLeaderboard = async (req, res, next) => {
     }
 
     const checkIns = await DailyCheckIn.find({
-      tenantId: req.tenantId,
-      challengeId: challenge._id,
+      challengeId: challenge._id
     }).lean();
 
     const leaderboard = computeLeaderboard(checkIns, challenge);
@@ -607,16 +583,14 @@ exports.allocateChallengeRewards = async (req, res, next) => {
     }
 
     const challenge = await HealthChallenge.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!challenge)
       return res.status(404).json({ message: 'Challenge not found' });
 
     const checkIns = await DailyCheckIn.find({
-      tenantId: req.tenantId,
-      challengeId: challenge._id,
+      challengeId: challenge._id
     }).lean();
 
     const leaderboard = computeLeaderboard(checkIns, challenge);
@@ -634,9 +608,8 @@ exports.allocateChallengeRewards = async (req, res, next) => {
     for (const alloc of allocations) {
       await ChallengeParticipation.findOneAndUpdate(
         {
-          tenantId: req.tenantId,
           challengeId: challenge._id,
-          employeeId: alloc.employeeId,
+          employeeId: alloc.employeeId
         },
         {
           $set: {
@@ -672,8 +645,7 @@ exports.getChallengeAnalytics = async (req, res, next) => {
     }
 
     const challenge = await HealthChallenge.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!challenge)
@@ -681,16 +653,13 @@ exports.getChallengeAnalytics = async (req, res, next) => {
 
     const [participantCount, totalCheckIns, checkIns] = await Promise.all([
       ChallengeParticipation.countDocuments({
-        tenantId: req.tenantId,
-        challengeId: challenge._id,
+        challengeId: challenge._id
       }),
       DailyCheckIn.countDocuments({
-        tenantId: req.tenantId,
-        challengeId: challenge._id,
+        challengeId: challenge._id
       }),
       DailyCheckIn.find({
-        tenantId: req.tenantId,
-        challengeId: challenge._id,
+        challengeId: challenge._id
       }).lean(),
     ]);
 
@@ -753,26 +722,22 @@ exports.getDashboard = async (req, res, next) => {
     const [activeChallenges, upcomingChallenges, totalParticipants] =
       await Promise.all([
         HealthChallenge.countDocuments({
-          tenantId: req.tenantId,
           isActive: true,
           startDate: { $lte: now },
-          endDate: { $gte: now },
+          endDate: { $gte: now }
         }),
         HealthChallenge.countDocuments({
-          tenantId: req.tenantId,
           isActive: true,
-          startDate: { $gt: now },
+          startDate: { $gt: now }
         }),
         ChallengeParticipation.countDocuments({
-          tenantId: req.tenantId,
-          status: 'Active',
+          status: 'Active'
         }),
       ]);
 
     // My active participations
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     }).select('_id');
 
     let myActiveCount = 0;
@@ -780,13 +745,11 @@ exports.getDashboard = async (req, res, next) => {
     if (employee) {
       [myActiveCount, myTotalCheckIns] = await Promise.all([
         ChallengeParticipation.countDocuments({
-          tenantId: req.tenantId,
           employeeId: employee._id,
-          status: 'Active',
+          status: 'Active'
         }),
         DailyCheckIn.countDocuments({
-          tenantId: req.tenantId,
-          employeeId: employee._id,
+          employeeId: employee._id
         }),
       ]);
     }

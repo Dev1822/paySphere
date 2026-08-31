@@ -20,7 +20,9 @@ exports.setAllocation = async (req, res, next) => {
         }
 
         const allocation = await MatrixAllocation.findOneAndUpdate(
-            { employeeId, tenantId: req.tenantId },
+            {
+                employeeId
+            },
             {
                 administrativeManagerId,
                 operationalManagerId,
@@ -37,7 +39,9 @@ exports.setAllocation = async (req, res, next) => {
 
 exports.getAllocations = async (req, res, next) => {
     try {
-        const allocations = await MatrixAllocation.find({ tenantId: req.tenantId, isActive: true })
+        const allocations = await MatrixAllocation.find({
+            isActive: true
+        })
             .populate('employeeId', 'fullName department role')
             .populate('administrativeManagerId', 'fullName')
             .populate('operationalManagerId', 'fullName');
@@ -53,7 +57,6 @@ exports.simulateAllocation = async (req, res, next) => {
         // Mock payroll entry for simulation
         const mockPayroll = {
             _id: 'SIMULATION',
-            tenantId: req.tenantId,
             employeeId,
             grossSalary: Number(grossSalary),
             department: 'Simulated'
@@ -67,7 +70,7 @@ exports.simulateAllocation = async (req, res, next) => {
 exports.getAuditReport = async (req, res, next) => {
     try {
         const { payrollRunId } = req.query;
-        const query = { tenantId: req.tenantId };
+        const query = {};
         if (payrollRunId) query.payrollRunId = payrollRunId;
 
         const journals = await CostCenterJournal.find(query)

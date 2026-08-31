@@ -15,12 +15,11 @@ async function reconcileAnomaly(req, res) {
     }
 
     const reconciliation = await PayrollReconciliation.create({
-      tenantId: req.tenantId,
       payrollId,
       anomalyType,
       reconciledBy: req.userId,
       justification,
-      status: 'reconciled',
+      status: 'reconciled'
     });
 
     await Anomaly.updateMany(
@@ -38,7 +37,7 @@ async function reconcileAnomaly(req, res) {
 async function getReconciliations(req, res) {
   try {
     const { payrollId } = req.query;
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (payrollId) filter.payrollId = payrollId;
 
     const reconciliations = await PayrollReconciliation.find(filter)

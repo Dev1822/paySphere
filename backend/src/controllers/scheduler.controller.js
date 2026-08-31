@@ -6,7 +6,6 @@ const {
   MAX_RECIPIENTS,
 } = require("../models/reportSchedule.model");
 const { isValidEmail } = require("../utils/validators");
-const { requireTenant } = require("../utils/tenantScope");
 const logger = require("../utils/logger");
 
 /**

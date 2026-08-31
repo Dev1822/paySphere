@@ -132,7 +132,9 @@ exports.recordEstablishment = async (req, res, next) => {
     }
 
     const row = await StandingOrdersEstablishment.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment },
+      {
+        establishment
+      },
       {
         $set: {
           state,
@@ -187,8 +189,7 @@ exports.syncHeadcount = async (req, res, next) => {
     }
 
     const row = await StandingOrdersEstablishment.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!row) {
       return res.status(404).json({ message: 'Establishment not found' });
@@ -206,9 +207,8 @@ exports.syncHeadcount = async (req, res, next) => {
     const workmen =
       supplied === undefined || supplied === null
         ? await Employee.countDocuments({
-            tenantId: req.tenantId,
-            isActive: true,
-          })
+        isActive: true
+      })
         : Number(supplied);
 
     if (!Number.isFinite(workmen) || workmen < 0) {
@@ -304,8 +304,7 @@ exports.recordCertification = async (req, res, next) => {
     }
 
     const row = await StandingOrdersEstablishment.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!row) {
       return res.status(404).json({ message: 'Establishment not found' });
@@ -328,14 +327,12 @@ exports.recordCertification = async (req, res, next) => {
     }
 
     const highest = await CertifiedStandingOrders.findOne({
-      tenantId: req.tenantId,
-      establishmentId: row._id,
+      establishmentId: row._id
     })
       .sort({ revision: -1 })
       .lean();
 
     const set = await CertifiedStandingOrders.create({
-      tenantId: req.tenantId,
       establishmentId: row._id,
       revision: highest ? highest.revision + 1 : 1,
       certifiedOn: readDate(req.body.certifiedOn),
@@ -345,12 +342,11 @@ exports.recordCertification = async (req, res, next) => {
       appellateDecisionSentOn: readDate(req.body.appellateDecisionSentOn),
       coveredMatters,
       documentRef: String(req.body.documentRef || '').trim(),
-      recordedBy: req.userId,
+      recordedBy: req.userId
     });
 
     const sets = await CertifiedStandingOrders.find({
-      tenantId: req.tenantId,
-      establishmentId: row._id,
+      establishmentId: row._id
     }).lean();
 
     const position = assessEstablishment(shapeEstablishment(row, sets), {
@@ -416,16 +412,14 @@ exports.proposeModification = async (req, res, next) => {
     }
 
     const row = await StandingOrdersEstablishment.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!row) {
       return res.status(404).json({ message: 'Establishment not found' });
     }
 
     const sets = await CertifiedStandingOrders.find({
-      tenantId: req.tenantId,
-      establishmentId: row._id,
+      establishmentId: row._id
     }).lean();
 
     const proposedOn = readDate(req.body.proposedOn) || new Date();
@@ -458,18 +452,19 @@ exports.proposeModification = async (req, res, next) => {
       : [];
 
     const modification = await StandingOrdersModification.create({
-      tenantId: req.tenantId,
       establishmentId: row._id,
+
       ordersId: sets.length
         ? sets.sort((a, b) => b.revision - a.revision)[0]._id
         : null,
+
       description,
       matters,
       proposedOn,
       agreement,
       applicationMadeOn: readDate(req.body.applicationMadeOn),
       lastKnownVerdict: verdict.verdict,
-      recordedBy: req.userId,
+      recordedBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -508,14 +503,11 @@ exports.proposeModification = async (req, res, next) => {
  */
 exports.getQueue = async (req, res, next) => {
   try {
-    const rows = await StandingOrdersEstablishment.find({
-      tenantId: req.tenantId,
-    }).lean();
+    const rows = await StandingOrdersEstablishment.find({}).lean();
     const ids = rows.map((row) => row._id);
 
     const sets = await CertifiedStandingOrders.find({
-      tenantId: req.tenantId,
-      establishmentId: { $in: ids },
+      establishmentId: { $in: ids }
     }).lean();
 
     const byEstablishment = new Map();
@@ -590,8 +582,7 @@ exports.getPosition = async (req, res, next) => {
     }
 
     const row = await StandingOrdersEstablishment.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
     if (!row) {
       return res.status(404).json({ message: 'Establishment not found' });
@@ -599,14 +590,12 @@ exports.getPosition = async (req, res, next) => {
 
     const [sets, modifications] = await Promise.all([
       CertifiedStandingOrders.find({
-        tenantId: req.tenantId,
-        establishmentId: row._id,
+        establishmentId: row._id
       })
         .sort({ revision: -1 })
         .lean(),
       StandingOrdersModification.find({
-        tenantId: req.tenantId,
-        establishmentId: row._id,
+        establishmentId: row._id
       })
         .sort({ proposedOn: -1 })
         .lean(),

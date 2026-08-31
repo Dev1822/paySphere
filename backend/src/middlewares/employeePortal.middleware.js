@@ -12,7 +12,6 @@
 'use strict';
 
 const Employee        = require('../models/employee.model');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger          = require('../utils/logger');
 
 async function employeePortalGuard(req, res, next) {
@@ -22,7 +21,6 @@ async function employeePortalGuard(req, res, next) {
     }
 
     const employee = await Employee.findOne({
-      ...tenantFilter(req),
       userId: req.userId,
     }).select('_id');
 

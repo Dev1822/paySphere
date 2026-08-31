@@ -38,11 +38,10 @@ exports.createCategory = async (req, res, next) => {
       salvageValuePercentage,
     } = req.body;
     const category = await AssetCategory.create({
-      tenantId: req.tenantId,
       name,
       depreciationMethod,
       usefulLifeYears,
-      salvageValuePercentage,
+      salvageValuePercentage
     });
     res.status(201).json({ message: 'Category created', category });
   } catch (error) {
@@ -62,20 +61,20 @@ exports.createAsset = async (req, res, next) => {
       req.body;
 
     const category = await AssetCategory.findOne({
-      _id: categoryId,
-      tenantId: req.tenantId,
+      _id: categoryId
     });
     if (!category)
       return res.status(404).json({ message: 'Asset category not found' });
 
     const asset = await Asset.create({
-      tenantId: req.tenantId,
       categoryId,
       name,
       serialNumber,
       purchaseDate: new Date(purchaseDate),
       purchasePrice,
-      currentBookValue: purchasePrice, // Starts at purchase price
+
+      // Starts at purchase price
+      currentBookValue: purchasePrice
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -103,7 +102,7 @@ exports.createAsset = async (req, res, next) => {
  */
 exports.getAssets = async (req, res, next) => {
   try {
-    const assets = await Asset.find({ tenantId: req.tenantId })
+    const assets = await Asset.find({})
       .populate('categoryId', 'name depreciationMethod usefulLifeYears')
       .populate('assignedTo', 'fullName email')
       .sort({ createdAt: -1 });
@@ -122,8 +121,7 @@ exports.assignAsset = async (req, res, next) => {
   try {
     const { employeeId, checkoutCondition, expectedReturnDate } = req.body;
     const asset = await Asset.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!asset) return res.status(404).json({ message: 'Asset not found' });
@@ -131,22 +129,22 @@ exports.assignAsset = async (req, res, next) => {
       return res.status(400).json({ message: 'Asset is already assigned' });
 
     const employee = await Employee.findOne({
-      _id: employeeId,
-      tenantId: req.tenantId,
+      _id: employeeId
     });
     if (!employee)
       return res.status(404).json({ message: 'Employee not found' });
 
     const assignment = await AssetAssignment.create({
-      tenantId: req.tenantId,
       assetId: asset._id,
       employeeId,
       checkoutDate: new Date(),
+
       expectedReturnDate: expectedReturnDate
         ? new Date(expectedReturnDate)
         : null,
+
       checkoutCondition,
-      isActive: true,
+      isActive: true
     });
 
     asset.status = 'Assigned';
@@ -169,16 +167,14 @@ exports.returnAsset = async (req, res, next) => {
   try {
     const { checkinCondition, damageReported, recoveryAmount } = req.body;
     const asset = await Asset.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!asset) return res.status(404).json({ message: 'Asset not found' });
 
     const assignment = await AssetAssignment.findOne({
       assetId: asset._id,
-      tenantId: req.tenantId,
-      isActive: true,
+      isActive: true
     });
 
     if (!assignment)
@@ -224,8 +220,7 @@ exports.runMonthlyDepreciation = async (req, res, next) => {
     const period = resolveDepreciationPeriod(req.body?.period || new Date());
 
     const assets = await Asset.find({
-      tenantId: req.tenantId,
-      status: { $nin: ['Retired', 'Lost'] },
+      status: { $nin: ['Retired', 'Lost'] }
     }).populate('categoryId');
 
     let totalDepreciation = 0;
@@ -277,8 +272,7 @@ exports.runMonthlyDepreciation = async (req, res, next) => {
 exports.getDepreciationSchedule = async (req, res, next) => {
   try {
     const asset = await Asset.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).populate('categoryId');
     if (!asset) return res.status(404).json({ message: 'Asset not found' });
 
@@ -316,8 +310,7 @@ exports.disposeAsset = async (req, res, next) => {
       reason = 'Scrapped',
     } = req.body;
     const asset = await Asset.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!asset) return res.status(404).json({ message: 'Asset not found' });
@@ -377,11 +370,11 @@ exports.getFixedAssetRegister = async (req, res, next) => {
     // the register itself: they still contribute to the disposals movement for
     // the period, so filtering them out here would lose that column.
     const [assets, categories] = await Promise.all([
-      Asset.find({ tenantId: req.tenantId }).populate(
+      Asset.find({}).populate(
         'categoryId',
         'name depreciationMethod usefulLifeYears',
       ),
-      AssetCategory.find({ tenantId: req.tenantId }),
+      AssetCategory.find({}),
     ]);
 
     const register = buildFixedAssetRegister(assets, categories, {
@@ -416,8 +409,7 @@ exports.getFixedAssetRegister = async (req, res, next) => {
 exports.getOverdueReturns = async (req, res, next) => {
   try {
     const assignments = await AssetAssignment.find({
-      tenantId: req.tenantId,
-      isActive: true,
+      isActive: true
     })
       .populate('assetId', 'name serialNumber purchasePrice currentBookValue')
       .populate('employeeId', 'fullName email');
@@ -461,8 +453,7 @@ exports.impairAsset = async (req, res, next) => {
     }
 
     const asset = await Asset.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!asset) return res.status(404).json({ message: 'Asset not found' });
