@@ -97,8 +97,7 @@ exports.createAssignment = async (req, res, next) => {
     }
 
     const employee = await Employee.findOne({
-      _id: req.body.employeeId,
-      tenantId: req.tenantId,
+      _id: req.body.employeeId
     })
       .select('_id fullName')
       .lean();
@@ -112,9 +111,8 @@ exports.createAssignment = async (req, res, next) => {
     // country — so it is refused rather than producing two settlements that
     // each think they are the whole picture.
     const live = await Assignment.findOne({
-      tenantId: req.tenantId,
       employeeId: employee._id,
-      status: { $in: ['approved', 'active'] },
+      status: { $in: ['approved', 'active'] }
     }).lean();
 
     if (live) {
@@ -127,9 +125,8 @@ exports.createAssignment = async (req, res, next) => {
 
     const assignment = await Assignment.create({
       ...req.body,
-      tenantId: req.tenantId,
       employeeId: employee._id,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -157,7 +154,7 @@ exports.createAssignment = async (req, res, next) => {
  */
 exports.listAssignments = async (req, res, next) => {
   try {
-    const query = { tenantId: req.tenantId };
+    const query = {};
 
     if (req.query.status) query.status = req.query.status;
 
@@ -200,8 +197,7 @@ exports.getAssignment = async (req, res, next) => {
     }
 
     const assignment = await Assignment.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     })
       .populate('employeeId', 'fullName department role')
       .lean();
@@ -214,8 +210,7 @@ exports.getAssignment = async (req, res, next) => {
     const presence = countPresenceDays(assignment.presencePeriods, window);
 
     const settlements = await EqualizationSettlement.find({
-      tenantId: req.tenantId,
-      assignmentId: assignment._id,
+      assignmentId: assignment._id
     })
       .sort({ taxYear: -1 })
       .lean();
@@ -263,7 +258,9 @@ exports.updateAssignment = async (req, res, next) => {
     }
 
     const assignment = await Assignment.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       { $set: updates },
       { new: true, runValidators: true },
     );
@@ -326,7 +323,9 @@ exports.addPresencePeriod = async (req, res, next) => {
     }
 
     const assignment = await Assignment.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       {
         $push: {
           presencePeriods: {
@@ -390,8 +389,7 @@ exports.projectCost = async (req, res, next) => {
     }
 
     const assignment = await Assignment.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!assignment) {
@@ -457,8 +455,7 @@ exports.calculateGrossUp = async (req, res, next) => {
     }
 
     const assignment = await Assignment.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!assignment) {
@@ -514,8 +511,7 @@ exports.settleYear = async (req, res, next) => {
     }
 
     const assignment = await Assignment.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!assignment) {
@@ -549,40 +545,38 @@ exports.settleYear = async (req, res, next) => {
     });
 
     const settlement = await EqualizationSettlement.findOneAndUpdate(
-      { tenantId: req.tenantId, assignmentId: assignment._id, taxYear },
+      {
+        assignmentId: assignment._id,
+        taxYear
+      },
       {
         $set: {
-          tenantId: req.tenantId,
           assignmentId: assignment._id,
           employeeId: assignment.employeeId,
           taxYear,
-
           stayAtHomeCompensation: assessment.hypo.stayAtHome.total,
           hypoTaxableIncome: assessment.hypo.hypoTaxableIncome,
           hypotheticalTax: assessment.hypo.hypotheticalTax,
           hypoTaxWithheld: assessment.settlement.hypoTaxWithheld,
-
           actualHomeTax: assessment.settlement.actualHomeTax,
           actualHostTax: assessment.settlement.actualHostTax,
           actualTotalTax: assessment.settlement.actualTotalTax,
-
           employeeBears: assessment.settlement.employeeBears,
           employerBears: assessment.settlement.employerBears,
           settlement: assessment.settlement.settlement,
           settlementDirection: assessment.settlement.settlementDirection,
           approach: assessment.settlement.approach,
           note: assessment.settlement.note,
-
           homeTaxTable: req.body.homeTaxTable || [],
           hostTaxTable: req.body.hostTaxTable || [],
-
           presenceDays: assessment.presence.days,
           treatyStatus: assessment.exposure.status,
 
           settledOn: req.body.settledOn
             ? new Date(req.body.settledOn)
             : new Date(),
-          createdBy: req.userId,
+
+          createdBy: req.userId
         },
       },
       {

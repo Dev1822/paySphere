@@ -28,7 +28,7 @@ exports.getDepartments = async (req, res, next) => {
     }
 
     const rows = await Employee.aggregate([
-      { $match: { tenantId, deletedAt: null, isDeleted: { $ne: true } } },
+      { $match: { tenantId, isDeleted: { $ne: true } } },
       {
         $project: {
           department: {
@@ -78,7 +78,7 @@ exports.getStats = async (req, res, next) => {
     }
 
     const [employeeStats] = await Employee.aggregate([
-      { $match: { tenantId, deletedAt: null, isDeleted: { $ne: true } } },
+      { $match: { tenantId, isDeleted: { $ne: true } } },
       {
         $group: {
           _id: null,

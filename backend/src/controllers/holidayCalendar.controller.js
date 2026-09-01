@@ -39,12 +39,11 @@ exports.createCalendar = async (req, res, next) => {
     }
 
     const calendar = await HolidayCalendar.create({
-      tenantId: req.tenantId,
       name: sanitizeText(name),
       assignmentType: type,
       assignedTo: type === 'global' ? [] : assignedTo,
       holidays: [],
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -75,7 +74,7 @@ exports.createCalendar = async (req, res, next) => {
 exports.getCalendars = async (req, res, next) => {
   try {
     const { assignmentType, search } = req.query;
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
 
     if (assignmentType) filter.assignmentType = assignmentType;
     if (search && typeof search === 'string' && search.trim()) {
@@ -102,8 +101,7 @@ exports.getCalendarById = async (req, res, next) => {
   try {
     const { id } = req.params;
     const calendar = await HolidayCalendar.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     }).populate('createdBy', 'fullName email');
 
     if (!calendar) {
@@ -128,8 +126,7 @@ exports.updateCalendar = async (req, res, next) => {
     const { name, assignmentType, assignedTo } = req.body;
 
     const calendar = await HolidayCalendar.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!calendar) {
       return res.status(404).json({ message: 'Calendar not found' });
@@ -178,8 +175,7 @@ exports.deleteCalendar = async (req, res, next) => {
   try {
     const { id } = req.params;
     const calendar = await HolidayCalendar.findOneAndDelete({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
 
     if (!calendar) {
@@ -231,8 +227,7 @@ exports.addHoliday = async (req, res, next) => {
     }
 
     const calendar = await HolidayCalendar.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!calendar)
       return res.status(404).json({ message: 'Calendar not found' });
@@ -294,8 +289,7 @@ exports.removeHoliday = async (req, res, next) => {
     const { id, holidayId } = req.params;
 
     const calendar = await HolidayCalendar.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!calendar)
       return res.status(404).json({ message: 'Calendar not found' });
@@ -348,13 +342,10 @@ exports.getUpcomingHolidays = async (req, res, next) => {
 
     // Find global calendars and calendars assigned to this employee's department
     const employee = await Employee.findOne({
-      createdBy: req.userId,
-      tenantId: req.tenantId,
-      deletedAt: null,
+      createdBy: req.userId
     });
 
     const calendars = await HolidayCalendar.find({
-      tenantId: req.tenantId,
       $or: [
         { assignmentType: 'global' },
         ...(employee?.department
@@ -365,7 +356,7 @@ exports.getUpcomingHolidays = async (req, res, next) => {
               },
             ]
           : []),
-      ],
+      ]
     }).sort({ name: 1 });
 
     // Flatten and filter upcoming holidays
@@ -416,8 +407,7 @@ exports.getHolidaysInRange = async (req, res, next) => {
     }
 
     const calendars = await HolidayCalendar.find({
-      tenantId: req.tenantId,
-      assignmentType: 'global',
+      assignmentType: 'global'
     });
 
     const holidays = [];
@@ -451,7 +441,7 @@ exports.getHolidaysInRange = async (req, res, next) => {
 
 exports.getHolidayStats = async (req, res, next) => {
   try {
-    const calendars = await HolidayCalendar.find({ tenantId: req.tenantId });
+    const calendars = await HolidayCalendar.find({});
 
     let totalHolidays = 0;
     let gazetted = 0;

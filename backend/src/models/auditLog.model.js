@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Audit Log Schema and Actions Enumeration
+ * @description Defines the schema, compound indexes, and event taxonomy for system audits.
+ * Issue: #1845
+ */
 const mongoose = require('mongoose');
 const softDeletePlugin = require('../utils/softDelete.plugin');
 
@@ -15,11 +20,42 @@ const softDeletePlugin = require('../utils/softDelete.plugin');
  */
 const AUDIT_ACTIONS = [
   'PAYROLL_FINALIZE',
+  // Section 89(1) relief on salary arrears (#1969). The rate table is audited
+  // because it is the widest change in the module: moving the 2022-23 slabs
+  // moves every relief ever computed against a relation year in that year, for
+  // every employee, with no claim record changing and nothing on any screen
+  // saying why the figure is different.
+  //
+  // The Form 10E furnishing is audited for the neighbouring reason. Its *date*
+  // is what decides whether the relief stands — furnished after the return was
+  // filed the relief is disallowed — and giving the relief in the TDS
+  // computation without it is a short deduction the employer carries.
+  'RELIEF_RATE_TABLE_RECORDED',
+  'RELIEF_ASSESSED_YEAR_RECORDED',
+  'RELIEF_CLAIM_RECORDED',
+  'RELIEF_FORM_10E_FURNISHED',
+  'RELIEF_APPLIED_TO_TDS',
   // #438 shipped approve/reject handlers that emitted no audit event at
   // all, so the one action a maker–checker flow exists to record was the
   // one action left untracked (#458).
   'PAYROLL_APPROVE',
   'PAYROLL_REJECT',
+  // Section 10A of the Standing Orders Act, 1946 (#1828). Next to the payroll
+  // actions because a suspension is the one state in which somebody is paid
+  // without working and without being on leave.
+  //
+  // The attributability finding is audited because it is not a rate change: it
+  // is a judgement about whose conduct delayed an enquiry, it decides fifty per
+  // cent against seventy-five from day ninety-one, and the party whose delay is
+  // in question is frequently the one recording it. The outcome is audited
+  // because it converts what has already been drawn — a set-off against back
+  // wages on reinstatement, an unrecoverable payment on dismissal — so the same
+  // ledger rows change meaning at that moment.
+  'SUBSISTENCE_RULES_UPDATED',
+  'SUSPENSION_ORDERED',
+  'SUSPENSION_ATTRIBUTABILITY_RECORDED',
+  'SUSPENSION_CONCLUDED',
+  'SUBSISTENCE_ASSESSMENT_COMMITTED',
   // Statutory bonus under the Payment of Bonus Act (#1346). Committing a year
   // declares what the establishment owes under a statute and writes a
   // set-on/set-off balance that binds the next four years; the Form C export is
@@ -29,6 +65,22 @@ const AUDIT_ACTIONS = [
   'STATUTORY_BONUS_COMMITTED',
   'STATUTORY_BONUS_FORM_C_EXPORTED',
   'STATUTORY_BONUS_PAID',
+  // Code on Social Security, 2020, section 114 (#1829). Next to the bonus
+  // actions because both start from a figure the payroll cannot produce — an
+  // allocable surplus there, an aggregator's turnover here — with the
+  // difference that a turnover figure has no cross-check anywhere in this
+  // product at all.
+  //
+  // Finalising is audited separately from recording, because everything
+  // computed before it is provisional and everything after it is the assessed
+  // contribution. And the worker registration is audited because it is the
+  // worker's own entitlement, assembled from engagements across platforms this
+  // tenant does not operate and does not otherwise see.
+  'AGGREGATOR_RULES_UPDATED',
+  'AGGREGATOR_TURNOVER_RECORDED',
+  'AGGREGATOR_TURNOVER_FINALISED',
+  'GIG_WORKER_REGISTERED',
+  'AGGREGATOR_ASSESSMENT_COMMITTED',
   // Minimum Wages Act, 1948 (#1698). A notification is the rate every
   // assessment in that state is measured against, so adding one silently
   // changes findings that have already been made; a committed assessment is
@@ -56,6 +108,27 @@ const AUDIT_ACTIONS = [
   'CESS_ASSESSMENT_ORDER_RECORDED',
   'CESS_BENEFICIARY_REGISTERED',
   'CESS_ASSESSMENT_COMMITTED',
+  // Industrial Disputes Act section 9A (#1973). The classification is audited
+  // because reclassifying a change from a Fourth Schedule item to none is how a
+  // notice obligation is cleared without being discharged, and nothing else on
+  // the record changes when it happens. The `from` and `to` are both carried
+  // for that reason.
+  //
+  // The proceeding is audited because clearing the express permission reference
+  // turns a section 33 requirement into a twenty-one-day wait — the one error in
+  // the module that tells an employer to commit an offence on a date certain.
+  //
+  // The population is audited with the affected count beside the obliged count,
+  // because the gap between them is the finding: a change touching forty people
+  // and obliging notice to six is a different record from one obliging notice to
+  // all forty, and a single number cannot say which happened.
+  'SECTION_9A_CHANGE_RECORDED',
+  'SECTION_9A_CHANGE_CLASSIFIED',
+  'SECTION_9A_POPULATION_DETERMINED',
+  'SECTION_9A_NOTICE_SERVED',
+  'SECTION_9A_EFFECTIVE_DATE_MOVED',
+  'SECTION_9A_PROCEEDING_RECORDED',
+  'SECTION_9A_EXEMPTION_RECORDED',
   // Payment of Wages Act, 1936 (#1767). Next to the minimum wage actions
   // because the rules move findings the same way a notification does: raising
   // the section 1(6) applicability ceiling takes employees out of the Act and
@@ -73,7 +146,7 @@ const AUDIT_ACTIONS = [
   'RETENTION_ATTENDANCE_PURGED',
   'RETENTION_PAYROLL_RETAINED',
   'RETENTION_AUDIT_RETAINED',
-  'RETENTION_POLICY_UPDATED',  // Deactivating someone stops their payroll, and restoring a soft-deleted
+  'RETENTION_POLICY_UPDATED', // Deactivating someone stops their payroll, and restoring a soft-deleted
   // record brings their history back. Both are emitted by
   // employee.controller.js and neither was accepted here (#664).
   'EMPLOYEE_STATUS_TOGGLE',
@@ -89,6 +162,24 @@ const AUDIT_ACTIONS = [
   // committed assessment is the establishment's own statement of what its shift
   // patterns were doing.
   'WORKING_HOURS_LIMITS_UPDATED',
+  // Sections 7Q and 14B, EPF & MP Act, 1952 (#1875). The waiver is audited
+  // because a paragraph 32B order takes a period's damages to nil and the
+  // resulting figure is indistinguishable from a liability that never arose —
+  // the audit line is the only place the difference survives.
+  //
+  // The rules are audited for the neighbouring reason. `graceDays` was five
+  // until 2016 and is zero now; restoring it turns a five-day default into a
+  // compliant remittance on paper with nothing moving on the ground.
+  //
+  // And the remittance is audited because it is the discharge: the date on that
+  // row decides which paragraph 32A slab the arrear falls in, and the slabs run
+  // from five per cent to twenty-five.
+  'EPF_REMITTANCE_RULES_UPDATED',
+  'EPF_REMITTANCE_MONTH_RECORDED',
+  'EPF_REMITTANCE_RECORDED',
+  'EPF_DAMAGES_WAIVER_RECORDED',
+  'EPF_REMITTANCE_ASSESSMENT_COMMITTED',
+
   'WORKING_HOURS_ASSESSMENT_COMMITTED',
   // Offboarding is a financial event: it produces a final payout and
   // removes someone from the headcount (#462).
@@ -132,11 +223,64 @@ const AUDIT_ACTIONS = [
   'EPS_ASSUMPTIONS_UPDATED',
   'EPS_WAGE_HISTORY_BACKFILLED',
   'EPS_VALUATION_COMMITTED',
+  // Industrial Employment (Standing Orders) Act, 1946 (#2029). The
+  // applicability determination is audited with the crossing date on it, not
+  // with today's, because the whole finding is that the section 3(1) six months
+  // may already have been running for a quarter before anybody looked.
+  //
+  // The headcount sync is audited with `stillApplicable` beside the strength,
+  // because a strength recorded below the threshold on an applicable
+  // establishment is the row somebody will later read as 'the Act stopped
+  // applying' — the proviso to section 1(3) says it did not, and the record has
+  // to show it.
+  //
+  // The certification carries both the certificate date and the dispatch date.
+  // Section 7 runs from the second; using the first brings the orders into
+  // force weeks early, and the pair is what lets a reviewer see which was used.
+  //
+  // The modification carries the agreement's party and reference rather than a
+  // flag, because section 10(1) excepts a modification *agreed* — and an
+  // agreement with nothing to point at is the claim, not the document.
+  'STANDING_ORDERS_ESTABLISHMENT_RECORDED',
+  'STANDING_ORDERS_APPLICABILITY_DETERMINED',
+  'STANDING_ORDERS_HEADCOUNT_SYNCED',
+  'STANDING_ORDERS_CERTIFIED',
+  'STANDING_ORDERS_MODIFICATION_PROPOSED',
+  // National and Festival Holidays Acts (#1970). The substitution is audited
+  // with the holiday's kind on it, because a NATIONAL kind on one of these rows
+  // means the engine's refusal was bypassed — 26 January, 15 August and 2
+  // October cannot be substituted by any agreement, and that is the record an
+  // inspection asks about.
+  //
+  // A holiday worked is audited with both the payable and what was paid,
+  // because the gap between them is the finding: the entitlement is a whole day
+  // at the statutory rate however few hours were worked, and the natural wrong
+  // answer — scaling it by hours through the overtime engine — produces a
+  // smaller number that looks arithmetically reasonable.
+  'HOLIDAY_CALENDAR_OPENED',
+  'HOLIDAY_LIST_SETTLED',
+  'FESTIVAL_HOLIDAY_DECLARED',
+  'HOLIDAY_SUBSTITUTED',
+  'HOLIDAY_WORKED_RECORDED',
   // A salary advance commits future deductions from someone's pay, so
   // issuing, pausing and collecting against one are all financial events
   // and are audited as such (#460).
   'LOAN_ISSUE',
   'LOAN_STATUS_CHANGE',
+  // Article 276 and the state professional tax enactments (#1876). The rule is
+  // audited because it carries an effective date: backdating one rewrites the
+  // deduction on payslips already issued, and the employee's copy and ours then
+  // disagree with nothing having failed.
+  //
+  // The payment is audited because section 16(iii) allows professional tax
+  // *actually paid*, so the date on that row decides which year an employee may
+  // deduct it in — and the period it discharges can be in the other one.
+  'PROFESSIONAL_TAX_RULE_RECORDED',
+  'PROFESSIONAL_TAX_PROFILE_RECORDED',
+  'PROFESSIONAL_TAX_REGISTRATION_RECORDED',
+  'PROFESSIONAL_TAX_PAYMENT_RECORDED',
+  'PROFESSIONAL_TAX_ASSESSMENT_COMMITTED',
+
   'LOAN_REPAYMENT',
   // Labour Welfare Fund (#1701). A state rule decides what every employee in
   // that state owes for years, so adding one changes contributions not yet
@@ -176,6 +320,26 @@ const AUDIT_ACTIONS = [
   // The approval workflow engine (#590, mounted in #614) emits three (#664).
   // A change to the graph that decides who may approve a payroll run is
   // exactly the kind of thing an auditor asks about.
+  // Child and Adolescent Labour Act, 1986 (#1877). The age is audited because
+  // that one date decides whether section 3's total bar applies at all —
+  // moving it by a year moves somebody across the fourteen or the eighteen
+  // boundary, and nothing else in the record would change.
+  //
+  // The register entry is audited because of one field on it: a claimed section
+  // 3 exception turns a prohibited engagement into a permitted one on paper,
+  // and the claim is about a relationship and about schooling rather than about
+  // a job title.
+  //
+  // None of these lines carries an amount. An underage engagement has no
+  // compensable figure, and section 14's fine is a criminal penalty on
+  // conviction rather than a liability that accrues.
+  'YOUNG_PERSON_AGE_RECORDED',
+  'YOUNG_PERSON_REGISTER_RECORDED',
+  'YOUNG_PERSON_DAYS_RECORDED',
+  'YOUNG_PERSON_FINDING_RESOLVED',
+  'YOUNG_PERSON_ASSESSMENT_COMMITTED',
+  'COMPLIANCE_VIOLATION',
+
   'WORKFLOW_CREATE',
   'WORKFLOW_INSTANCE_START',
   'WORKFLOW_TRANSITION',
@@ -202,7 +366,41 @@ const AUDIT_ACTIONS = [
   'CONTRACT_LABOUR_CONTRACTOR_REGISTERED',
   'CONTRACT_LABOUR_LICENCE_UPDATED',
   'CONTRACT_LABOUR_RETURN_FILED',
+  // EDLI paragraph 22 (#1878). The nomination is audited because it decides
+  // who receives the assurance, and a nomination summing to less than a hundred
+  // per cent sends the remainder to a different limb of the scheme — a change
+  // of payee rather than of amount.
+  //
+  // Prior service is audited because those months decide whether the ₹2,50,000
+  // floor applies at all, and the gap flag decides whether they aggregate. Both
+  // are on the line.
+  //
+  // And the exemption is audited because it decides whether the group policy or
+  // paragraph 22 is the measure — where the policy pays less, the difference is
+  // the establishment's liability rather than the insurer's.
+  'EPF_NOMINATION_RECORDED',
+  'EDLI_EXEMPTION_RECORDED',
+  'EDLI_PRIOR_SERVICE_RECORDED',
+  'EDLI_CLAIM_COMMITTED',
+
   'CONTRACT_LABOUR_REGISTER_EXPORTED',
+  // Industrial Disputes Act, Chapters VA and VB (#1830). The permission record
+  // is audited because that one field decides which of two liabilities the
+  // establishment is under: half pay for forty-five days if the act was lawful,
+  // and full wages for the whole period if it was not.
+  //
+  // The rules are audited for the neighbouring reason — raising the Chapter VB
+  // threshold from one hundred to three hundred turns an illegal act into a
+  // compensable one on paper with nothing changing on the ground. And the
+  // section 25H offer is audited because it is the discharge of a statutory
+  // preference: the workman's claim on the vacancy is answered by the fact that
+  // it was offered, whatever they then decided.
+  'LAYOFF_RULES_UPDATED',
+  'LAYOFF_SPELL_RECORDED',
+  'CHAPTER_VB_ACTION_RECORDED',
+  'CHAPTER_VB_PERMISSION_RECORDED',
+  'REEMPLOYMENT_PREFERENCE_OFFERED',
+  'LAYOFF_ASSESSMENT_COMMITTED',
   // Apprentices Act, 1961 (#1771). Next to the contract labour actions because
   // both concern people on the site who are not on the payroll. The recorded
   // strength is audited because it is the denominator of the whole obligation:
@@ -214,6 +412,38 @@ const AUDIT_ACTIONS = [
   'APPRENTICESHIP_STRENGTH_RECORDED',
   'APPRENTICE_ENGAGED',
   'APPRENTICE_CONTRACT_REGISTERED',
+  // EPF International Workers, paragraph 83 (#1971). The determination and the
+  // certificate are audited because each moves a remittance by roughly a factor
+  // of forty, in opposite directions: the determination removes the ₹15,000
+  // ceiling and the certificate stops the contribution altogether. Nothing else
+  // in the product moves that much money on the strength of one field.
+  //
+  // The contribution is audited with the ceiling figure beside the basis
+  // actually used, because that pair is what lets a reviewer tell an intended
+  // full-pay basis from a bug — and a lapsed certificate turns every month
+  // since into an under-remittance carrying section 7Q interest and section 14B
+  // damages under #1875.
+  'IW_STATUS_DETERMINED',
+  'IW_CERTIFICATE_RECORDED',
+  'IW_CONTRIBUTION_COMPUTED',
+  'IW_ONE_FILED',
+  // Shops and Commercial Establishments Acts (#1972). The registration is
+  // audited because its three dates are the whole finding: `commencedOn` is
+  // what the registration window runs from, and `validTo` is what separates an
+  // establishment filing a renewal late from one trading unregistered. Either
+  // can be moved to make a lapse look like a renewal with nothing else on the
+  // record changing, and the certificate itself is a scan in a vault that says
+  // whatever the last edit said.
+  //
+  // The particular and the headcount sync are audited together because they are
+  // the two ways an amendment obligation gets closed without being discharged.
+  // The clock runs from the date the particular changed, so a particular
+  // "corrected" to match the establishment — or a band silently resynced after
+  // a hire — makes fifteen days that were already running disappear.
+  'ESTABLISHMENT_REGISTRATION_RECORDED',
+  'ESTABLISHMENT_PARTICULAR_RECORDED',
+  'ESTABLISHMENT_HEADCOUNT_SYNCED',
+  'ESTABLISHMENT_CLOSURE_RECORDED',
   'APPRENTICESHIP_ASSESSMENT_COMMITTED',
   // Inter-State Migrant Workmen Act, 1979 (#1826). The comparator is audited
   // for the same reason the recorded strength above is: it is the denominator
@@ -230,8 +460,46 @@ const AUDIT_ACTIONS = [
   'MIGRANT_WORKMAN_RECRUITED',
   'MIGRANT_COMPARATOR_RECORDED',
   'MIGRANT_DISPLACEMENT_RECOVERED',
+  // Employment Exchanges (CNV) Act, 1959 (#1879). The determination is audited
+  // because the section 3 ground on it removes the vacancy from the Act
+  // entirely — and a ground of "less than three months' duration" is
+  // contradicted later by the engagement's own length, which is the record an
+  // inspection asks about.
+  //
+  // The headcount is audited for the neighbouring reason: twenty-four as at the
+  // date a requisition opened takes every requisition that month below the
+  // threshold, with nothing else changing.
+  'CNV_HEADCOUNT_RECORDED',
+  'CNV_DETERMINATION_RECORDED',
+  'CNV_OUTCOME_RECORDED',
+  'CNV_VACANCY_NOTIFIED',
+  'CNV_RETURN_FILED',
+
   'MIGRANT_RETURN_JOURNEY_ACCRUED',
   'MIGRANT_ASSESSMENT_COMMITTED',
+  // Payment of Gratuity Act, 1972 (#2031). The claim is audited with
+  // `payableFrom` on it because that single date decides both whether the
+  // thirty days have run and how much section 7(3A) interest has accrued —
+  // moving it forward makes an overdue gratuity look current and shrinks a
+  // statutory liability with nothing else on the record changing.
+  //
+  // The forfeiture carries the amount claimed beside the amount permitted. The
+  // gap is the finding: a ₹6,00,000 forfeiture claimed against ₹4,000 of
+  // damage under section 4(6)(a) is the case the module exists to make visible,
+  // and storing only the capped figure would erase that it was attempted.
+  //
+  // The payment carries the interest owed beside the interest paid, because a
+  // late gratuity discharged without the 7(3A) interest is a live liability and
+  // the pair is the only thing that shows it.
+  //
+  // The nomination is audited with the shares because it decides who receives
+  // the money on death, and a share edited afterwards moves an amount between
+  // two named people at the point it is most contested.
+  'GRATUITY_NOMINATION_RECORDED',
+  'GRATUITY_CLAIM_OPENED',
+  'GRATUITY_NOTICE_RECORDED',
+  'GRATUITY_FORFEITURE_RECORDED',
+  'GRATUITY_PAYMENT_RECORDED',
   // International assignments (#1348). Opening one commits the employer to
   // bearing somebody's foreign tax bill for years; a settlement moves money
   // between the employee and the company; and the two threshold events record
@@ -356,10 +624,12 @@ const auditLogSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
       },
     ],
-    details: {
-      type: mongoose.Schema.Types.Mixed,
-      default: {},
-    },
+    details: { type: mongoose.Schema.Types.Mixed, default: {} },
+    // Integrity chain fields
+    currentHash: { type: String, default: null, index: true },
+    previousHash: { type: String, default: null },
+    signature: { type: String, default: null },
+    hashChainValid: { type: Boolean, default: true },
     result: {
       type: String,
       enum: ['success', 'failure', 'partial'],

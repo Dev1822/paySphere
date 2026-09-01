@@ -7,7 +7,6 @@
 
 const DashboardLayout = require('../models/dashboardLayout.model');
 const logger = require('../utils/logger');
-const { requireTenant } = require('../utils/tenantScope');
 
 const MAX_WIDGETS = 50;
 const MAX_WIDGET_ID_LENGTH = 64;

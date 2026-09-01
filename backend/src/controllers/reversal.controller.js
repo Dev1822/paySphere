@@ -2,9 +2,10 @@
  * @fileoverview Payroll Reversal Controller
  * @description Manages the lifecycle of payroll reversals, Form 24Q TDS adjustments,
  * balanced corrective Journal Voucher generation, and clawback tracking.
+ * Issues: #1166, #1936
  */
 const mongoose = require('mongoose');
-const { PayrollReversal } = require('../models/payrollReversal.model');
+const { PayrollReversal, PayrollReversalOrder, OverpaymentReceivable, TaxAdjustmentLedger } = require('../models/payrollReversal.model');
 const PayrollUpdate = require('../models/payroll.model');
 const {
   calculateReversalDeltas,
@@ -14,14 +15,20 @@ const {
   generateClawbackSchedule,
   validateReversal,
 } = require('../utils/reversalEngine.utils');
+const { evaluateCrossPeriodTax, generateAmortizationSchedule } = require('../utils/reversalRecoveryEngine.utils');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
 const outboxService = require('../services/outbox.service');
+
+// ==================== Legacy Reversal Endpoints (Issue #1166) ====================
+
 exports.initiateReversal = async (req, res, next) => {
   try {
     const { originalPayrollId, correctedData, reason, recoveryMonths, startMonth, startYear, quarter, financialYear } = req.body;
 
-    const originalPayroll = await PayrollUpdate.findOne({ _id: originalPayrollId, tenantId: req.tenantId });
+    const originalPayroll = await PayrollUpdate.findOne({
+      _id: originalPayrollId
+    });
     const validation = validateReversal(originalPayroll);
 
     if (!validation.isValid) {
@@ -30,8 +37,7 @@ exports.initiateReversal = async (req, res, next) => {
 
     const existingReversal = await PayrollReversal.findOne({
       originalPayrollId,
-      tenantId: req.tenantId,
-      status: { $nin: ['Cancelled', 'Fully Recovered'] },
+      status: { $nin: ['Cancelled', 'Fully Recovered'] }
     });
 
     if (existingReversal) {
@@ -49,7 +55,6 @@ exports.initiateReversal = async (req, res, next) => {
     const form24QAdjustment = computeForm24QTdsAdjustments(deltas, quarter || 'Q1', financialYear || '2026-2027');
 
     const reversal = await PayrollReversal.create({
-      tenantId: req.tenantId,
       employeeId: originalPayroll.employeeId,
       originalPayrollId: originalPayroll._id,
       ...deltas,
@@ -58,7 +63,7 @@ exports.initiateReversal = async (req, res, next) => {
       clawbackSchedule: schedule,
       journalEntries,
       initiatedBy: req.userId,
-      status: 'Pending Approval',
+      status: 'Pending Approval'
     });
 
     res.status(201).json({
@@ -71,7 +76,7 @@ exports.initiateReversal = async (req, res, next) => {
 
 exports.getReversals = async (req, res, next) => {
   try {
-    const reversals = await PayrollReversal.find({ tenantId: req.tenantId })
+    const reversals = await PayrollReversal.find({})
       .populate('employeeId', 'fullName department')
       .populate('originalPayrollId', 'month year netSalary')
       .sort({ createdAt: -1 });
@@ -120,7 +125,9 @@ exports.approveReversal = async (req, res, next) => {
         netOverpaid: reversal.netOverpaid,
         approvedBy: req.userId,
       },
-      { tenantId: req.tenantId, session },
+      {
+        session
+      },
     );
 
     if (session) {
@@ -155,16 +162,16 @@ exports.approveReversal = async (req, res, next) => {
       try {
         await session.abortTransaction();
         session.endSession();
-      } catch {}
+      } catch { }
     }
     next(error);
   }
 };
+
 exports.checkPayrollBlockGuard = async (req, res, next) => {
   try {
     const pendingReversals = await PayrollReversal.countDocuments({
-      tenantId: req.tenantId,
-      status: { $in: ['Pending Approval', 'Draft'] },
+      status: { $in: ['Pending Approval', 'Draft'] }
     });
 
     res.status(200).json({
@@ -181,7 +188,7 @@ exports.checkPayrollBlockGuard = async (req, res, next) => {
  */
 exports.getTaxAdjustmentSummary = async (req, res, next) => {
   try {
-    const reversals = await PayrollReversal.find({ tenantId: req.tenantId });
+    const reversals = await PayrollReversal.find({});
 
     const totalGrossOverpaid = reversals.reduce((sum, r) => sum + (r.grossOverpaid || 0), 0);
     const totalTaxOverpaid = reversals.reduce((sum, r) => sum + (r.taxOverpaid || 0), 0);
@@ -201,5 +208,87 @@ exports.getTaxAdjustmentSummary = async (req, res, next) => {
         totalTdsCreditAdjustment: Math.round(totalTaxOverpaid * 100) / 100,
       },
     });
+  } catch (error) { next(error); }
+};
+
+// ==================== New Reversal Order Endpoints (Issue #1936) ====================
+
+/**
+ * POST /api/reversals/order/initiate
+ * Initiate a new payroll reversal order with tax evaluation
+ */
+exports.initiateReversalOrder = async (req, res, next) => {
+  try {
+    const { employeeId, originalPayrollRunId, reason, originalGross, originalNet, originalPayDate } = req.body;
+    const taxEval = evaluateCrossPeriodTax(originalPayDate, new Date());
+
+    const reversal = await PayrollReversalOrder.create({
+      employeeId,
+      originalPayrollRunId,
+      reason,
+      originalGross,
+      originalNet,
+      isCrossPeriod: taxEval.isCrossPeriod
+    });
+
+    // Mock tax adjustments
+    const taxTypes = ['Federal', 'State', 'FICA', 'Medicare'];
+    const adjustments = taxTypes.map(t => ({
+      reversalId: reversal._id,
+      taxType: t,
+
+      // Mock 5%
+      adjustmentAmount: originalGross * 0.05,
+
+      requiresAmendedReturn: taxEval.requiresAmendedReturn,
+      quarter: taxEval.origQuarter,
+      year: taxEval.origYear
+    }));
+    await TaxAdjustmentLedger.insertMany(adjustments);
+
+    res.status(201).json({ message: 'Reversal initiated', reversal, taxEval });
+  } catch (error) { next(error); }
+};
+
+/**
+ * POST /api/reversals/order/generate-receivable
+ * Generate overpayment receivable with amortization schedule
+ */
+exports.generateReceivable = async (req, res, next) => {
+  try {
+    const { reversalId, paychecksRemaining, expectedNetPay } = req.body;
+    const reversal = await PayrollReversalOrder.findById(reversalId);
+    if (!reversal) return res.status(404).json({ message: 'Reversal not found' });
+
+    const schedule = generateAmortizationSchedule(reversal.originalNet, paychecksRemaining, 0.25, expectedNetPay); // 25% limit
+
+    const receivable = await OverpaymentReceivable.create({
+      reversalId,
+      employeeId: reversal.employeeId,
+      totalOwed: reversal.originalNet,
+      remainingBalance: reversal.originalNet,
+      amortizationSchedule: schedule
+    });
+
+    reversal.status = 'Receivable Created';
+    await reversal.save();
+
+    res.status(201).json({ message: 'Receivable amortization generated', receivable });
+  } catch (error) { next(error); }
+};
+
+/**
+ * GET /api/reversals/order/dashboard
+ * Dashboard view for reversals and receivables
+ */
+exports.getDashboard = async (req, res, next) => {
+  try {
+    const reversals = await PayrollReversalOrder.find({})
+      .populate('employeeId', 'fullName').sort({ createdAt: -1 });
+    const receivables = await OverpaymentReceivable.find({
+      status: 'Active'
+    })
+      .populate('employeeId', 'fullName');
+    res.status(200).json({ reversals, receivables });
   } catch (error) { next(error); }
 };

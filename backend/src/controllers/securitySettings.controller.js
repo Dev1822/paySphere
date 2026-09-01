@@ -4,7 +4,7 @@ const logger = require('../utils/logger');
 
 async function getIpWhitelist(req, res) {
   try {
-    const whitelists = await IpWhitelist.find({ tenantId: req.tenantId });
+    const whitelists = await IpWhitelist.find({});
     return res.json({ whitelists });
   } catch (err) {
     logger.error('getIpWhitelist error', { error: err.message });
@@ -18,7 +18,9 @@ async function upsertIpWhitelist(req, res) {
     if (!role) return res.status(400).json({ message: 'Role is required.' });
 
     const whitelist = await IpWhitelist.findOneAndUpdate(
-      { tenantId: req.tenantId, role },
+      {
+        role
+      },
       { cidrBlocks: cidrBlocks || [], description: description || '', createdBy: req.userId },
       { upsert: true, new: true }
     );

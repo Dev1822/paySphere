@@ -1,5 +1,5 @@
 const taxService = require('../services/taxService');
-const { asyncHandler } = require('../middleware/async');
+const asyncHandler = require('../middlewares/asyncHandler.middleware');
 
 exports.getJurisdictions = asyncHandler(async (req, res) => {
     const data = await taxService.getJurisdictions(req.query);

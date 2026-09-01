@@ -34,8 +34,7 @@ if (process.env.REDIS_URL) {
       removeOnFail: { count: 5000 },
       attempts: 5,
       backoff: {
-        type: 'exponential',
-        delay: 60000,
+        type: 'custom',
       },
     },
   });
@@ -65,6 +64,7 @@ const EVENT_MAPPING = {
   PAYROLL_APPROVE: 'PAYROLL_APPROVE',
   PAYROLL_REJECT: 'PAYROLL_REJECT',
   PAYROLL_PAID: 'PAYROLL_PAID',
+  COMPLIANCE_VIOLATION: 'COMPLIANCE_VIOLATION',
 };
 
 /** Idempotence guard: requiring twice must not double-subscribe. */
@@ -132,7 +132,7 @@ async function handleAuditEvent(eventData) {
           endpointId: endpoint._id.toString(),
           tenantId: tenantId.toString(),
           url: endpoint.url,
-          secret: endpoint.secret,
+          signingSecret: endpoint.signingSecret,
           eventName: webhookEvent,
           payload,
         },
@@ -214,7 +214,7 @@ async function retryDlqJob(deliveryLogId, tenantId) {
     endpointId: endpoint._id.toString(),
     tenantId: tenantId.toString(),
     url: endpoint.url,
-    secret: endpoint.secret,
+    signingSecret: endpoint.signingSecret,
     eventName: delivery.eventName,
     payload: delivery.payload,
   });

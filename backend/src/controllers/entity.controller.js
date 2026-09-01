@@ -22,7 +22,6 @@ exports.registerEntity = async (req, res, next) => {
         }
 
         const entity = await CorporateEntity.create({
-            tenantId: req.tenantId,
             parentId: parentId || null,
             entityName,
             entityCode,
@@ -38,7 +37,7 @@ exports.registerEntity = async (req, res, next) => {
 exports.getHierarchy = async (req, res, next) => {
     try {
         const entities = await CorporateEntity.find({
-            $or: [{ tenantId: req.tenantId }, { parentId: req.tenantId }]
+            $or: [{}, { parentId: req.tenantId }]
         }).populate('parentId', 'entityName');
 
         res.status(200).json({ entities });
@@ -50,7 +49,9 @@ exports.initiateDeputation = async (req, res, next) => {
         const { employeeId, toTenantId, startDate, endDate, type, payrollResponsibility, reason } = req.body;
 
         // Verify employee belongs to the current tenant (fromTenant)
-        const employee = await Employee.findOne({ _id: employeeId, tenantId: req.tenantId });
+        const employee = await Employee.findOne({
+            _id: employeeId
+        });
         if (!employee) return res.status(404).json({ message: 'Employee not found in current entity' });
 
         const deputation = await Deputation.create({

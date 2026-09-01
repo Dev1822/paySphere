@@ -3,6 +3,13 @@ const {
   submitPayrollForReview,
   getPayrollSummary,
 } = require('../controllers/payroll.controller');
+
+const {
+  listCalculationRules,
+  createCalculationRule,
+  activateCalculationRule,
+} = require('../controllers/payrollCalculationRule.controller');
+
 const auth = require('../middlewares/auth.middleware');
 const { requireScope } = require('../middlewares/rbac.middleware');
 const { validateRequest } = require('../middlewares/validate.middleware');
@@ -19,5 +26,24 @@ router.post(
   submitPayrollForReview,
 );
 router.get('/summary', auth, requireScope('payroll:read'), getPayrollSummary);
+router.get(
+  '/calculation-rules',
+  auth,
+  requireScope('payroll:read'),
+  listCalculationRules,
+);
 
+router.post(
+  '/calculation-rules',
+  auth,
+  requireScope('payroll:write'),
+  createCalculationRule,
+);
+
+router.post(
+  '/calculation-rules/:version/activate',
+  auth,
+  requireScope('payroll:write'),
+  activateCalculationRule,
+);
 module.exports = router;

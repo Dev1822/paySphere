@@ -1,8 +1,11 @@
-const AuditLog = require("../models/auditLog.model");
-const { AUDIT_ACTIONS, AUDIT_RESOURCE_TYPES } = require("../models/auditLog.model");
-const { isUsableTenantId } = require("../utils/tenantScope");
-const logger = require("../utils/logger");
-const cacheService = require("./cache.service");
+const AuditLog = require('../models/auditLog.model');
+const {
+  AUDIT_ACTIONS,
+  AUDIT_RESOURCE_TYPES,
+} = require('../models/auditLog.model');
+const { isUsableTenantId } = require('../utils/tenantScope');
+const logger = require('../utils/logger');
+const cacheService = require('./cache.service');
 
 /**
  * Write one audit entry.
@@ -41,10 +44,12 @@ const createAuditLog = async ({
   // `req.tenantId` onto it — so the tenant is available without touching the
   // thirty-three call sites. An explicit `tenantId` wins, for anything that
   // audits without a request behind it.
-  const resolvedTenantId = isUsableTenantId(tenantId) ? tenantId : req?.tenantId;
+  const resolvedTenantId = isUsableTenantId(tenantId)
+    ? tenantId
+    : req?.tenantId;
 
   if (!isUsableTenantId(resolvedTenantId)) {
-    logger.error("Audit entry dropped: no tenant on the request", {
+    logger.error('Audit entry dropped: no tenant on the request', {
       userId: userId ? String(userId) : undefined,
       action,
       resourceType,
@@ -56,44 +61,88 @@ const createAuditLog = async ({
   // offending value. Mongoose's ValidationError says "`X` is not a valid enum
   // value for path `action`" and leaves you grepping for who emitted it.
   if (!AUDIT_ACTIONS.includes(action)) {
-    logger.error("Audit entry dropped: unknown action", {
+    logger.error('Audit entry dropped: unknown action', {
       action,
       resourceType,
       userId: userId ? String(userId) : undefined,
-      hint: "Add it to AUDIT_ACTIONS in models/auditLog.model.js",
+      hint: 'Add it to AUDIT_ACTIONS in models/auditLog.model.js',
     });
     return false;
   }
 
   if (!AUDIT_RESOURCE_TYPES.includes(resourceType)) {
-    logger.error("Audit entry dropped: unknown resource type", {
+    logger.error('Audit entry dropped: unknown resource type', {
       action,
       resourceType,
       userId: userId ? String(userId) : undefined,
-      hint: "Add it to AUDIT_RESOURCE_TYPES in models/auditLog.model.js",
+      hint: 'Add it to AUDIT_RESOURCE_TYPES in models/auditLog.model.js',
     });
     return false;
   }
 
   try {
-    await AuditLog.create({
+    const { generatePayloadHash, signHash } = require('../utils/cryptoAudit');
+
+    // Attempt to sequence the hash chain. Using a retry loop to mitigate simple race conditions.
+    const MAX_RETRIES = 3;
+    let saved = false;
+
+    const auditPayload = {
       userId,
       tenantId: resolvedTenantId,
       action,
       resourceType,
       resourceIds: resourceIds || [],
       details: details || {},
-      result: result || "success",
+      result: result || 'success',
       ipAddress: req?.ip || req?.connection?.remoteAddress,
-      userAgent: req?.headers?.["user-agent"],
-    });
+      userAgent: req?.headers?.['user-agent'],
+    };
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const lastLog = await AuditLog.findOne({ tenantId: resolvedTenantId })
+          .sort({ createdAt: -1 })
+          .select('currentHash')
+          .lean();
+
+        const previousHash =
+          lastLog && lastLog.currentHash ? lastLog.currentHash : 'GENESIS';
+
+        // In a strictly sequenced system, we would add a unique index on {tenantId: 1, previousHash: 1}
+        // which would cause an 11000 duplicate key error if two concurrent requests grab the same previousHash.
+        // We calculate currentHash based on previousHash + payload
+        const currentHash = generatePayloadHash(auditPayload, previousHash);
+        const signature = signHash(currentHash);
+
+        await AuditLog.create({
+          ...auditPayload,
+          previousHash,
+          currentHash,
+          signature,
+        });
+
+        saved = true;
+        break; // Successfully saved
+      } catch (err) {
+        if (err.code === 11000 && attempt < MAX_RETRIES) {
+          // Collision on sequence, retry
+          continue;
+        }
+        throw err; // Re-throw to be caught by the outer catch
+      }
+    }
+
+    if (!saved) {
+      throw new Error('Failed to sequence audit log after multiple retries.');
+    }
 
     // Invalidate cached audit logs for the tenant
     await cacheService.invalidateAuditLogs(resolvedTenantId);
 
     return true;
   } catch (error) {
-    logger.error("Failed to create audit log", {
+    logger.error('Failed to create audit log', {
       error: error.message,
       userId: userId ? String(userId) : undefined,
       action,

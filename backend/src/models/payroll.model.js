@@ -77,6 +77,40 @@ const payrollUpdateSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+      dailyRate: {
+    type: Number,
+    description: 'Daily rate for leave calculation',
+  },
+
+  leaveDays: {
+    type: Number,
+    default: 0,
+    description: 'Number of leave days taken',
+  },
+
+  overtimeHours: {
+    type: Number,
+    default: 0,
+    description: 'Overtime hours worked',
+  },
+
+  overtimeRate: {
+    type: Number,
+    default: 0,
+    description: 'Rate per overtime hour',
+  },
+
+  taxRate: {
+    type: Number,
+    default: 0,
+    description: 'Tax rate percentage',
+  },
+
+  components: {
+    type: mongoose.Schema.Types.Mixed,
+    description: 'Calculated payroll components breakdown',
+    default: null,
+  },
     customDeductions: [
       {
         name: {
@@ -146,13 +180,28 @@ const payrollUpdateSchema = new mongoose.Schema(
     // written by either older revision keep validating.
     blockchainTxHash: { type: String },
     merkleRoot: { type: String },
-    status: {
-      type: String,
-      enum: ALL_STATUSES,
-      default: PAYROLL_STATUS.PENDING_APPROVAL,
-      set: (value) => normalizeStatus(value) || value,
-    },
-    /**
+  status: {
+    type: String,
+    enum: ['draft', 'finalized', 'approved', 'rejected'],
+    default: 'draft',
+  },
+
+  // Payroll run locking
+  lockedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PayrollRunLock',
+    description: 'Reference to the lock that was active during calculation',
+  },
+
+  inputBoundary: {
+    type: Date,
+    description: 'Timestamp when input data was captured for this payroll',
+  },
+
+  inputSnapshot: {
+    type: mongoose.Schema.Types.Mixed,
+    description: 'Snapshot of input data version used in calculation',
+  },    /**
      * The maker–checker trail (#559).
      *
      * #458 mounted the approval routes and wired the controller to write these
@@ -337,8 +386,16 @@ const payrollUpdateSchema = new mongoose.Schema(
         type: String,
         required: true,
       },
-      employee: {
-        fullName: String,
+      ruleId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'PayrollCalculationRuleVersion',
+        default: null,
+      },
+      rules: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null,
+      },
+      employee: {        fullName: String,
         email: String,
         role: String,
         companyName: String,

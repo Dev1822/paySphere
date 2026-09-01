@@ -1,6 +1,9 @@
 /**
  * Canonical RBAC vocabulary for PaySphere.
  *
+ * @deprecated This static matrix is being replaced by the dynamic ABAC engine.
+ * The core roles and permissions are now seeded into the database as AccessPolicies.
+ *
  * Both the seeder and the route definitions read from this file so the set of
  * permission names can never drift between "what gets written to the database"
  * and "what the routes ask for" — a mismatch there is invisible until a user
@@ -11,8 +14,51 @@
 
 const PERMISSIONS = {
   READ_EMPLOYEE: 'READ_EMPLOYEE',
+
+  // --- Section 89(1) relief on salary arrears (#1969) ---------------------
+  //
+  // Split on which name can move a relief figure without touching a claim.
+  //
+  // MANAGE_TAX_RATE_TABLE is the widest authority in the module by a distance.
+  // Changing the 2022-23 slabs moves every relief ever computed against a
+  // relation year in that year, for every employee, with no claim record
+  // changing and nothing on any screen explaining why the number is different.
+  // The employee's assessed total income for a past year sits with it, because
+  // six lakh rather than nine moves the marginal rate the relation-year term is
+  // priced at and does the same damage by a shorter route.
+  //
+  // MANAGE_RELIEF_CLAIM records the arrear, its year-wise spread and the Form
+  // 10E furnishing, and gives the relief in the TDS computation once the form
+  // is on file. Clerical against documents.
+  //
+  // Deliberately not the payroll permissions. Payroll answers what was paid;
+  // this answers what the bunching of that payment cost in tax, and the section
+  // 201(1A) interest for getting it wrong lands on the employer.
+  READ_ARREAR_RELIEF: 'READ_ARREAR_RELIEF',
+  MANAGE_RELIEF_CLAIM: 'MANAGE_RELIEF_CLAIM',
+  MANAGE_TAX_RATE_TABLE: 'MANAGE_TAX_RATE_TABLE',
   WRITE_EMPLOYEE: 'WRITE_EMPLOYEE',
   DELETE_EMPLOYEE: 'DELETE_EMPLOYEE',
+  // --- Section 10A, Standing Orders Act, 1946 (#1828) ----------------------
+  //
+  // Above the payroll names because a suspended workman is neither on payroll
+  // nor off it: the employment subsists, no work is done, and the employer owes
+  // a rising statutory scale.
+  //
+  // The middle name is the module's whole subject. The attributability finding
+  // — whose conduct delayed the enquiry — decides fifty per cent against
+  // seventy-five from day ninety-one, so it sits behind its own permission
+  // rather than travelling with the suspension record. Whoever orders a
+  // suspension should not also decide that the delay in enquiring into it was
+  // nobody's fault.
+  //
+  // There is deliberately no permission for setting the *rate*. The rate is a
+  // consequence of the finding, and an overridable rate would let the stored
+  // number stop saying whether a finding was made.
+  READ_SUSPENSION: 'READ_SUSPENSION',
+  MANAGE_SUSPENSION: 'MANAGE_SUSPENSION',
+  DETERMINE_SUSPENSION_DELAY: 'DETERMINE_SUSPENSION_DELAY',
+
   READ_PAYROLL: 'READ_PAYROLL',
   WRITE_PAYROLL: 'WRITE_PAYROLL',
   // Maker–checker: the account that submits a payroll run should not be the
@@ -95,6 +141,28 @@ const PERMISSIONS = {
   // "was the employer allowed to take that much", and the people who audit the
   // second are not the people who run the first.
   READ_WAGE_DEDUCTIONS: 'READ_WAGE_DEDUCTIONS',
+
+  // --- National and Festival Holidays Acts (#1970) ------------------------
+  //
+  // Split on which name can take a paid day away from somebody.
+  //
+  // MANAGE_HOLIDAY_CALENDAR opens the year, declares the festival holidays and
+  // settles the list with the Inspector. Clerical: the three national days are
+  // seeded rather than typed, the festival count is measured against the
+  // state's figure, and the settlement date is checkable against the Rules.
+  //
+  // MANAGE_HOLIDAY_SUBSTITUTION is separate because it is the only power in the
+  // module that changes which day an employee gets off — and because the engine
+  // refuses it outright against the three national days. Folding the two
+  // together would make that refusal read as a setting somebody forgot to
+  // switch on rather than as a limit on the employer's power.
+  //
+  // Deliberately not the leave permissions. Leave is applied for, approved and
+  // deducted from a balance; a holiday is none of those, cannot be refused, and
+  // one of the three cannot even be moved.
+  READ_HOLIDAY_CALENDAR: 'READ_HOLIDAY_CALENDAR',
+  MANAGE_HOLIDAY_CALENDAR: 'MANAGE_HOLIDAY_CALENDAR',
+  MANAGE_HOLIDAY_SUBSTITUTION: 'MANAGE_HOLIDAY_SUBSTITUTION',
   MANAGE_WAGE_DEDUCTION_RULES: 'MANAGE_WAGE_DEDUCTION_RULES',
   COMMIT_WAGE_DEDUCTION_REGISTER: 'COMMIT_WAGE_DEDUCTION_REGISTER',
   // Statutory compliance (#933, reachable since #951). Deliberately not
@@ -115,6 +183,53 @@ const PERMISSIONS = {
   // with the owner for the same reason MANAGE_EXPENSE_CATEGORY is.
   MANAGE_COMPLIANCE: 'MANAGE_COMPLIANCE',
 
+  // --- Code on Social Security, 2020, section 114 (#1829) ------------------
+  //
+  // Next to the compliance names because the turnover half has exactly
+  // MANAGE_COMPLIANCE's shape of authority: the aggregator's turnover is the
+  // base of the levy, nothing in this product produces it, and there is no
+  // payroll figure anywhere to check a stated figure against.
+  //
+  // The split follows the two axes the module keeps apart. The levy is per
+  // platform on its own turnover; the register is per *person*, because the
+  // same gig worker may be engaged by three aggregators and is one beneficiary
+  // against three contributions. Keeping the register a separate permission
+  // keeps it a separate act.
+  //
+  // Deliberately not the employee names. A gig worker is not an employee under
+  // section 2(35), and gating this on WRITE_EMPLOYEE is the first place that
+  // would be lost — the failure #1771 spent a whole module avoiding.
+  READ_AGGREGATOR_CONTRIBUTION: 'READ_AGGREGATOR_CONTRIBUTION',
+  MANAGE_GIG_WORKER_REGISTER: 'MANAGE_GIG_WORKER_REGISTER',
+  MANAGE_AGGREGATOR_TURNOVER: 'MANAGE_AGGREGATOR_TURNOVER',
+
+  // --- Industrial Employment (Standing Orders) Act, 1946 (#2029) -----------
+  //
+  // The split is on which name can make an establishment look like it has
+  // standing orders when the Model orders are what govern it.
+  //
+  // MANAGE_STANDING_ORDERS_CERTIFICATION holds the certified set — the date
+  // authenticated copies were sent, the appeal, and the Schedule matters
+  // covered. Moving the dispatch date earlier brings the orders into force
+  // before they bind anybody, and adding a matter the set does not cover takes
+  // that matter off the Model orders on paper and nowhere else.
+  //
+  // MANAGE_STANDING_ORDERS_REGISTER records the establishment and syncs the
+  // headcount. Clerical, but it is what dates applicability, and applicability
+  // starts the six months.
+  //
+  // PROPOSE_STANDING_ORDERS_MODIFICATION is narrowest. Section 10(1) bars
+  // unilateral amendment and excepts an agreement, so the name that records
+  // 'we agreed this with the union' is the name that can make a barred
+  // modification look permitted.
+  //
+  // Deliberately not the #1828 subsistence names. That module reads whether the
+  // orders are certified; it does not get to decide it.
+  READ_STANDING_ORDERS: 'READ_STANDING_ORDERS',
+  MANAGE_STANDING_ORDERS_REGISTER: 'MANAGE_STANDING_ORDERS_REGISTER',
+  MANAGE_STANDING_ORDERS_CERTIFICATION: 'MANAGE_STANDING_ORDERS_CERTIFICATION',
+  PROPOSE_STANDING_ORDERS_MODIFICATION: 'PROPOSE_STANDING_ORDERS_MODIFICATION',
+
   // --- Employees' State Insurance Act, 1948 (#1768) ------------------------
   //
   // Next to the compliance names because a monthly ESI return is a filing, and
@@ -134,6 +249,37 @@ const PERMISSIONS = {
   READ_ESI: 'READ_ESI',
   MANAGE_ESI_RULES: 'MANAGE_ESI_RULES',
   FILE_ESI_RETURN: 'FILE_ESI_RETURN',
+
+  // --- Payment of Gratuity Act, 1972 (#2031) -------------------------------
+  //
+  // The split is on which name can reduce what an employee or their family is
+  // paid.
+  //
+  // MANAGE_GRATUITY_CLAIM opens the obligation and records the two section 7(2)
+  // notices. `payableFrom` sits here and it is the sharpest field in the
+  // module: moving it forward makes an overdue gratuity look current and
+  // reduces the section 7(3A) interest with nothing else on the record
+  // changing.
+  //
+  // MANAGE_GRATUITY_NOMINATION holds the Form F. Editing a share moves money
+  // between two named people on the day it is most contested, and the person it
+  // was taken from is dead.
+  //
+  // FORFEIT_GRATUITY takes money away. The engine caps it at what section 4(6)
+  // permits, but the sub-section chosen, the damage figure under (a) and
+  // whether termination was for the act under (b) all move that cap.
+  //
+  // RECORD_GRATUITY_PAYMENT is narrowest: it carries the 7(3A) relief, and a
+  // controlling-authority permission recorded that does not exist writes off a
+  // statutory interest liability outright.
+  //
+  // Deliberately not the #1344 valuation names. Those measure the workforce's
+  // obligation under Ind AS 19; these decide what one person is owed.
+  READ_GRATUITY_CLAIM: 'READ_GRATUITY_CLAIM',
+  MANAGE_GRATUITY_CLAIM: 'MANAGE_GRATUITY_CLAIM',
+  MANAGE_GRATUITY_NOMINATION: 'MANAGE_GRATUITY_NOMINATION',
+  FORFEIT_GRATUITY: 'FORFEIT_GRATUITY',
+  RECORD_GRATUITY_PAYMENT: 'RECORD_GRATUITY_PAYMENT',
 
   IMPERSONATE_USER: 'IMPERSONATE_USER',
 
@@ -204,7 +350,89 @@ const PERMISSIONS = {
   // non-discretionary payment accruing interest at twelve percent from the date
   // of the accident.
   READ_EC_CLAIM: 'READ_EC_CLAIM',
+
+  // --- EPF International Workers, paragraph 83 (#1971) --------------------
+  //
+  // The split is on which name can take the ₹15,000 wage ceiling off — or put
+  // it back on.
+  //
+  // MANAGE_IW_DETERMINATION records the paragraph 83 status and the Certificate
+  // of Coverage. Both move a remittance by a factor of forty, in opposite
+  // directions: the determination removes the ceiling and the certificate stops
+  // the contribution altogether. Nothing else in the product moves that much
+  // money on the strength of one field.
+  //
+  // MANAGE_IW_CONTRIBUTION computes a month's basis and files IW-1. Clerical
+  // against the determination — the basis follows the status and the pay.
+  //
+  // Deliberately not the EPF permissions. Those cover the domestic ECR where
+  // the ceiling always applies; these cover the members it never applies to.
+  READ_INTERNATIONAL_WORKER: 'READ_INTERNATIONAL_WORKER',
+  MANAGE_IW_CONTRIBUTION: 'MANAGE_IW_CONTRIBUTION',
+  MANAGE_IW_DETERMINATION: 'MANAGE_IW_DETERMINATION',
+
+  // --- Shops and Commercial Establishments Acts (#1972) --------------------
+  //
+  // The split is on which name can make an establishment look registered when
+  // it is not.
+  //
+  // MANAGE_ESTABLISHMENT_REGISTRATION holds the certificate: the commencement
+  // date the registration window runs from, the registration date, and the
+  // expiry. Moving any of the three changes whether the establishment is
+  // trading lawfully, and a `validTo` pushed a year out makes a lapsed
+  // certificate look current with nothing else on the record changing.
+  //
+  // MANAGE_ESTABLISHMENT_PARTICULAR records what a particular says on the
+  // certificate against what it actually is, and syncs the headcount band.
+  // Clerical against the certificate itself — but separate, because a
+  // particular quietly "corrected" to match the establishment closes an
+  // amendment obligation that was owed and leaves no trace that it was.
+  //
+  // Deliberately not the entity permissions. Those record who the company is;
+  // these record whether a place of business is lawfully open.
+  READ_ESTABLISHMENT_REGISTRATION: 'READ_ESTABLISHMENT_REGISTRATION',
+  MANAGE_ESTABLISHMENT_PARTICULAR: 'MANAGE_ESTABLISHMENT_PARTICULAR',
+  MANAGE_ESTABLISHMENT_REGISTRATION: 'MANAGE_ESTABLISHMENT_REGISTRATION',
   MANAGE_EC_CLAIM: 'MANAGE_EC_CLAIM',
+
+  // --- Industrial Disputes Act, Chapters VA and VB (#1830) -----------------
+  //
+  // Next to the injury-compensation names because both are liabilities that
+  // arise from an event rather than from a pay period, and split on
+  // *lawfulness* rather than on money — which is unusual here and follows the
+  // chapter.
+  //
+  // Recording a spell of lay-off is register-keeping. Recording where the
+  // Chapter VB permission stands is not: that one field decides whether the
+  // establishment owes half pay for forty-five days or full wages for the whole
+  // period, and the second is several times the first. The threshold sits in
+  // the same bracket, because raising it from one hundred to three hundred
+  // turns an illegal act into a compensable one on paper without anything
+  // changing on the ground.
+  //
+  // Section 25G's selection is there too. A departure from last-in-first-out is
+  // lawful with recorded reasons and unlawful without, so who is proposed is
+  // part of the same question.
+  READ_LAYOFF: 'READ_LAYOFF',
+  MANAGE_LAYOFF_SPELL: 'MANAGE_LAYOFF_SPELL',
+  MANAGE_CHAPTER_VB_ACTION: 'MANAGE_CHAPTER_VB_ACTION',
+
+  // --- Sections 7Q and 14B, EPF & MP Act, 1952 (#1875) ---------------------
+  //
+  // The split is on what a name can make disappear rather than on what it
+  // touches. Keeping the remittance ledger is administration:
+  // MANAGE_EPF_REMITTANCE records what a wage month owed and what was paid
+  // against it, and every figure it writes is checkable against a challan.
+  //
+  // MANAGE_EPF_WAIVER is not that. A paragraph 32B order can take a period's
+  // damages to nil, and the resulting figure is indistinguishable from a
+  // liability that never arose. The rules are in the same bracket because
+  // `graceDays` does the same thing by a different route — the five days that
+  // followed the fifteenth were withdrawn in 2016, and restoring them turns a
+  // five-day default into a compliant remittance without a rupee moving.
+  READ_EPF_REMITTANCE: 'READ_EPF_REMITTANCE',
+  MANAGE_EPF_REMITTANCE: 'MANAGE_EPF_REMITTANCE',
+  MANAGE_EPF_WAIVER: 'MANAGE_EPF_WAIVER',
 
   READ_VENDOR: 'READ_VENDOR',
   // Recording a vendor invoice sets the 194C/194J TDS withheld, and therefore
@@ -229,6 +457,32 @@ const PERMISSIONS = {
   READ_CONSTRUCTION_CESS: 'READ_CONSTRUCTION_CESS',
   MANAGE_CESS_REGISTER: 'MANAGE_CESS_REGISTER',
   MANAGE_CESS_BASE: 'MANAGE_CESS_BASE',
+
+  // --- Industrial Disputes Act, section 9A (#1973) -------------------------
+  //
+  // The split is on which name can make a notice obligation disappear.
+  //
+  // MANAGE_NOTICE_OF_CHANGE records the change and moves the effective date.
+  // Moving the date is the ordinary remedy for a short notice — it is the thing
+  // the module exists to prompt — so it stays with the clerical name.
+  //
+  // CLASSIFY_NOTICE_OF_CHANGE holds the Fourth Schedule item, the
+  // standing-orders and casual-fluctuation qualifiers, and the section 9B or
+  // settlement exemption. Any of the four takes a change out of the notice
+  // queue entirely and none of them leaves another trace that it did.
+  //
+  // RECORD_PENDING_PROCEEDING is narrower again. Clearing the express
+  // permission reference turns 'you need the Tribunal's permission' into 'you
+  // need to wait twenty-one days', which is the one error here that tells an
+  // employer to commit an offence on a date certain.
+  //
+  // Deliberately not the payroll or roster names. Those change what a workman is
+  // paid and when they work; these record whether the employer was entitled to
+  // change it on the date they picked.
+  READ_NOTICE_OF_CHANGE: 'READ_NOTICE_OF_CHANGE',
+  MANAGE_NOTICE_OF_CHANGE: 'MANAGE_NOTICE_OF_CHANGE',
+  CLASSIFY_NOTICE_OF_CHANGE: 'CLASSIFY_NOTICE_OF_CHANGE',
+  RECORD_PENDING_PROCEEDING: 'RECORD_PENDING_PROCEEDING',
 
   // --- Contract Labour (Regulation and Abolition) Act, 1970 (#1700) --------
   //
@@ -277,6 +531,22 @@ const PERMISSIONS = {
   // very often also a contract workman: #1700 answers what the principal
   // employer owes for a contractor's workmen, and this answers what the workman
   // is owed for having been recruited in another state.
+  // --- Article 276 and the state professional tax enactments (#1876) -------
+  //
+  // The split is on which name can change what a payslip already issued says.
+  // MANAGE_PROFESSIONAL_TAX records a work state, a certificate and a
+  // remittance, and every figure it writes is checkable against a document.
+  //
+  // MANAGE_PT_RULE writes the slab table, and a slab table carries an effective
+  // date. Backdating one silently rewrites the deduction on payslips already
+  // issued — the employee's copy and ours then disagree with nothing having
+  // failed. Committing the year is in the same bracket because it fixes the
+  // section 16(iii) figure the salary computation deducts, and therefore the
+  // TDS in Form 24Q.
+  READ_PROFESSIONAL_TAX: 'READ_PROFESSIONAL_TAX',
+  MANAGE_PROFESSIONAL_TAX: 'MANAGE_PROFESSIONAL_TAX',
+  MANAGE_PT_RULE: 'MANAGE_PT_RULE',
+
   READ_MIGRANT_WORKMEN: 'READ_MIGRANT_WORKMEN',
   MANAGE_MIGRANT_WORKMAN: 'MANAGE_MIGRANT_WORKMAN',
   MANAGE_MIGRANT_WAGE_BASIS: 'MANAGE_MIGRANT_WAGE_BASIS',
@@ -320,6 +590,23 @@ const PERMISSIONS = {
   // everybody at that grade is checked against.
   MANAGE_PAY_EQUITY: 'MANAGE_PAY_EQUITY',
 
+  // --- Child and Adolescent Labour Act, 1986 (#1877) -----------------------
+  //
+  // The split is on which field can turn a prohibited engagement into a
+  // permitted one. MANAGE_YOUNG_PERSON_REGISTER keeps the section 11 register —
+  // who is engaged, in what work, for which hours — and every entry in it is
+  // checkable against the person standing in the establishment.
+  //
+  // MANAGE_AGE_RECORD writes the date of birth, and that one date decides
+  // whether section 3's total bar applies at all: moving it by a year moves
+  // somebody across the fourteen or the eighteen boundary. Resolving a finding
+  // is in the same bracket, so that no single account can both create the
+  // appearance of lawfulness and close the finding that would have said
+  // otherwise.
+  READ_YOUNG_PERSON: 'READ_YOUNG_PERSON',
+  MANAGE_YOUNG_PERSON_REGISTER: 'MANAGE_YOUNG_PERSON_REGISTER',
+  MANAGE_AGE_RECORD: 'MANAGE_AGE_RECORD',
+
   READ_CONTRACT: 'READ_CONTRACT',
   // Issuing an offer letter commits the company to a salary. Kept apart from
   // WRITE_EMPLOYEE for the same reason APPROVE_PAYROLL is kept apart from
@@ -360,6 +647,24 @@ const PERMISSIONS = {
   // Reading is separated from both because a perquisite statement is one
   // person's complete tax position, in the same class as the Form 16 that
   // READ_COMPLIANCE guards.
+  // --- EDLI paragraph 22, the assurance benefit (#1878) --------------------
+  //
+  // The split is on what each name decides for a family. MANAGE_EPF_NOMINATION
+  // decides *who* receives the assurance, and it is the one thing here a member
+  // states for themselves — so it sits apart from everything that decides how
+  // much.
+  //
+  // MANAGE_EDLI_CLAIM commits the figure a family is quoted and holds the two
+  // inputs that move it most: the section 17(2A) exemption, which decides
+  // whether the group policy or the scheme is the measure, and prior service at
+  // another establishment, which decides whether the ₹2,50,000 floor applies at
+  // all. They are together on purpose — an account that could record fourteen
+  // months of unverified prior service and then commit the resulting claim is
+  // the whole risk in this feature.
+  READ_EDLI: 'READ_EDLI',
+  MANAGE_EPF_NOMINATION: 'MANAGE_EPF_NOMINATION',
+  MANAGE_EDLI_CLAIM: 'MANAGE_EDLI_CLAIM',
+
   READ_PERQUISITE: 'READ_PERQUISITE',
   MANAGE_PERQUISITE_GRANT: 'MANAGE_PERQUISITE_GRANT',
   MANAGE_PERQUISITE_RULES: 'MANAGE_PERQUISITE_RULES',
@@ -416,6 +721,22 @@ const PERMISSIONS = {
   // years, and can create a filing obligation in a second country. Approving a
   // per-diem and approving that are not the same act and are not the same
   // people.
+  // --- Employment Exchanges (CNV) Act, 1959 (#1879) ------------------------
+  //
+  // The split is on which name can take a vacancy out of the Act.
+  // MANAGE_VACANCY_NOTIFICATION records that the exchange was told and files
+  // ER-I and ER-II; every row it writes is checkable against an
+  // acknowledgement.
+  //
+  // MANAGE_CNV_DETERMINATION records the section 3 ground, and marking a
+  // vacancy "to be filled by promotion" removes it from the Act entirely. The
+  // headcount is in the same bracket because it does the same thing by a
+  // different route: twenty-four as at the date a requisition opened takes
+  // every requisition that month below the threshold.
+  READ_VACANCY_NOTIFICATION: 'READ_VACANCY_NOTIFICATION',
+  MANAGE_VACANCY_NOTIFICATION: 'MANAGE_VACANCY_NOTIFICATION',
+  MANAGE_CNV_DETERMINATION: 'MANAGE_CNV_DETERMINATION',
+
   READ_ASSIGNMENT: 'READ_ASSIGNMENT',
   MANAGE_ASSIGNMENT: 'MANAGE_ASSIGNMENT',
   // Kept apart from MANAGE_ASSIGNMENT for the same maker-checker reason as
@@ -470,6 +791,21 @@ const PERMISSIONS = {
 
 const PERMISSION_DEFINITIONS = [
   {
+    name: PERMISSIONS.READ_ARREAR_RELIEF,
+    description:
+      'View the relief each salary arrear earns under section 89(1), the year-wise spread behind it, and the Form 10E position',
+  },
+  {
+    name: PERMISSIONS.MANAGE_RELIEF_CLAIM,
+    description:
+      'Record an arrear and its year-wise spread, record the employee’s Form 10E furnishing, and give the relief in the TDS computation',
+  },
+  {
+    name: PERMISSIONS.MANAGE_TAX_RATE_TABLE,
+    description:
+      'Maintain the dated slab, surcharge and rebate tables and the employee’s assessed income for past years — the figures every section 89(1) relief is computed against',
+  },
+  {
     name: PERMISSIONS.READ_EMPLOYEE,
     description: 'View the employee directory and individual employee records',
   },
@@ -481,6 +817,22 @@ const PERMISSION_DEFINITIONS = [
     name: PERMISSIONS.DELETE_EMPLOYEE,
     description: 'Permanently delete an employee and their payroll history',
   },
+  {
+    name: PERMISSIONS.READ_SUSPENSION,
+    description:
+      'View suspensions pending enquiry, the section 10A tier each is in and what has been paid against what was due',
+  },
+  {
+    name: PERMISSIONS.MANAGE_SUSPENSION,
+    description:
+      'Order a suspension, record the monthly subsistence allowance paid, and record the enquiry’s outcome',
+  },
+  {
+    name: PERMISSIONS.DETERMINE_SUSPENSION_DELAY,
+    description:
+      'Record whether the delay in completing an enquiry is attributable to the workman, which decides the 50/75/100 tier, and set the scale',
+  },
+
   {
     name: PERMISSIONS.READ_PAYROLL,
     description: 'View payroll summaries and export payroll data',
@@ -532,6 +884,23 @@ const PERMISSION_DEFINITIONS = [
       'Create and edit expense categories, including whether a category is taxable',
   },
   {
+    name: PERMISSIONS.MANAGE_EPF_REMITTANCE,
+    description:
+      'Record what a wage month owed to each EPF account and the payments made against it, including a section 7A determination for a past period',
+  },
+  {
+    name: PERMISSIONS.MANAGE_EPF_WAIVER,
+    description:
+      'Record a paragraph 32B damages waiver, set the interest rate, the paragraph 32A slabs and the grace period, and commit an assessment',
+  },
+
+  {
+    name: PERMISSIONS.READ_EPF_REMITTANCE,
+    description:
+      'View the EPF remittance ledger, the section 7Q interest and section 14B damages on each default, and the member share deducted and not remitted',
+  },
+
+  {
     name: PERMISSIONS.READ_STATUTORY_BONUS,
     description:
       'View the statutory bonus computation, the set-on/set-off ledger and the Form C register',
@@ -572,6 +941,57 @@ const PERMISSION_DEFINITIONS = [
       'Commit the section 13A register for a wage period, and write off a deferred balance that will not be recovered',
   },
   {
+    name: PERMISSIONS.READ_AGGREGATOR_CONTRIBUTION,
+    description:
+      'View the section 114 contribution — the turnover limb against the payout ceiling, which one binds, and the gig worker register',
+  },
+  {
+    name: PERMISSIONS.MANAGE_GIG_WORKER_REGISTER,
+    description:
+      'Record a gig or platform worker and their engagements across aggregators, including platforms this tenant does not operate',
+  },
+  {
+    name: PERMISSIONS.READ_HOLIDAY_CALENDAR,
+    description:
+      'View the year’s national and festival holidays, the list’s settlement position with the Inspector, and what each holiday worked is owed',
+  },
+  {
+    name: PERMISSIONS.MANAGE_HOLIDAY_CALENDAR,
+    description:
+      'Open a year’s holiday calendar, declare the state’s festival holidays, settle the list with the Inspector, and record a holiday worked',
+  },
+  {
+    name: PERMISSIONS.MANAGE_HOLIDAY_SUBSTITUTION,
+    description:
+      'Substitute a festival holiday for another day against the employee’s recorded agreement — the three national holidays cannot be substituted at all',
+  },
+  {
+    name: PERMISSIONS.MANAGE_AGGREGATOR_TURNOVER,
+    description:
+      'State the aggregator’s turnover and its Seventh Schedule split, set the rate band and the payout ceiling, finalise a year and commit the assessment',
+  },
+  {
+    name: PERMISSIONS.READ_STANDING_ORDERS,
+    description:
+      'View the standing orders register — when the Act became applicable, the six months running against it, what actually governs the establishment today, and the Schedule matters still on the Model orders',
+  },
+  {
+    name: PERMISSIONS.MANAGE_STANDING_ORDERS_REGISTER,
+    description:
+      'Record an industrial establishment under the Act and sync its workmen strength — the sync that dates applicability and starts the section 3(1) six months',
+  },
+  {
+    name: PERMISSIONS.MANAGE_STANDING_ORDERS_CERTIFICATION,
+    description:
+      'Record a certified set of standing orders, the date authenticated copies were sent, any section 6 appeal, and the Schedule matters the set covers — the three things that decide what binds the workmen',
+  },
+  {
+    name: PERMISSIONS.PROPOSE_STANDING_ORDERS_MODIFICATION,
+    description:
+      'Propose a modification to certified standing orders and record the section 10(1) agreement relied on — the exception that turns a barred unilateral amendment into a permitted one',
+  },
+
+  {
     name: PERMISSIONS.READ_COMPLIANCE,
     description:
       'View compliance settings and download Form 16 certificates and Form 24Q returns',
@@ -597,10 +1017,51 @@ const PERMISSION_DEFINITIONS = [
       'File the monthly ESI return and record its remittance, which fixes the coverage each employee carries into the next month',
   },
   {
+    name: PERMISSIONS.READ_GRATUITY_CLAIM,
+    description:
+      'View the gratuity queue — who is payable and on what ground, the thirty days running against each claim, the section 7(3A) interest already accrued, and the Form F nomination that decides who is paid on death',
+  },
+  {
+    name: PERMISSIONS.MANAGE_GRATUITY_CLAIM,
+    description:
+      'Open a gratuity claim from the last working day and record the two section 7(2) notices — to the payee and to the controlling authority',
+  },
+  {
+    name: PERMISSIONS.MANAGE_GRATUITY_NOMINATION,
+    description:
+      'Record a Form F nomination and its shares — the instrument that decides who receives the amount on the death of an employee',
+  },
+  {
+    name: PERMISSIONS.FORFEIT_GRATUITY,
+    description:
+      'Forfeit gratuity under section 4(6) — the sub-section relied on, the damage quantified under (a), and whether services were terminated for the act under (b)',
+  },
+  {
+    name: PERMISSIONS.RECORD_GRATUITY_PAYMENT,
+    description:
+      'Record payment of gratuity and the section 7(3A) relief — the employee-fault ground together with the controlling authority’s written permission that alone stops the interest',
+  },
+  {
     name: PERMISSIONS.MANAGE_ROLES,
     description:
       'Create, update and delete custom roles and their permission sets',
   },
+  {
+    name: PERMISSIONS.MANAGE_PROFESSIONAL_TAX,
+    description:
+      'Record an employee’s work state and exemptions, the enrolment and registration certificates, and the remittances made under them',
+  },
+  {
+    name: PERMISSIONS.MANAGE_PT_RULE,
+    description:
+      'Write a state professional tax slab table with its effective date, and commit the year’s assessment that fixes the section 16(iii) deduction',
+  },
+  {
+    name: PERMISSIONS.READ_PROFESSIONAL_TAX,
+    description:
+      'View the professional tax slab rules in force, the per-employee work state and deduction, and the remittances against each registration certificate',
+  },
+
   {
     name: PERMISSIONS.IMPERSONATE_USER,
     description:
@@ -654,6 +1115,22 @@ const PERMISSION_DEFINITIONS = [
       'Commit an EPS-95 valuation as at a date, fixing the pension figure each member is quoted',
   },
   {
+    name: PERMISSIONS.READ_LAYOFF,
+    description:
+      'View lay-off spells, the section 25B service behind each, the rolling 45-day ceiling and the Chapter VB position',
+  },
+  {
+    name: PERMISSIONS.MANAGE_LAYOFF_SPELL,
+    description:
+      'Record a spell of lay-off, its section 25B service days and section 25E disentitlements, and the section 25H re-employment register',
+  },
+  {
+    name: PERMISSIONS.MANAGE_CHAPTER_VB_ACTION,
+    description:
+      'Record a Chapter VB act and where its prior permission stands, set the threshold and the ceiling, propose a section 25G selection, and commit the assessment',
+  },
+
+  {
     name: PERMISSIONS.READ_EC_CLAIM,
     description:
       'View workplace injury compensation claims, including the injured employee’s age and the circumstances of the accident',
@@ -673,6 +1150,52 @@ const PERMISSION_DEFINITIONS = [
       'Register contractors and record invoices, which sets the 194C/194J TDS withheld on their behalf',
   },
   {
+    name: PERMISSIONS.MANAGE_YOUNG_PERSON_REGISTER,
+    description:
+      'Keep the section 11 register — the engagement, the nature of the work, the daily spells and intervals, and the notified weekly day off',
+  },
+  {
+    name: PERMISSIONS.MANAGE_AGE_RECORD,
+    description:
+      'Record a person’s date of birth and what it rests on, resolve a finding, and commit the assessment',
+  },
+  {
+    name: PERMISSIONS.READ_YOUNG_PERSON,
+    description:
+      'View the register of children and adolescents engaged, the section 7 hours against each, and the prohibited engagements',
+  },
+
+  {
+    name: PERMISSIONS.READ_INTERNATIONAL_WORKER,
+    description:
+      'View the paragraph 83 register, each Certificate of Coverage as a countdown, the full-pay contribution against what the ceiling would have given, and the withdrawal position',
+  },
+  {
+    name: PERMISSIONS.MANAGE_IW_CONTRIBUTION,
+    description:
+      'Compute an international worker’s monthly contribution on full pay and file the IW-1 return',
+  },
+  {
+    name: PERMISSIONS.MANAGE_IW_DETERMINATION,
+    description:
+      'Record the paragraph 83 status and the Certificate of Coverage — the two determinations that take the statutory wage ceiling off a member, or stop their contribution entirely',
+  },
+  {
+    name: PERMISSIONS.READ_ESTABLISHMENT_REGISTRATION,
+    description:
+      'View the establishment register — the state Act that applies, each certificate as a countdown, the amendments a change in particulars has already made due, and the hours and weekly holiday position',
+  },
+  {
+    name: PERMISSIONS.MANAGE_ESTABLISHMENT_PARTICULAR,
+    description:
+      'Record what a particular says on the certificate against what it actually is, and sync the headcount band an ordinary hire has moved',
+  },
+  {
+    name: PERMISSIONS.MANAGE_ESTABLISHMENT_REGISTRATION,
+    description:
+      'Record an establishment\u2019s commencement, its registration and the certificate\u2019s validity, and intimate a closure \u2014 the dates that decide whether a place of business is lawfully open',
+  },
+  {
     name: PERMISSIONS.READ_CONSTRUCTION_CESS,
     description:
       'View the construction cess position per project, the advance deducted against the section 5 assessment and the beneficiary register',
@@ -686,6 +1209,26 @@ const PERMISSION_DEFINITIONS = [
     name: PERMISSIONS.MANAGE_CESS_BASE,
     description:
       'Set the cost of construction and its section 3 exclusions, the notified rate and the section 7 registration, record an assessment order, and commit the assessment',
+  },
+  {
+    name: PERMISSIONS.READ_NOTICE_OF_CHANGE,
+    description:
+      'View the section 9A queue — the Fourth Schedule item on each proposed change, the workmen it obliges notice to, the days left to serve it, and the changes that took effect without notice',
+  },
+  {
+    name: PERMISSIONS.MANAGE_NOTICE_OF_CHANGE,
+    description:
+      'Record a proposed change, determine per person who is a workman under section 2(s), serve the Form E notice, and move a proposed effective date to cure a short notice',
+  },
+  {
+    name: PERMISSIONS.CLASSIFY_NOTICE_OF_CHANGE,
+    description:
+      'Decide the Fourth Schedule item a change falls under, apply the standing-orders and casual-fluctuation qualifiers, and record a section 9B or settlement exemption with its authority — each of which takes a change out of the notice queue',
+  },
+  {
+    name: PERMISSIONS.RECORD_PENDING_PROCEEDING,
+    description:
+      'Record a pending conciliation or adjudication and the express permission obtained under section 33 — the field that decides whether the obligation is a notice period at all',
   },
   {
     name: PERMISSIONS.READ_CONTRACT_LABOUR,
@@ -756,6 +1299,22 @@ const PERMISSION_DEFINITIONS = [
     description:
       'View the pay gap analysis, which is computed from employees’ declared gender',
   },
+  {
+    name: PERMISSIONS.MANAGE_EPF_NOMINATION,
+    description:
+      'Record a member’s EPF Form 2 nomination, the family and the legal heirs — who the assurance is paid to',
+  },
+  {
+    name: PERMISSIONS.MANAGE_EDLI_CLAIM,
+    description:
+      'Record the section 17(2A) exemption and its policy, record prior service at another establishment, and commit the assurance claim',
+  },
+  {
+    name: PERMISSIONS.READ_EDLI,
+    description:
+      'View EDLI nominations, the twelve-month averaging window behind a claim, the computed assurance benefit and the section 17(2A) comparison',
+  },
+
   {
     name: PERMISSIONS.MANAGE_PAY_EQUITY,
     description:
@@ -836,6 +1395,22 @@ const PERMISSION_DEFINITIONS = [
     description:
       'File a Leave Travel Allowance journey and see the exemption it earns under section 10(5)',
   },
+  {
+    name: PERMISSIONS.MANAGE_VACANCY_NOTIFICATION,
+    description:
+      'Record that a vacancy was notified to the employment exchange, record how it turned out, and file ER-I and ER-II',
+  },
+  {
+    name: PERMISSIONS.MANAGE_CNV_DETERMINATION,
+    description:
+      'Record a section 3 exclusion against a requisition and the establishment’s headcount as at a date — the two things that take a vacancy outside the Act',
+  },
+  {
+    name: PERMISSIONS.READ_VACANCY_NOTIFICATION,
+    description:
+      'View the notification window on each open requisition, the section 3 determinations, and the ER-I and ER-II return schedule',
+  },
+
   {
     name: PERMISSIONS.VERIFY_LTA_CLAIM,
     description:
@@ -969,6 +1544,19 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_EMPLOYEE,
       PERMISSIONS.WRITE_EMPLOYEE,
       PERMISSIONS.DELETE_EMPLOYEE,
+      // #1969. All three. Maintaining the rate table a relief is computed
+      // against and giving that relief in the TDS computation are two halves of
+      // the same check, and the owner is the one account allowed to be both.
+      PERMISSIONS.READ_ARREAR_RELIEF,
+      PERMISSIONS.MANAGE_RELIEF_CLAIM,
+      PERMISSIONS.MANAGE_TAX_RATE_TABLE,
+      // #1828. All three. Deciding whose conduct delayed an enquiry and
+      // certifying the establishment against the result are the two halves of
+      // one check, and the owner is the one account allowed to be both.
+      PERMISSIONS.READ_SUSPENSION,
+      PERMISSIONS.MANAGE_SUSPENSION,
+      PERMISSIONS.DETERMINE_SUSPENSION_DELAY,
+
       PERMISSIONS.READ_PAYROLL,
       PERMISSIONS.WRITE_PAYROLL,
       PERMISSIONS.APPROVE_PAYROLL,
@@ -982,6 +1570,13 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.MANAGE_EXPENSE_CATEGORY,
 
       // #1346.
+      // #1875. All three. A paragraph 32B waiver reduces a liability the same
+      // account will later be asked to certify, and the owner is the one
+      // account allowed to be on both sides of that.
+      PERMISSIONS.READ_EPF_REMITTANCE,
+      PERMISSIONS.MANAGE_EPF_REMITTANCE,
+      PERMISSIONS.MANAGE_EPF_WAIVER,
+
       PERMISSIONS.READ_STATUTORY_BONUS,
       PERMISSIONS.MANAGE_STATUTORY_BONUS,
 
@@ -991,6 +1586,12 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_MINIMUM_WAGE,
       PERMISSIONS.MANAGE_MINIMUM_WAGE_SCHEDULE,
       PERMISSIONS.RUN_MINIMUM_WAGE_ASSESSMENT,
+      // #1970. All three. Declaring the list and moving a day off it are two
+      // halves of the same check, and the owner is the one account allowed to
+      // be both.
+      PERMISSIONS.READ_HOLIDAY_CALENDAR,
+      PERMISSIONS.MANAGE_HOLIDAY_CALENDAR,
+      PERMISSIONS.MANAGE_HOLIDAY_SUBSTITUTION,
 
       // #1767. All three, for the reason immediately above: the owner is the
       // one account allowed to be both halves of a check. Writing off a
@@ -999,6 +1600,21 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_WAGE_DEDUCTIONS,
       PERMISSIONS.MANAGE_WAGE_DEDUCTION_RULES,
       PERMISSIONS.COMMIT_WAGE_DEDUCTION_REGISTER,
+
+      // #1829. All three. Stating the platform's turnover and certifying the
+      // contribution computed from it are the two halves of one check, and the
+      // owner is the one account allowed to be both — there is nobody above it.
+      PERMISSIONS.READ_AGGREGATOR_CONTRIBUTION,
+      PERMISSIONS.MANAGE_GIG_WORKER_REGISTER,
+      PERMISSIONS.MANAGE_AGGREGATOR_TURNOVER,
+
+      // #2029. All four. Certifying what binds the workmen and agreeing a
+      // modification to it inside the six-month bar are two halves of the same
+      // check, and the owner is the one account allowed to be both.
+      PERMISSIONS.READ_STANDING_ORDERS,
+      PERMISSIONS.MANAGE_STANDING_ORDERS_REGISTER,
+      PERMISSIONS.MANAGE_STANDING_ORDERS_CERTIFICATION,
+      PERMISSIONS.PROPOSE_STANDING_ORDERS_MODIFICATION,
 
       PERMISSIONS.READ_COMPLIANCE,
       PERMISSIONS.MANAGE_COMPLIANCE,
@@ -1010,9 +1626,35 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.MANAGE_ESI_RULES,
       PERMISSIONS.FILE_ESI_RETURN,
 
+      // #2031. All five. Forfeiting gratuity and then certifying that it was
+      // lawfully forfeited are two halves of the same check, and the owner is
+      // the one account allowed to be both. RECORD_GRATUITY_PAYMENT stops here
+      // for the reason APPROVE_PAYROLL does: writing off accrued statutory
+      // interest is forgiving a debt.
+      PERMISSIONS.READ_GRATUITY_CLAIM,
+      PERMISSIONS.MANAGE_GRATUITY_CLAIM,
+      PERMISSIONS.MANAGE_GRATUITY_NOMINATION,
+      PERMISSIONS.FORFEIT_GRATUITY,
+      PERMISSIONS.RECORD_GRATUITY_PAYMENT,
+
       // Held by the owner alone: a role edit changes what every other account
       // in the company can do.
       PERMISSIONS.MANAGE_ROLES,
+      // #1876. All three. Backdating a slab table rewrites a payslip already
+      // issued, and the owner is the one account allowed to do that and to
+      // certify the result.
+      PERMISSIONS.READ_PROFESSIONAL_TAX,
+      PERMISSIONS.MANAGE_PROFESSIONAL_TAX,
+      PERMISSIONS.MANAGE_PT_RULE,
+
+      // #1973. All four. Deciding that a change is outside the Fourth Schedule
+      // and then effecting it on the date of your choice are two halves of the
+      // same check, and the owner is the one account allowed to be both.
+      PERMISSIONS.READ_NOTICE_OF_CHANGE,
+      PERMISSIONS.MANAGE_NOTICE_OF_CHANGE,
+      PERMISSIONS.CLASSIFY_NOTICE_OF_CHANGE,
+      PERMISSIONS.RECORD_PENDING_PROCEEDING,
+
       PERMISSIONS.IMPERSONATE_USER,
 
       // #1011. The owner holds everything, including the three that stop at
@@ -1028,6 +1670,20 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_CONSTRUCTION_CESS,
       PERMISSIONS.MANAGE_CESS_REGISTER,
       PERMISSIONS.MANAGE_CESS_BASE,
+      // #1971. All three. Determining that a member is outside the wage ceiling
+      // and computing the contribution that follows are two halves of the same
+      // check, and the owner is the one account allowed to be both.
+      PERMISSIONS.READ_INTERNATIONAL_WORKER,
+      PERMISSIONS.MANAGE_IW_CONTRIBUTION,
+      PERMISSIONS.MANAGE_IW_DETERMINATION,
+
+      // #1972. All three. The certificate dates decide whether the
+      // establishment is trading lawfully at all, and there is no figure
+      // elsewhere in the product to check them against — so the owner is the
+      // one account allowed to be both halves of that check.
+      PERMISSIONS.READ_ESTABLISHMENT_REGISTRATION,
+      PERMISSIONS.MANAGE_ESTABLISHMENT_PARTICULAR,
+      PERMISSIONS.MANAGE_ESTABLISHMENT_REGISTRATION,
 
       // #1344. All three. MANAGE_GRATUITY_ASSUMPTIONS stops here for the same
       // reason MANAGE_COMPLIANCE does — it decides what gets reported, not who
@@ -1046,7 +1702,22 @@ const ROLE_DEFINITIONS = [
       // #1699. Both. Admitting a claim commits the company and depositing one
       // with the Commissioner discharges a statutory liability, which is the
       // same class of authority as APPROVE_PAYROLL.
+      // #1830. All three. Whether a Chapter VB act was lawful decides which of
+      // two liabilities applies, and certifying the establishment against the
+      // answer is the other half of the same check — the owner is the one
+      // account allowed to be both.
+      PERMISSIONS.READ_LAYOFF,
+      PERMISSIONS.MANAGE_LAYOFF_SPELL,
+      PERMISSIONS.MANAGE_CHAPTER_VB_ACTION,
+
       PERMISSIONS.READ_EC_CLAIM,
+      // #1877. All three. Writing an age and closing the finding that age
+      // produced are the two halves of the same check, and the owner is the one
+      // account allowed to be on both sides of it.
+      PERMISSIONS.READ_YOUNG_PERSON,
+      PERMISSIONS.MANAGE_YOUNG_PERSON_REGISTER,
+      PERMISSIONS.MANAGE_AGE_RECORD,
+
       PERMISSIONS.MANAGE_EC_CLAIM,
       PERMISSIONS.READ_VENDOR,
       PERMISSIONS.MANAGE_VENDOR,
@@ -1085,6 +1756,13 @@ const ROLE_DEFINITIONS = [
       // the only sensitive personal data in the product, and a committed report
       // is a published figure — neither is HR admin.
       PERMISSIONS.READ_PAY_EQUITY,
+      // #1878. All three. Recording prior service and committing the claim it
+      // qualifies for are the two halves of the same check, and the owner is
+      // the one account allowed to be on both sides of it.
+      PERMISSIONS.READ_EDLI,
+      PERMISSIONS.MANAGE_EPF_NOMINATION,
+      PERMISSIONS.MANAGE_EDLI_CLAIM,
+
       PERMISSIONS.MANAGE_PAY_EQUITY,
       PERMISSIONS.READ_CONTRACT,
       PERMISSIONS.MANAGE_CONTRACT,
@@ -1110,6 +1788,13 @@ const ROLE_DEFINITIONS = [
 
       // #1345.
       PERMISSIONS.SUBMIT_LTA_CLAIM,
+      // #1879. All three. Recording the ground that takes a vacancy out of the
+      // Act and filing the return that would have reported it are two halves of
+      // the same check, and the owner is the one account allowed to be both.
+      PERMISSIONS.READ_VACANCY_NOTIFICATION,
+      PERMISSIONS.MANAGE_VACANCY_NOTIFICATION,
+      PERMISSIONS.MANAGE_CNV_DETERMINATION,
+
       PERMISSIONS.VERIFY_LTA_CLAIM,
 
       PERMISSIONS.READ_PYQ,
@@ -1153,6 +1838,24 @@ const ROLE_DEFINITIONS = [
     permissions: [
       PERMISSIONS.READ_EMPLOYEE,
       PERMISSIONS.WRITE_EMPLOYEE,
+
+      // #1828. Read and manage. Ordering a suspension, paying the monthly
+      // allowance and recording the enquiry's result is HR administration in
+      // the ordinary sense. It does not make the attributability finding, which
+      // is a judgement about whose conduct delayed the enquiry and is worth the
+      // difference between fifty per cent and seventy-five — HR is frequently
+      // the party whose delay is in question, which is exactly why the finding
+      // sits with the owner.
+      PERMISSIONS.READ_SUSPENSION,
+      // #1969. Read and the claims, not the rate tables. Recording an arrear
+      // and an employee's Form 10E is clerical against documents; the dated
+      // slabs and a past year's assessed income are the figures every relief
+      // is computed against, and moving one of those silently moves every
+      // relief for every employee.
+      PERMISSIONS.READ_ARREAR_RELIEF,
+      PERMISSIONS.MANAGE_RELIEF_CLAIM,
+      PERMISSIONS.MANAGE_SUSPENSION,
+
       PERMISSIONS.READ_PAYROLL,
       PERMISSIONS.WRITE_PAYROLL,
       PERMISSIONS.READ_REPORT,
@@ -1164,6 +1867,23 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.APPROVE_EXPENSE,
       // Issuing Form 16 at year end is HR's job. Setting the TAN the return is
       // filed under is not — that stays with the owner.
+      // #1829. Read and the register. Recording a gig worker and the days they
+      // worked across platforms is register-keeping of the ordinary kind. It
+      // does not state the aggregator's turnover, which is the base of the levy
+      // and has no cross-check anywhere in this product, and it does not commit
+      // the assessment.
+      // #1875. Read and the ledger. Recording what a wage month owed and what
+      // was remitted against it is administration and every figure is
+      // checkable against a challan. It does not record a paragraph 32B
+      // waiver, which can take a period's damages to nil, and it does not move
+      // the grace period, which does the same thing by making the default
+      // disappear instead.
+      PERMISSIONS.READ_EPF_REMITTANCE,
+      PERMISSIONS.MANAGE_EPF_REMITTANCE,
+
+      PERMISSIONS.READ_AGGREGATOR_CONTRIBUTION,
+      PERMISSIONS.MANAGE_GIG_WORKER_REGISTER,
+
       PERMISSIONS.READ_COMPLIANCE,
 
       // #1768. HR reads the coverage register — the 78-day count is what an
@@ -1212,7 +1932,21 @@ const ROLE_DEFINITIONS = [
       // to cost us" is an HR question and the per-employee schedule answers it.
       // It does not run one and it does not set the assumptions: both decide
       // what the company reports, which is the owner's call and the auditor's.
+      // #1876. Read and the administration. Recording where somebody works and
+      // what was remitted is ordinary HR work. It does not write a slab table
+      // with an effective date, which can rewrite a payslip already issued, and
+      // it does not commit the year that fixes the section 16(iii) deduction.
+      PERMISSIONS.READ_PROFESSIONAL_TAX,
+      PERMISSIONS.MANAGE_PROFESSIONAL_TAX,
+
       PERMISSIONS.READ_GRATUITY_VALUATION,
+      // #1970. Read and the calendar, not the substitutions. Declaring the
+      // festival list and settling it with the Inspector is clerical work
+      // measured against the state's own figure; moving a day an employee has
+      // already been told they are getting off is not, and the same permission
+      // holding both would let one person do it end to end.
+      PERMISSIONS.READ_HOLIDAY_CALENDAR,
+      PERMISSIONS.MANAGE_HOLIDAY_CALENDAR,
 
       // #1769. HR reads the pension statements — "why is my pensionable salary
       // ₹14,500 when I earned ₹40,000" is a question an employee asks HR, and
@@ -1225,7 +1959,31 @@ const ROLE_DEFINITIONS = [
       // is asked. It does not admit the claim: that commits the company to a
       // payment and starts a section 4A clock, which is the owner's call for
       // the same reason APPROVE_PAYROLL is.
+      // #1830. Read and the spell. Recording a lay-off, the section 25B days
+      // behind it and the section 25H register is HR administration in the
+      // ordinary sense. It does not record where the Chapter VB permission
+      // stands, which decides whether the act was lawful at all, and it does
+      // not move the threshold or propose the section 25G selection.
+      PERMISSIONS.READ_LAYOFF,
+      PERMISSIONS.MANAGE_LAYOFF_SPELL,
+
       PERMISSIONS.READ_EC_CLAIM,
+      // #1971. Read and the contribution, not the determination. Computing a
+      // month's basis follows mechanically from the status and the pay; the
+      // status itself takes the ₹15,000 ceiling off a member, and a certificate
+      // stops their contribution altogether. One person should not be able to
+      // decide that and then compute against it.
+      PERMISSIONS.READ_INTERNATIONAL_WORKER,
+      PERMISSIONS.MANAGE_IW_CONTRIBUTION,
+
+      // #1972. Read and the particulars, not the certificate. Recording that
+      // the headcount on the certificate has fallen behind the establishment's
+      // actual strength is register-keeping, and the person who runs the hiring
+      // is the one who notices. The certificate's dates are what decide whether
+      // the establishment is trading lawfully, and moving them is how a lapse
+      // gets made to look like a renewal.
+      PERMISSIONS.READ_ESTABLISHMENT_REGISTRATION,
+      PERMISSIONS.MANAGE_ESTABLISHMENT_PARTICULAR,
 
       PERMISSIONS.READ_VENDOR,
 
@@ -1238,6 +1996,15 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_CONSTRUCTION_CESS,
       PERMISSIONS.MANAGE_CESS_REGISTER,
 
+      // #1973. Read and record, not classify and not the proceeding. HR is who
+      // notices the change and who serves the notice, and moving an effective
+      // date to give twenty-one clear days is the remedy they should be able to
+      // apply without waiting for anybody. Deciding that a change falls outside
+      // the Fourth Schedule, and recording that express permission under
+      // section 33 exists, both remove the obligation rather than discharge it.
+      PERMISSIONS.READ_NOTICE_OF_CHANGE,
+      PERMISSIONS.MANAGE_NOTICE_OF_CHANGE,
+
       // #1700. Both. Registering a contractor and recording who is on site each
       // month is HR administration in the ordinary sense — somebody has to walk
       // the site and count — and the return it feeds is a headcount statement
@@ -1246,11 +2013,27 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_CONTRACT_LABOUR,
       PERMISSIONS.MANAGE_CONTRACT_LABOUR,
 
+      // #2029. Read and the register, not the certification and not the
+      // modification. Keeping the workmen strength current is register-keeping
+      // and the person running the hiring is the one who notices — and it is the
+      // sync that starts the six months, so it should not wait on anybody.
+      // Recording what a certified set covers decides what binds the workmen,
+      // and recording an agreement with the union lifts the section 10 bar.
+      PERMISSIONS.READ_STANDING_ORDERS,
+      PERMISSIONS.MANAGE_STANDING_ORDERS_REGISTER,
+
       // #1771. HR engages apprentices and keeps the roll — recruiting them and
       // recording their attendance is HR administration in the ordinary sense.
       // It does not move the band or the recorded strength, both of which are
       // the denominator the establishment is judged against, and it does not
       // commit the assessment.
+      // #1877. Read and the register. Recording who is engaged, in what work
+      // and for which hours is ordinary establishment administration. It does
+      // not write the date of birth, which decides whether the total bar under
+      // section 3 applies at all, and it does not close a finding.
+      PERMISSIONS.READ_YOUNG_PERSON,
+      PERMISSIONS.MANAGE_YOUNG_PERSON_REGISTER,
+
       PERMISSIONS.READ_APPRENTICESHIP,
       PERMISSIONS.MANAGE_APPRENTICE,
 
@@ -1261,6 +2044,17 @@ const ROLE_DEFINITIONS = [
       // does not commit the assessment.
       PERMISSIONS.READ_MIGRANT_WORKMEN,
       PERMISSIONS.MANAGE_MIGRANT_WORKMAN,
+
+      // #2031. Read, the claim and the nomination — not the forfeiture and not
+      // the payment. Opening the claim and collecting the Form F is
+      // record-keeping HR does, and the claim has to be opened on the last
+      // working day rather than when somebody senior gets to it, because that
+      // is when the thirty days start. Forfeiting takes money away, and
+      // recording the 7(3A) relief writes off interest that has already
+      // accrued.
+      PERMISSIONS.READ_GRATUITY_CLAIM,
+      PERMISSIONS.MANAGE_GRATUITY_CLAIM,
+      PERMISSIONS.MANAGE_GRATUITY_NOMINATION,
 
       PERMISSIONS.READ_ROSTER,
       PERMISSIONS.MANAGE_ROSTER,
@@ -1274,6 +2068,13 @@ const ROLE_DEFINITIONS = [
       PERMISSIONS.READ_CONTRACT,
       PERMISSIONS.READ_APPRAISAL,
       PERMISSIONS.MANAGE_APPRAISAL,
+      // #1878. Read and the nomination. Recording who a member has nominated is
+      // ordinary HR administration and the member states it themselves. It does
+      // not record prior service at another establishment, which decides whether
+      // the ₹2,50,000 floor applies, and it does not commit the claim.
+      PERMISSIONS.READ_EDLI,
+      PERMISSIONS.MANAGE_EPF_NOMINATION,
+
       PERMISSIONS.READ_OWN_APPRAISAL,
       PERMISSIONS.READ_INVOICE,
       PERMISSIONS.SUBMIT_TAX_PROOF,
@@ -1300,6 +2101,14 @@ const ROLE_DEFINITIONS = [
       // employee's salary for the rest of the year.
       PERMISSIONS.SUBMIT_LTA_CLAIM,
       PERMISSIONS.VERIFY_LTA_CLAIM,
+
+      // #1879. Read and the notifications. Telling the exchange about a vacancy
+      // and filing the quarterly return is clerical work checkable against an
+      // acknowledgement. It does not record the section 3 ground that takes a
+      // vacancy out of the Act, and it does not set the headcount the threshold
+      // is tested against.
+      PERMISSIONS.READ_VACANCY_NOTIFICATION,
+      PERMISSIONS.MANAGE_VACANCY_NOTIFICATION,
 
       PERMISSIONS.READ_PYQ,
 

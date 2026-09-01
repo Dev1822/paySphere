@@ -14,7 +14,9 @@ const logger = require('../utils/logger');
 
 exports.createMeasurementPeriod = async (req, res, next) => {
     try {
-        const period = await ACAMeasurementPeriod.create({ ...req.body, tenantId: req.tenantId });
+        const period = await ACAMeasurementPeriod.create({
+            ...req.body
+        });
         res.status(201).json({ message: 'Measurement period created', period });
     } catch (error) { next(error); }
 };
@@ -57,7 +59,11 @@ exports.processMonthlyHours = async (req, res, next) => {
             });
 
             const ledger = await MonthlyEligibilityLedger.findOneAndUpdate(
-                { tenantId: req.tenantId, employeeId: emp.employeeId, month, year },
+                {
+                    employeeId: emp.employeeId,
+                    month,
+                    year
+                },
                 {
                     hoursWorked: emp.hoursWorked, isFullTime: isFT,
                     isOfferedCoverage: isFT, isAffordable: affordability.isAffordable,
@@ -85,7 +91,9 @@ exports.generate1095C = async (req, res, next) => {
     try {
         const { taxYear } = req.body;
 
-        const ledgers = await MonthlyEligibilityLedger.find({ tenantId: req.tenantId, year: taxYear })
+        const ledgers = await MonthlyEligibilityLedger.find({
+            year: taxYear
+        })
             .populate('employeeId', 'fullName ssn');
 
         if (ledgers.length === 0) {
@@ -105,9 +113,13 @@ exports.generate1095C = async (req, res, next) => {
         xmlContent += `</Form1095CData>`;
 
         const draft = await Form1095CDraft.create({
-            tenantId: req.tenantId, taxYear, totalFormsGenerated: ledgers.length,
-            totalFullTimeEmployees: fullTimeCount, fileContent: xmlContent,
-            fileName: `1095C_${taxYear}_Draft.xml`, status: 'Draft', generatedBy: req.userId
+            taxYear,
+            totalFormsGenerated: ledgers.length,
+            totalFullTimeEmployees: fullTimeCount,
+            fileContent: xmlContent,
+            fileName: `1095C_${taxYear}_Draft.xml`,
+            status: 'Draft',
+            generatedBy: req.userId
         });
 
         logger.info(`[ACA] Generated 1095-C draft for ${taxYear} with ${ledgers.length} records.`);
@@ -117,17 +129,20 @@ exports.generate1095C = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const periods = await ACAMeasurementPeriod.find({ tenantId: req.tenantId }).sort({ lookBackStart: -1 });
+        const periods = await ACAMeasurementPeriod.find({}).sort({ lookBackStart: -1 });
         const currentYear = new Date().getFullYear();
 
         // Aggregate monthly FT counts
         const monthlyStats = await MonthlyEligibilityLedger.aggregate([
-            { $match: { tenantId: req.tenantId, year: currentYear, isFullTime: true } },
+            { $match: {
+                year: currentYear,
+                isFullTime: true
+            } },
             { $group: { _id: '$month', ftCount: { $sum: 1 } } },
             { $sort: { _id: 1 } }
         ]);
 
-        const drafts = await Form1095CDraft.find({ tenantId: req.tenantId }).sort({ createdAt: -1 }).limit(5);
+        const drafts = await Form1095CDraft.find({}).sort({ createdAt: -1 }).limit(5);
 
         res.status(200).json({ periods, monthlyStats, drafts });
     } catch (error) { next(error); }

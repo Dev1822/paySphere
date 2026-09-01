@@ -13,27 +13,38 @@ const PayrollUpdate = require('../models/payroll.model');
 const logger = require('../utils/logger');
 
 async function processEmailJob(job) {
-  if (job.name === 'payslip') {
-    const { employee, payroll } = job.data;
-    await sendPayslipEmail(employee, payroll);
-    if (payroll?._id) {
-      await PayrollUpdate.updateOne(
-        { _id: payroll._id },
-        { payslipEmailed: true },
-      );
-    }
-    return { delivered: true };
-  }
+  const { event, payload } = job.data;
 
-  if (job.name === 'generic') {
-    const result = await sendEmail(job.data);
-    if (!result || result.success === false) {
-      throw new Error(result?.error || 'Email delivery failed');
-    }
-    return { delivered: true };
-  }
+  // Consume standardized EDA payloads
+  switch (event) {
+    case 'PdfGeneration':
+    case 'EmailDispatch':
+    case 'EmployeeOnboarded':
+    case 'OffboardingInitiated':
+    case 'PayrollFinalized': {
+      if (payload.type === 'payslip' || job.name === 'payslip') {
+        const { employee, payroll } = payload;
+        await sendPayslipEmail(employee, payroll);
+        if (payroll?._id) {
+          await PayrollUpdate.updateOne(
+            { _id: payroll._id },
+            { payslipEmailed: true },
+          );
+        }
+        return { delivered: true };
+      }
 
-  throw new Error(`Unknown email job type: ${job.name}`);
+      // Treat as generic email if no specific handling
+      const result = await sendEmail(payload);
+      if (!result || result.success === false) {
+        throw new Error(result?.error || 'Email delivery failed');
+      }
+      return { delivered: true };
+    }
+
+    default:
+      throw new Error(`Unknown email job event: ${event}`);
+  }
 }
 
 let worker = null;

@@ -14,7 +14,7 @@ const { writeRateLimiter } = require('../middlewares/rateLimiter.middleware');
 // `receiptUpload`, not the default CSV uploader: that one rejects everything
 // that is not `text/csv` and stores to memory, so a receipt could never be
 // uploaded and would have had no filename to record if it had been (#794).
-const { receiptUpload } = require('../middlewares/upload.middleware');
+const { receiptUpload, validateMagicNumbers } = require('../middlewares/upload.middleware');
 const { PERMISSIONS } = require('../config/permissions');
 const {
   submitExpense,
@@ -137,6 +137,7 @@ router.post(
   requirePermission(PERMISSIONS.WRITE_EXPENSE),
   writeRateLimiter,
   receiptUpload.array('receipts', 5),
+  validateMagicNumbers,
   submitExpense,
 );
 
@@ -155,6 +156,7 @@ router.post(
   auth,
   requirePermission(PERMISSIONS.WRITE_EXPENSE),
   receiptUpload.single('receipt'),
+  validateMagicNumbers,
   parseReceipt,
 );
 

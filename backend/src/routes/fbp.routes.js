@@ -10,10 +10,10 @@ const {
   submitClaim,
   getFbpSummary,
 } = require('../controllers/fbp.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/declare-allocation', protect, declareAllocation);
-router.post('/submit-claim', protect, submitClaim);
-router.get('/summary/:employeeId', protect, getFbpSummary);
+router.post('/declare-allocation', auth, declareAllocation);
+router.post('/submit-claim', auth, submitClaim);
+router.get('/summary/:employeeId', auth, getFbpSummary);
 
 module.exports = router;

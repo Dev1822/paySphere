@@ -10,10 +10,10 @@ const {
   generateCertificate,
   getCrossBorderSummary,
 } = require('../controllers/crossBorderContractor.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/calculate-payout', protect, calculateContractorPayout);
-router.post('/generate-certificate', protect, generateCertificate);
-router.get('/cross-border-summary', protect, getCrossBorderSummary);
+router.post('/calculate-payout', auth, calculateContractorPayout);
+router.post('/generate-certificate', auth, generateCertificate);
+router.get('/cross-border-summary', auth, getCrossBorderSummary);
 
 module.exports = router;

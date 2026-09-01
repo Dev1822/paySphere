@@ -1,10 +1,10 @@
 /**
  * @fileoverview Advanced Redis Cache Service
- * @description Provides a comprehensive caching layer for PaySphere. Supports 
- * complex MongoDB aggregation caching, tag-based invalidation, pattern matching, 
- * safe JSON serialization/deserialization, and an in-memory fallback for 
+ * @description Provides a comprehensive caching layer for PaySphere. Supports
+ * complex MongoDB aggregation caching, tag-based invalidation, pattern matching,
+ * safe JSON serialization/deserialization, and an in-memory fallback for
  * environments without Redis.
- * 
+ *
  * Issues: #722 (Reports Caching), #519 (Dashboard Caching)
  */
 
@@ -29,7 +29,9 @@ class MemoryCache {
       }
     }, 60000);
     this.cleanupInterval.unref(); // Don't block Node.js from exiting
-    logger.info('Redis is disabled/unavailable. Using in-memory fallback cache.');
+    logger.info(
+      'Redis is disabled/unavailable. Using in-memory fallback cache.',
+    );
   }
 
   get(key) {
@@ -45,7 +47,7 @@ class MemoryCache {
   setEx(key, ttlSeconds, data) {
     this.store.set(key, {
       data,
-      expiresAt: Date.now() + ttlSeconds * 1000
+      expiresAt: Date.now() + ttlSeconds * 1000,
     });
   }
 
@@ -83,12 +85,16 @@ if (redisUrl) {
     socket: {
       reconnectStrategy: (retries) => {
         if (retries > 10) {
-          logger.error('Redis: Maximum reconnection attempts reached. Falling back to memory cache.');
+          logger.error(
+            'Redis: Maximum reconnection attempts reached. Falling back to memory cache.',
+          );
           return new Error('Redis max retries reached.');
         }
         // Exponential backoff with jitter
         const delay = Math.min(retries * 50, 500) + Math.random() * 100;
-        logger.warn(`Redis: Reconnecting in ${Math.round(delay)}ms (Attempt ${retries})`);
+        logger.warn(
+          `Redis: Reconnecting in ${Math.round(delay)}ms (Attempt ${retries})`,
+        );
         return delay;
       },
     },
@@ -96,7 +102,9 @@ if (redisUrl) {
 
   redisClient.on('error', (err) => logger.error('Redis Client Error:', err));
   redisClient.on('connect', () => logger.info('Redis Client Connected'));
-  redisClient.on('reconnecting', () => logger.info('Redis Client Reconnecting'));
+  redisClient.on('reconnecting', () =>
+    logger.info('Redis Client Reconnecting'),
+  );
 } else {
   memoryCache = new MemoryCache();
 }
@@ -112,7 +120,10 @@ async function connectRedis() {
       isRedisEnabled = true;
     }
   } catch (error) {
-    logger.error('Failed to connect to Redis, falling back to memory cache:', error.message);
+    logger.error(
+      'Failed to connect to Redis, falling back to memory cache:',
+      error.message,
+    );
     memoryCache = new MemoryCache();
     isRedisEnabled = false;
   }
@@ -163,7 +174,7 @@ async function setEx(key, ttl, value, tags = []) {
       // Store tag associations for bulk invalidation
       if (tags.length > 0) {
         const pipeline = redisClient.multi();
-        tags.forEach(tag => pipeline.sAdd(`tag:${tag}`, key));
+        tags.forEach((tag) => pipeline.sAdd(`tag:${tag}`, key));
         await pipeline.exec();
       }
     } else if (memoryCache) {
@@ -202,13 +213,24 @@ async function invalidateTag(tag) {
 
     if (keys.length > 0) {
       const pipeline = redisClient.multi();
-      keys.forEach(k => pipeline.del(k));
+      keys.forEach((k) => pipeline.del(k));
       pipeline.del(tagKey);
       await pipeline.exec();
       logger.debug(`Invalidated ${keys.length} keys for tag: ${tag}`);
     }
   } catch (error) {
     logger.error(`Redis Tag Invalidation error for tag ${tag}:`, error.message);
+  }
+}
+
+/**
+ * Invalidates multiple tags at once
+ * @param {string[]} tags - The tags to invalidate
+ */
+async function invalidateTags(tags) {
+  if (!Array.isArray(tags)) tags = [tags];
+  for (const tag of tags) {
+    await invalidateTag(tag);
   }
 }
 
@@ -221,7 +243,10 @@ async function deleteByPattern(pattern) {
     if (isRedisEnabled && redisClient?.isOpen) {
       let cursor = '0';
       do {
-        const reply = await redisClient.scan(cursor, { MATCH: pattern, COUNT: 100 });
+        const reply = await redisClient.scan(cursor, {
+          MATCH: pattern,
+          COUNT: 100,
+        });
         cursor = reply.cursor;
         if (reply.keys.length > 0) {
           await redisClient.del(reply.keys);
@@ -231,7 +256,10 @@ async function deleteByPattern(pattern) {
       memoryCache.deleteByPattern(pattern);
     }
   } catch (error) {
-    logger.error(`Cache Pattern Delete error for pattern ${pattern}:`, error.message);
+    logger.error(
+      `Cache Pattern Delete error for pattern ${pattern}:`,
+      error.message,
+    );
   }
 }
 
@@ -262,7 +290,10 @@ async function invalidateDashboardSummary(userId) {
     await del(cacheKey);
     logger.info(`Dashboard summary cache invalidated for user ${userId}`);
   } catch (error) {
-    logger.error(`Failed to invalidate dashboard summary cache for user ${userId}:`, error.message);
+    logger.error(
+      `Failed to invalidate dashboard summary cache for user ${userId}:`,
+      error.message,
+    );
   }
 }
 
@@ -276,7 +307,10 @@ async function invalidateAllDashboardCaches(userId) {
     await deleteByPattern(`dashboard:*:${userId}`);
     logger.info(`All dashboard caches invalidated for user ${userId}`);
   } catch (error) {
-    logger.error(`Failed to invalidate all dashboard caches for user ${userId}:`, error.message);
+    logger.error(
+      `Failed to invalidate all dashboard caches for user ${userId}:`,
+      error.message,
+    );
   }
 }
 
@@ -290,7 +324,10 @@ async function invalidateAuditLogs(tenantId) {
     await deleteByPattern(`audit:logs:${tenantId}:*`);
     logger.info(`Audit logs cache invalidated for tenant ${tenantId}`);
   } catch (error) {
-    logger.error(`Failed to invalidate audit logs cache for tenant ${tenantId}:`, error.message);
+    logger.error(
+      `Failed to invalidate audit logs cache for tenant ${tenantId}:`,
+      error.message,
+    );
   }
 }
 
@@ -317,6 +354,7 @@ module.exports = {
   setEx,
   del,
   invalidateTag,
+  invalidateTags,
   deleteByPattern,
   invalidatePattern,
   generateHash,

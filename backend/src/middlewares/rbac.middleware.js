@@ -112,17 +112,13 @@ const requirePermission = (requiredPermission) => {
       }
 
       if (!role) {
-        if (STRICT_MODE) {
-          return res
-            .status(403)
-            .json({ message: 'Access denied. No role assigned.' });
-        }
-
         logger.warn(
-          'Permission check bypassed: role could not be resolved. Run `npm run seed`.',
+          'Permission check failed: role could not be resolved. Access denied. Run `npm run seed`.',
           { userId: req.userId, requiredPermission },
         );
-        return next();
+        return res
+          .status(403)
+          .json({ message: 'Access denied. No role assigned.' });
       }
 
       const hasPermission = role.permissions.some(

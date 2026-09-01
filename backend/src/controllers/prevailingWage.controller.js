@@ -18,8 +18,12 @@ exports.createDetermination = async (req, res, next) => {
         }));
 
         const determination = await PrevailingWageDetermination.create({
-            tenantId: req.tenantId, projectCode, projectName, contractNumber,
-            wageDecisionNumber, effectiveDate: new Date(effectiveDate), classifications: enrichedClassifications
+            projectCode,
+            projectName,
+            contractNumber,
+            wageDecisionNumber,
+            effectiveDate: new Date(effectiveDate),
+            classifications: enrichedClassifications
         });
 
         res.status(201).json({ message: 'Prevailing wage determination created', determination });
@@ -36,9 +40,12 @@ exports.addFringeOffset = async (req, res, next) => {
         const hourlyCredit = calculateHourlyFringeCredit(monthlyEmployerContribution, expectedMonthlyHours || 173.33);
 
         const offset = await FringeBenefitOffset.create({
-            tenantId: req.tenantId, employeeId, benefitType,
-            monthlyEmployerContribution, expectedMonthlyHours: expectedMonthlyHours || 173.33,
-            calculatedHourlyCredit: hourlyCredit, effectiveFrom: new Date(effectiveFrom)
+            employeeId,
+            benefitType,
+            monthlyEmployerContribution,
+            expectedMonthlyHours: expectedMonthlyHours || 173.33,
+            calculatedHourlyCredit: hourlyCredit,
+            effectiveFrom: new Date(effectiveFrom)
         });
 
         res.status(201).json({ message: 'Fringe benefit offset added', offset });
@@ -54,7 +61,10 @@ exports.evaluateWeeklyPayroll = async (req, res, next) => {
     try {
         const { projectCode, weekEndingDate, contractorName, payrollSequence, employeeRecords } = req.body;
 
-        const determination = await PrevailingWageDetermination.findOne({ tenantId: req.tenantId, projectCode, isActive: true });
+        const determination = await PrevailingWageDetermination.findOne({
+            projectCode,
+            isActive: true
+        });
         if (!determination) return res.status(404).json({ message: 'No active prevailing wage determination for this project.' });
 
         let totalHours = 0;
@@ -69,7 +79,7 @@ exports.evaluateWeeklyPayroll = async (req, res, next) => {
 
             // Fetch employee's fringe offsets
             const offsets = await FringeBenefitOffset.find({
-                tenantId: req.tenantId, employeeId: rec.employeeId,
+                employeeId: rec.employeeId,
                 effectiveFrom: { $lte: new Date(weekEndingDate) },
                 $or: [{ effectiveTo: null }, { effectiveTo: { $gte: new Date(weekEndingDate) } }]
             });
@@ -110,9 +120,13 @@ exports.evaluateWeeklyPayroll = async (req, res, next) => {
         }, formattedRecords);
 
         const report = await CertifiedPayrollReport.create({
-            tenantId: req.tenantId, projectCode, weekEndingDate: new Date(weekEndingDate),
-            totalEmployees: employeeRecords.length, totalHoursWorked: totalHours, totalGrossWages: totalGross,
-            underpaymentsDetected: underpayments, underpaymentAmount: totalUnderpaymentAmount,
+            projectCode,
+            weekEndingDate: new Date(weekEndingDate),
+            totalEmployees: employeeRecords.length,
+            totalHoursWorked: totalHours,
+            totalGrossWages: totalGross,
+            underpaymentsDetected: underpayments,
+            underpaymentAmount: totalUnderpaymentAmount,
             wh347FileContent: reportContent,
             status: underpayments > 0 ? 'Non-Compliant' : 'Compliant'
         });
@@ -124,8 +138,10 @@ exports.evaluateWeeklyPayroll = async (req, res, next) => {
 
 exports.getDashboard = async (req, res, next) => {
     try {
-        const determinations = await PrevailingWageDetermination.find({ tenantId: req.tenantId, isActive: true });
-        const reports = await CertifiedPayrollReport.find({ tenantId: req.tenantId }).sort({ weekEndingDate: -1 }).limit(20);
+        const determinations = await PrevailingWageDetermination.find({
+            isActive: true
+        });
+        const reports = await CertifiedPayrollReport.find({}).sort({ weekEndingDate: -1 }).limit(20);
         res.status(200).json({ determinations, reports });
     } catch (error) { next(error); }
 };

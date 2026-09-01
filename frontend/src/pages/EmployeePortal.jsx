@@ -10,6 +10,7 @@ import api from '../services/api';
 import { useAppStore } from '../store/useAppStore';
 import { formatCurrency, formatDate } from '../utils/formatLocale';
 import ClinicalOutcomesTracker from '../components/ClinicalOutcomesTracker';
+import EmployeeTimeline from '../components/EmployeeTimeline';
 
 export default function EmployeePortal() {
   const { t } = useTranslation();
@@ -19,6 +20,7 @@ export default function EmployeePortal() {
   const [payslips, setPayslips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('Overview');
   const logout = useAppStore((state) => state.logout);
   const companyName = localStorage.getItem('companyName') || 'PaySphere';
 
@@ -56,7 +58,9 @@ export default function EmployeePortal() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
       <Helmet>
-        <title>{t('portal.title', 'Employee Self-Service Portal')} | PaySphere</title>
+        <title>
+          {t('portal.title', 'Employee Self-Service Portal')} | PaySphere
+        </title>
         <meta
           name="description"
           content="View your profile, payslips, and attendance history."
@@ -127,7 +131,8 @@ export default function EmployeePortal() {
                   {profile?.fullName || t('portal.employee', 'Employee')}
                 </h1>
                 <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                  {employee?.role ? `${employee.role} • ` : ''}{profile?.companyName || 'PaySphere'}
+                  {employee?.role ? `${employee.role} • ` : ''}
+                  {profile?.companyName || 'PaySphere'}
                 </p>
               </div>
 
@@ -146,78 +151,117 @@ export default function EmployeePortal() {
                       {t('portal.overtimeRate', 'Overtime Rate')}
                     </p>
                     <p className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
-                      {formatCurrency(employee.overtimeRate || 0, 'INR')}/{t('portal.perHour', 'hr')}
+                      {formatCurrency(employee.overtimeRate || 0, 'INR')}/
+                      {t('portal.perHour', 'hr')}
                     </p>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="mb-6">
-              <ClinicalOutcomesTracker />
+            {/* Tabs */}
+            <div className="flex space-x-1 border-b border-gray-200 dark:border-slate-800 mb-6 overflow-x-auto">
+              {['Overview', 'My Journey'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-4 py-2.5 text-sm font-bold whitespace-nowrap transition-colors border-b-2 ${
+                    activeTab === tab
+                      ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                  }`}
+                >
+                  {tab === 'Overview'
+                    ? t('portal.overview', 'Overview')
+                    : t('timeline.title', 'My Journey')}
+                </button>
+              ))}
             </div>
 
-            {/* Payslips History */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6">
-                {t('portal.payslipHistory', 'Payslip History')}
-              </h2>
+            {activeTab === 'Overview' ? (
+              <>
+                <div className="mb-6">
+                  <ClinicalOutcomesTracker />
+                </div>
 
-              {payslips.length === 0 ? (
-                <div className="text-center py-12 text-gray-500 dark:text-slate-400">
-                  {t('portal.noPayslips', 'No payslips finalized for you yet.')}
+                {/* Payslips History */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm p-6">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-6">
+                    {t('portal.payslipHistory', 'Payslip History')}
+                  </h2>
+
+                  {payslips.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500 dark:text-slate-400">
+                      {t(
+                        'portal.noPayslips',
+                        'No payslips finalized for you yet.',
+                      )}
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table
+                        aria-label="Payslip History Table"
+                        className="w-full text-left text-sm"
+                      >
+                        <thead>
+                          <tr className="border-b border-gray-200 dark:border-slate-800 text-gray-400 dark:text-slate-400 uppercase text-xs">
+                            <th className="py-3 px-4">
+                              {t('portal.period', 'Period')}
+                            </th>
+                            <th className="py-3 px-4">
+                              {t('portal.baseSalary', 'Base Salary')}
+                            </th>
+                            <th className="py-3 px-4">
+                              {t('portal.overtimePay', 'Overtime Pay')}
+                            </th>
+                            <th className="py-3 px-4">
+                              {t('portal.leaveDeductions', 'Leave Deductions')}
+                            </th>
+                            <th className="py-3 px-4 font-bold text-slate-900 dark:text-white">
+                              {t('portal.netPayout', 'Net Payout')}
+                            </th>
+                            <th className="py-3 px-4">
+                              {t('portal.status', 'Status')}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-slate-800/60">
+                          {payslips.map((pay) => (
+                            <tr
+                              key={pay._id}
+                              className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition"
+                            >
+                              <td className="py-4 px-4 font-semibold text-slate-900 dark:text-white">
+                                {getMonthName(pay.month)} {pay.year}
+                              </td>
+                              <td className="py-4 px-4 text-slate-600 dark:text-slate-300">
+                                {formatCurrency(pay.baseSalary, 'INR')}
+                              </td>
+                              <td className="py-4 px-4 text-emerald-600 dark:text-emerald-400">
+                                +{formatCurrency(pay.overtimePay, 'INR')}
+                              </td>
+                              <td className="py-4 px-4 text-red-500 dark:text-red-400">
+                                -{formatCurrency(pay.leaveDeduction, 'INR')}
+                              </td>
+                              <td className="py-4 px-4 font-bold text-blue-600 dark:text-blue-400">
+                                {formatCurrency(pay.netSalary, 'INR')}
+                              </td>
+                              <td className="py-4 px-4">
+                                <span className="px-2.5 py-1 rounded-full text-xs font-bold uppercase bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                                  {pay.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table
-                    aria-label="Payslip History Table"
-                    className="w-full text-left text-sm"
-                  >
-                    <thead>
-                      <tr className="border-b border-gray-200 dark:border-slate-800 text-gray-400 dark:text-slate-400 uppercase text-xs">
-                        <th className="py-3 px-4">{t('portal.period', 'Period')}</th>
-                        <th className="py-3 px-4">{t('portal.baseSalary', 'Base Salary')}</th>
-                        <th className="py-3 px-4">{t('portal.overtimePay', 'Overtime Pay')}</th>
-                        <th className="py-3 px-4">{t('portal.leaveDeductions', 'Leave Deductions')}</th>
-                        <th className="py-3 px-4 font-bold text-slate-900 dark:text-white">
-                          {t('portal.netPayout', 'Net Payout')}
-                        </th>
-                        <th className="py-3 px-4">{t('portal.status', 'Status')}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-slate-800/60">
-                      {payslips.map((pay) => (
-                        <tr
-                          key={pay._id}
-                          className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition"
-                        >
-                          <td className="py-4 px-4 font-semibold text-slate-900 dark:text-white">
-                            {getMonthName(pay.month)} {pay.year}
-                          </td>
-                          <td className="py-4 px-4 text-slate-600 dark:text-slate-300">
-                            {formatCurrency(pay.baseSalary, 'INR')}
-                          </td>
-                          <td className="py-4 px-4 text-emerald-600 dark:text-emerald-400">
-                            +{formatCurrency(pay.overtimePay, 'INR')}
-                          </td>
-                          <td className="py-4 px-4 text-red-500 dark:text-red-400">
-                            -{formatCurrency(pay.leaveDeduction, 'INR')}
-                          </td>
-                          <td className="py-4 px-4 font-bold text-blue-600 dark:text-blue-400">
-                            {formatCurrency(pay.netSalary, 'INR')}
-                          </td>
-                          <td className="py-4 px-4">
-                            <span className="px-2.5 py-1 rounded-full text-xs font-bold uppercase bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
-                              {pay.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+              </>
+            ) : (
+              <EmployeeTimeline employeeId={employee?._id} />
+            )}
           </>
         )}
       </main>

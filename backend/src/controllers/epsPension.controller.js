@@ -208,12 +208,13 @@ exports.updateAssumptions = async (req, res, next) => {
     }
 
     const before = await EpsAssumptions.findOne({
-      tenantId: req.tenantId,
-      establishment,
+      establishment
     }).lean();
 
     const assumptions = await EpsAssumptions.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment },
+      {
+        establishment
+      },
       { $set: { ...update, updatedBy: req.userId } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -257,7 +258,7 @@ exports.backfillWageHistory = async (req, res, next) => {
   try {
     const months = Math.min(Number(req.body?.months) || 60, 120);
 
-    const employees = await Employee.find({ tenantId: req.tenantId })
+    const employees = await Employee.find({})
       .select('fullName dateOfJoining lastWorkingDay')
       .lean();
 
@@ -282,13 +283,11 @@ exports.backfillWageHistory = async (req, res, next) => {
 
     const [payrolls, structures] = await Promise.all([
       PayrollUpdate.find({
-        tenantId: req.tenantId,
         employeeId: { $in: employeeIds },
-        $or: window.map((entry) => ({ month: entry.month, year: entry.year })),
+        $or: window.map((entry) => ({ month: entry.month, year: entry.year }))
       }).lean(),
       SalaryStructure.find({
-        tenantId: req.tenantId,
-        employeeId: { $in: employeeIds },
+        employeeId: { $in: employeeIds }
       }).lean(),
     ]);
 
@@ -331,10 +330,9 @@ exports.backfillWageHistory = async (req, res, next) => {
           operations.push({
             updateOne: {
               filter: {
-                tenantId: req.tenantId,
                 employeeId: employee._id,
                 month: entry.month,
-                year: entry.year,
+                year: entry.year
               },
               update: {
                 $setOnInsert: {
@@ -361,10 +359,9 @@ exports.backfillWageHistory = async (req, res, next) => {
         operations.push({
           updateOne: {
             filter: {
-              tenantId: req.tenantId,
               employeeId: employee._id,
               month: entry.month,
-              year: entry.year,
+              year: entry.year
             },
             update: {
               $set: {
@@ -501,12 +498,12 @@ exports.previewValuation = async (req, res, next) => {
   try {
     return res.json(
       await buildValuation({
-        tenantId: req.tenantId,
         establishment:
           typeof req.query.establishment === 'string'
             ? req.query.establishment.trim()
             : '',
-        asAt: req.query.asAt ? new Date(req.query.asAt) : new Date(),
+
+        asAt: req.query.asAt ? new Date(req.query.asAt) : new Date()
       }),
     );
   } catch (error) {
@@ -534,13 +531,15 @@ exports.commitValuation = async (req, res, next) => {
     // The same function the preview calls, so the committed figures and the
     // previewed ones cannot drift.
     const { assumptions, result } = await buildValuation({
-      tenantId: req.tenantId,
       establishment,
-      asAt,
+      asAt
     });
 
     const valuation = await EpsValuation.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment, valuationDate },
+      {
+        establishment,
+        valuationDate
+      },
       {
         $set: {
           assumptions,
@@ -623,7 +622,7 @@ exports.commitValuation = async (req, res, next) => {
  */
 exports.listValuations = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (typeof req.query.establishment === 'string') {
       filter.establishment = req.query.establishment.trim();
     }
@@ -656,8 +655,7 @@ exports.getMemberStatement = async (req, res, next) => {
     }
 
     const employee = await Employee.findOne({
-      _id: req.params.employeeId,
-      tenantId: req.tenantId,
+      _id: req.params.employeeId
     })
       .select('fullName dateOfBirth dateOfJoining lastWorkingDay')
       .lean();

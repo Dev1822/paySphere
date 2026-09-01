@@ -69,6 +69,21 @@ const LOCK_TTL_MS = 45 * 24 * 60 * 60 * 1000;
  * @param {string} lockId
  * @returns {Promise<{acquired: boolean, reason?: string}>}
  */
+async function processMonthlyAccrual(tenantId) {
+  QueryValidatorService.validateBackgroundJobContext({ tenantId });
+  
+  // Set tenant context for all operations within this job
+  TenantContextService.setTenantContext(tenantId, 'system-job', {
+    jobName: 'processMonthlyAccrual',
+  });
+  
+  try {
+    const employees = await Employee.find({ tenantId });
+    // ... rest of processing ...
+  } finally {
+    TenantContextService.clearTenantContext();
+  }
+}
 async function acquireAccrualLock(lockId) {
   try {
     await CronLock.create({

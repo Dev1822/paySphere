@@ -9,7 +9,7 @@
 import type { NextFunction, Request, Response } from 'express';
 
 /** Populated by `auth.middleware` and `rbac.middleware` before the handler runs. */
-export interface TenantRequest
+export interface TenantRequest<
   Params = Record<string, string>,
   ResBody = unknown,
   ReqBody = unknown,
@@ -115,8 +115,9 @@ export interface CorporateTravelSettlementDocument {
 
 // --- Original travel: policies & requests (#1077) --------------------------
 
-export interface UpsertPolicyBody
-  extends Partial<Omit<TravelPolicyDocument, '_id'>> {
+export interface UpsertPolicyBody extends Partial<
+  Omit<TravelPolicyDocument, '_id'>
+> {
   grade: string;
 }
 export interface UpsertPolicyResponseBody {
@@ -273,7 +274,7 @@ export interface GetMyTravelResponseBody {
 
 // --- Middleware / handler shape --------------------------------------------
 
-type Handler
+type Handler<
   ReqBody = unknown,
   ResBody = unknown,
   Params = Record<string, string>,
@@ -287,37 +288,37 @@ type Handler
 interface TravelController {
   upsertPolicy: Handler<UpsertPolicyBody, UpsertPolicyResponseBody>;
   getPolicies: Handler<unknown, GetPoliciesResponseBody>;
-  createRequest: Handler
+  createRequest: Handler<
     CreateTravelRequestBody,
     CreateTravelRequestResponseBody
   >;
-  getRequests: Handler
+  getRequests: Handler<
     unknown,
     GetTravelRequestsResponseBody,
     Record<string, string>,
     GetTravelRequestsQuery
   >;
-  approveRequest: Handler
+  approveRequest: Handler<
     ApproveRequestBody,
     ApproveRequestResponseBody,
     TravelIdParams
   >;
-  rejectRequest: Handler
+  rejectRequest: Handler<
     RejectRequestBody,
     RejectRequestResponseBody,
     TravelIdParams
   >;
-  releaseAdvance: Handler
+  releaseAdvance: Handler<
     ReleaseAdvanceBody,
     ReleaseAdvanceResponseBody,
     TravelIdParams
   >;
-  settleRequest: Handler
+  settleRequest: Handler<
     SettleRequestBody,
     SettleRequestResponseBody,
     TravelIdParams
   >;
-  getOutstandingAdvances: Handler
+  getOutstandingAdvances: Handler<
     unknown,
     OutstandingAdvancesResponseBody,
     Record<string, string>,
@@ -325,7 +326,7 @@ interface TravelController {
   >;
   getMyTrips: Handler<unknown, GetMyTripsResponseBody>;
   getTravelVarianceReport: Handler<unknown, TravelVarianceReportResponseBody>;
-  settleMultiCurrencyTrip: Handler
+  settleMultiCurrencyTrip: Handler<
     MultiCurrencySettleBody,
     MultiCurrencySettleResponseBody,
     TravelIdParams
@@ -356,10 +357,8 @@ export const releaseAdvance = legacyController.releaseAdvance;
 export const settleRequest = legacyController.settleRequest;
 export const getOutstandingAdvances = legacyController.getOutstandingAdvances;
 export const getMyTrips = legacyController.getMyTrips;
-export const getTravelVarianceReport =
-  legacyController.getTravelVarianceReport;
-export const settleMultiCurrencyTrip =
-  legacyController.settleMultiCurrencyTrip;
+export const getTravelVarianceReport = legacyController.getTravelVarianceReport;
+export const settleMultiCurrencyTrip = legacyController.settleMultiCurrencyTrip;
 export const getCorporatePolicies = legacyController.getCorporatePolicies;
 export const requestTravel = legacyController.requestTravel;
 export const approveAdvance = legacyController.approveAdvance;

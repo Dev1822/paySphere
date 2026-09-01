@@ -1,0 +1,10 @@
+const express = require('express');
+const auth = require('../middlewares/auth.middleware');
+const { requirePermission } = require('../middlewares/rbac.middleware');
+const { writeRateLimiter } = require('../middlewares/rateLimiter.middleware');
+const { mapClient, generateFundingBatch, getDashboard } = require('../controllers/peo.controller');
+const router = express.Router();
+router.post('/map', auth, requirePermission('WRITE_PAYROLL'), writeRateLimiter, mapClient);
+router.post('/funding', auth, requirePermission('WRITE_PAYROLL'), writeRateLimiter, generateFundingBatch);
+router.get('/dashboard', auth, requirePermission('READ_PAYROLL'), getDashboard);
+module.exports = router;

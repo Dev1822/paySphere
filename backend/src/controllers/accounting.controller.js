@@ -17,7 +17,7 @@ const eventBus = require('../services/event.service');
  */
 exports.getMappings = async (req, res, next) => {
   try {
-    const mappings = await GLAccountMapping.find({ tenantId: req.tenantId });
+    const mappings = await GLAccountMapping.find({});
     res.status(200).json({ mappings });
   } catch (error) { next(error); }
 };
@@ -30,14 +30,13 @@ exports.updateMappings = async (req, res, next) => {
   try {
     const { mappings } = req.body;
 
-    await GLAccountMapping.deleteMany({ tenantId: req.tenantId });
+    await GLAccountMapping.deleteMany({});
 
     const toInsert = mappings.map((m) => ({
-      tenantId: req.tenantId,
       componentKey: m.componentKey,
       glAccountName: m.glAccountName,
       glAccountCode: m.glAccountCode || '',
-      nature: m.nature,
+      nature: m.nature
     }));
 
     await GLAccountMapping.insertMany(toInsert);
@@ -53,23 +52,25 @@ exports.generateJournal = async (req, res, next) => {
   try {
     const { month, year } = req.body;
 
-    const existing = await JournalVoucher.findOne({ tenantId: req.tenantId, month, year });
+    const existing = await JournalVoucher.findOne({
+      month,
+      year
+    });
     if (existing) {
       return res.status(409).json({ message: 'Journal voucher already generated for this month. Delete it first to regenerate.' });
     }
 
     const payrolls = await PayrollUpdate.find({
-      tenantId: req.tenantId,
       month,
       year,
-      status: { $in: ['approved', 'paid'] },
+      status: { $in: ['approved', 'paid'] }
     }).lean();
 
     if (payrolls.length === 0) {
       return res.status(400).json({ message: 'No approved/paid payroll records found for this month.' });
     }
 
-    const mappings = await GLAccountMapping.find({ tenantId: req.tenantId });
+    const mappings = await GLAccountMapping.find({});
     if (mappings.length === 0) {
       return res.status(400).json({ message: 'GL mappings not configured. Please map payroll components to GL accounts first.' });
     }
@@ -80,11 +81,15 @@ exports.generateJournal = async (req, res, next) => {
     const { legs, totalDebit, totalCredit, isBalanced } = generateJournalLegs(payrolls, mappings, voucherNumber, voucherDate);
 
     if (!isBalanced) {
-      logger.warn('Generated unbalanced journal voucher', { tenantId: req.tenantId, month, year, totalDebit, totalCredit });
+      logger.warn('Generated unbalanced journal voucher', {
+        month,
+        year,
+        totalDebit,
+        totalCredit
+      });
     }
 
     const voucher = await JournalVoucher.create({
-      tenantId: req.tenantId,
       month,
       year,
       voucherNumber,
@@ -93,7 +98,7 @@ exports.generateJournal = async (req, res, next) => {
       totalDebit,
       totalCredit,
       isBalanced,
-      generatedBy: req.userId,
+      generatedBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -117,7 +122,7 @@ exports.getTrialBalance = async (req, res, next) => {
   try {
     const { year, fromMonth, toMonth } = req.query;
 
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (year) filter.year = Number(year);
     if (fromMonth || toMonth) {
       filter.month = {};
@@ -126,7 +131,7 @@ exports.getTrialBalance = async (req, res, next) => {
     }
 
     const vouchers = await JournalVoucher.find(filter).lean();
-    const mappings = await GLAccountMapping.find({ tenantId: req.tenantId }).lean();
+    const mappings = await GLAccountMapping.find({}).lean();
 
     const trialBalance = computeTrialBalance(vouchers, mappings);
 
@@ -144,7 +149,9 @@ exports.getTrialBalance = async (req, res, next) => {
  */
 exports.exportTallyXml = async (req, res, next) => {
   try {
-    const voucher = await JournalVoucher.findOne({ _id: req.params.id, tenantId: req.tenantId });
+    const voucher = await JournalVoucher.findOne({
+      _id: req.params.id
+    });
     if (!voucher) return res.status(404).json({ message: 'Journal voucher not found' });
 
     const xml = generateTallyXml(voucher);
@@ -164,7 +171,9 @@ exports.exportTallyXml = async (req, res, next) => {
  */
 exports.exportCsv = async (req, res, next) => {
   try {
-    const voucher = await JournalVoucher.findOne({ _id: req.params.id, tenantId: req.tenantId });
+    const voucher = await JournalVoucher.findOne({
+      _id: req.params.id
+    });
     if (!voucher) return res.status(404).json({ message: 'Journal voucher not found' });
 
     const csv = generateGenericCsv(voucher);

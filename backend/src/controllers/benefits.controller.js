@@ -41,8 +41,7 @@ exports.createPlan = async (req, res, next) => {
     }
 
     const existing = await BenefitPlan.findOne({
-      tenantId: req.tenantId,
-      name: name.trim(),
+      name: name.trim()
     });
     if (existing) {
       return res
@@ -53,7 +52,6 @@ exports.createPlan = async (req, res, next) => {
     }
 
     const plan = await BenefitPlan.create({
-      tenantId: req.tenantId,
       name: sanitizeText(name),
       category,
       description: description ? sanitizeText(description) : '',
@@ -62,14 +60,17 @@ exports.createPlan = async (req, res, next) => {
       employerContribution: Number(employerContribution) || 0,
       employeeContribution: Number(employeeContribution) || 0,
       coverageType: coverageType || 'individual',
+
       enrollmentStartDate: enrollmentStartDate
         ? new Date(enrollmentStartDate)
         : undefined,
+
       enrollmentEndDate: enrollmentEndDate
         ? new Date(enrollmentEndDate)
         : undefined,
+
       maxEnrollees: maxEnrollees || undefined,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -109,7 +110,7 @@ exports.createPlan = async (req, res, next) => {
 exports.getPlans = async (req, res, next) => {
   try {
     const { category, isActive } = req.query;
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (category) filter.category = category;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
 
@@ -133,8 +134,7 @@ exports.getPlanById = async (req, res, next) => {
   try {
     const { id } = req.params;
     const plan = await BenefitPlan.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     }).populate('createdBy', 'fullName email');
 
     if (!plan)
@@ -169,7 +169,9 @@ exports.updatePlan = async (req, res, next) => {
       isActive,
     } = req.body;
 
-    const plan = await BenefitPlan.findOne({ _id: id, tenantId: req.tenantId });
+    const plan = await BenefitPlan.findOne({
+      _id: id
+    });
     if (!plan)
       return res.status(404).json({ message: 'Benefit plan not found' });
 
@@ -228,8 +230,7 @@ exports.deletePlan = async (req, res, next) => {
     const { id } = req.params;
     const activeEnrollments = await BenefitEnrollment.countDocuments({
       planId: id,
-      tenantId: req.tenantId,
-      status: { $in: ['enrolled', 'pending'] },
+      status: { $in: ['enrolled', 'pending'] }
     });
     if (activeEnrollments > 0) {
       return res.status(400).json({
@@ -238,8 +239,7 @@ exports.deletePlan = async (req, res, next) => {
     }
 
     const plan = await BenefitPlan.findOneAndDelete({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!plan)
       return res.status(404).json({ message: 'Benefit plan not found' });
@@ -277,8 +277,7 @@ exports.enroll = async (req, res, next) => {
 
     const plan = await BenefitPlan.findOne({
       _id: planId,
-      tenantId: req.tenantId,
-      isActive: true,
+      isActive: true
     });
     if (!plan)
       return res.status(404).json({ message: 'Active benefit plan not found' });
@@ -298,8 +297,7 @@ exports.enroll = async (req, res, next) => {
     if (plan.maxEnrollees) {
       const currentCount = await BenefitEnrollment.countDocuments({
         planId: plan._id,
-        tenantId: req.tenantId,
-        status: { $in: ['enrolled', 'pending'] },
+        status: { $in: ['enrolled', 'pending'] }
       });
       if (currentCount >= plan.maxEnrollees) {
         return res
@@ -310,9 +308,7 @@ exports.enroll = async (req, res, next) => {
 
     // Find employee record
     const employee = await Employee.findOne({
-      createdBy: req.userId,
-      tenantId: req.tenantId,
-      deletedAt: null,
+      createdBy: req.userId
     });
     if (!employee)
       return res.status(404).json({ message: 'No employee record found' });
@@ -320,8 +316,7 @@ exports.enroll = async (req, res, next) => {
     // Check for existing enrollment
     const existingEnrollment = await BenefitEnrollment.findOne({
       employeeId: employee._id,
-      planId: plan._id,
-      tenantId: req.tenantId,
+      planId: plan._id
     });
     if (existingEnrollment && existingEnrollment.status !== 'cancelled') {
       return res
@@ -361,7 +356,6 @@ exports.enroll = async (req, res, next) => {
     const deduction = plan.employeeContribution;
 
     const enrollment = await BenefitEnrollment.create({
-      tenantId: req.tenantId,
       employeeId: employee._id,
       planId: plan._id,
       status: 'enrolled',
@@ -369,7 +363,7 @@ exports.enroll = async (req, res, next) => {
       coverageType: finalCoverage,
       dependents: dependents || [],
       monthlyDeduction: deduction,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -412,8 +406,7 @@ exports.cancelEnrollment = async (req, res, next) => {
     const { reason } = req.body;
 
     const enrollment = await BenefitEnrollment.findOne({
-      _id: enrollmentId,
-      tenantId: req.tenantId,
+      _id: enrollmentId
     });
     if (!enrollment)
       return res.status(404).json({ message: 'Enrollment not found' });
@@ -462,15 +455,12 @@ exports.cancelEnrollment = async (req, res, next) => {
 exports.getMyEnrollments = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      createdBy: req.userId,
-      tenantId: req.tenantId,
-      deletedAt: null,
+      createdBy: req.userId
     });
     if (!employee) return res.status(200).json({ enrollments: [] });
 
     const enrollments = await BenefitEnrollment.find({
-      employeeId: employee._id,
-      tenantId: req.tenantId,
+      employeeId: employee._id
     })
       .populate('planId', 'name category provider coverageType monthlyPremium')
       .sort({ enrolledAt: -1 });
@@ -490,7 +480,7 @@ exports.getMyEnrollments = async (req, res, next) => {
 exports.getAllEnrollments = async (req, res, next) => {
   try {
     const { status, planId } = req.query;
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (status) filter.status = status;
     if (planId) filter.planId = planId;
 
@@ -513,19 +503,16 @@ exports.getAllEnrollments = async (req, res, next) => {
 
 exports.getEnrollmentStats = async (req, res, next) => {
   try {
-    const plans = await BenefitPlan.find({ tenantId: req.tenantId });
+    const plans = await BenefitPlan.find({});
     const totalEmployees = await Employee.countDocuments({
-      tenantId: req.tenantId,
-      deletedAt: null,
-      isActive: true,
+      isActive: true
     });
 
     const planStats = [];
     for (const plan of plans) {
       const enrolled = await BenefitEnrollment.countDocuments({
         planId: plan._id,
-        tenantId: req.tenantId,
-        status: { $in: ['enrolled', 'pending'] },
+        status: { $in: ['enrolled', 'pending'] }
       });
       const totalDeductions = await BenefitEnrollment.aggregate([
         {
@@ -571,8 +558,7 @@ exports.terminateEnrollment = async (req, res, next) => {
     const { reason } = req.body;
 
     const enrollment = await BenefitEnrollment.findOne({
-      _id: enrollmentId,
-      tenantId: req.tenantId,
+      _id: enrollmentId
     });
     if (!enrollment)
       return res.status(404).json({ message: 'Enrollment not found' });

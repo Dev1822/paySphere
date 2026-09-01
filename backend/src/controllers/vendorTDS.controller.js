@@ -13,7 +13,6 @@ exports.addVendor = async (req, res, next) => {
         const { vendorName, pan, sectionType, standardRate, hasLDC, ldcRate, ldcCertificateNo, ldcValidUntil } = req.body;
 
         const vendor = await VendorTDSProfile.create({
-            tenantId: req.tenantId,
             vendorName,
             pan,
             sectionType,
@@ -35,7 +34,9 @@ exports.logPayment = async (req, res, next) => {
     try {
         const { vendorId, invoiceNo, invoiceDate, grossAmount } = req.body;
 
-        const vendor = await VendorTDSProfile.findOne({ _id: vendorId, tenantId: req.tenantId });
+        const vendor = await VendorTDSProfile.findOne({
+            _id: vendorId
+        });
         if (!vendor) return res.status(404).json({ message: 'Vendor not found' });
 
         // Calculate FY and Quarter
@@ -46,7 +47,6 @@ exports.logPayment = async (req, res, next) => {
         const accumulation = await TDSLedger.aggregate([
             {
                 $match: {
-                    tenantId: req.tenantId,
                     vendorId: vendor._id,
                     invoiceDate: { $gte: startOfFY },
                     financialYear: fy
@@ -62,7 +62,6 @@ exports.logPayment = async (req, res, next) => {
         const netPayable = grossAmount - tdsResult.tdsAmount;
 
         const ledger = await TDSLedger.create({
-            tenantId: req.tenantId,
             vendorId: vendor._id,
             invoiceNo,
             invoiceDate: new Date(invoiceDate),
@@ -89,7 +88,10 @@ exports.generateForm26Q = async (req, res, next) => {
     try {
         const { financialYear, quarter } = req.body;
 
-        const entries = await TDSLedger.find({ tenantId: req.tenantId, financialYear, quarter })
+        const entries = await TDSLedger.find({
+            financialYear,
+            quarter
+        })
             .populate('vendorId', 'pan vendorName')
             .sort({ invoiceDate: 1 });
 
@@ -103,16 +105,17 @@ exports.generateForm26Q = async (req, res, next) => {
         const fileName = `Form26Q_${financialYear}_${quarter}_${req.tenantId}.txt`;
 
         const draft = await Form26QDraft.create({
-            tenantId: req.tenantId,
             financialYear,
             quarter,
             fileContent,
             fileName,
+
             stats: {
                 totalVendors: new Set(entries.map(e => e.vendorId._id.toString())).size,
                 totalTransactions: entries.length,
                 totalTDS: entries.reduce((sum, e) => sum + e.tdsAmount, 0)
             },
+
             generatedBy: req.userId
         });
 
@@ -122,7 +125,7 @@ exports.generateForm26Q = async (req, res, next) => {
 
 exports.getVendors = async (req, res, next) => {
     try {
-        const vendors = await VendorTDSProfile.find({ tenantId: req.tenantId }).sort({ vendorName: 1 });
+        const vendors = await VendorTDSProfile.find({}).sort({ vendorName: 1 });
         res.status(200).json({ vendors });
     } catch (error) { next(error); }
 };
@@ -130,7 +133,7 @@ exports.getVendors = async (req, res, next) => {
 exports.getLedger = async (req, res, next) => {
     try {
         const { fy, quarter } = req.query;
-        const query = { tenantId: req.tenantId };
+        const query = {};
         if (fy) query.financialYear = fy;
         if (quarter) query.quarter = quarter;
 

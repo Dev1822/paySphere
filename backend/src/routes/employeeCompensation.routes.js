@@ -1,11 +1,11 @@
 const express = require('express');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 const employeeCompensationController = require('../controllers/employeeCompensation.controller');
 
 const router = express.Router();
 
 // Apply auth middleware to all routes
-router.use(protect);
+router.use(auth);
 
 router.get('/:employeeId/timeline', employeeCompensationController.getTimeline);
 

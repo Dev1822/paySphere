@@ -70,6 +70,7 @@ const app = require('../app');
  */
 const MOUNTED_ROUTES = [
   ['/api/auth', 'post', '/api/auth/login'],
+  ['/api/section-89-relief', 'get', '/api/section-89-relief/rules'],
   ['/api/employees', 'get', '/api/employees'],
   ['/api/payroll', 'get', '/api/payroll/summary'],
   ['/api/statutory-bonus', 'get', '/api/statutory-bonus/ledger'],
@@ -79,25 +80,36 @@ const MOUNTED_ROUTES = [
   ['/api/schedules', 'get', '/api/schedules'],
   ['/api/audit-logs', 'get', '/api/audit-logs'],
   ['/api/attendance', 'get', '/api/attendance'],
+  ['/api/epf-remittance', 'get', '/api/epf-remittance/rules'],
+
   ['/api/wage-deductions', 'get', '/api/wage-deductions/rules'],
   ['/api/working-hours', 'get', '/api/working-hours/limits'],
   ['/api/assignments', 'get', '/api/assignments'],
   ['/api/settlements', 'get', '/api/settlements'],
+  ['/api/suspensions', 'get', '/api/suspensions/rules'],
   ['/api/injury-compensation', 'get', '/api/injury-compensation/claims'],
+  ['/api/layoffs', 'get', '/api/layoffs/rules'],
   ['/api/esi', 'get', '/api/esi/rules'],
+  ['/api/gratuity-entitlement', 'get', '/api/gratuity-entitlement/rules'],
   ['/api/gratuity', 'get', '/api/gratuity/valuations'],
   ['/api/eps', 'get', '/api/eps/valuations'],
+  ['/api/professional-tax', 'get', '/api/professional-tax/rules'],
+
   ['/api/loans', 'get', '/api/loans'],
   ['/api/archive', 'get', '/api/archive/employees'],
   ['/api/workflows', 'get', '/api/workflows'],
   ['/api/flashcards', 'get', '/api/flashcards/my-decks'],
+  ['/api/holidays', 'get', '/api/holidays/rules'],
   ['/api/contract-labour', 'get', '/api/contract-labour/contractors'],
   ['/api/apprenticeships', 'get', '/api/apprenticeships/rules'],
   ['/api/migrant-workmen', 'get', '/api/migrant-workmen/rules'],
   ['/api/webhooks', 'get', '/api/webhooks'],
   ['/api/dashboard', 'get', '/api/dashboard/layout'],
   ['/api/pay-equity', 'get', '/api/pay-equity/reports'],
+  ['/api/young-persons', 'get', '/api/young-persons/rules'],
+
   ['/api/labour-welfare-fund', 'get', '/api/labour-welfare-fund/rules'],
+  ['/api/standing-orders', 'get', '/api/standing-orders/rules'],
   ['/api/notifications', 'get', '/api/notifications'],
   [
     '/api/monthly-updates',
@@ -114,11 +126,15 @@ const MOUNTED_ROUTES = [
   ['/api/search', 'get', '/api/search'],
   ['/api/integrations', 'get', '/api/integrations'],
   ['/api/compliance', 'get', '/api/compliance/config'],
+  ['/api/aggregator-contribution', 'get', '/api/aggregator-contribution/rules'],
+  ['/api/notice-of-change', 'get', '/api/notice-of-change/rules'],
   ['/api/email', 'post', '/api/email/webhooks'],
 
   // Mounted in #1009. Each of these had a router, a controller, models and in
   // most cases a frontend page, and no entry in the route table.
   ['/api/assets', 'get', '/api/assets'],
+  ['/api/edli', 'get', '/api/edli/rules'],
+
   ['/api/vendors', 'get', '/api/vendors/000000000000000000000000/ledger'],
   ['/api/construction-cess', 'get', '/api/construction-cess/rules'],
   ['/api/grievances', 'get', '/api/grievances/cases'],
@@ -126,9 +142,13 @@ const MOUNTED_ROUTES = [
   ['/api/perquisites', 'get', '/api/perquisites/rules'],
   ['/api/lta', 'get', '/api/lta/queue'],
   ['/api/appraisals', 'get', '/api/appraisals/my-review'],
+  ['/api/international-workers', 'get', '/api/international-workers/rules'],
+  ['/api/establishments', 'get', '/api/establishments/rules'],
   ['/api/contracts', 'post', '/api/contracts/issue'],
   ['/api/forecasts', 'get', '/api/forecasts'],
   ['/api/accounting', 'get', '/api/accounting/mappings'],
+  ['/api/vacancy-notification', 'get', '/api/vacancy-notification/rules'],
+
   ['/api/clients', 'get', '/api/clients/invoices/dashboard'],
   ['/api/shifts', 'get', '/api/shifts/roster'],
   ['/api/pyqs', 'get', '/api/pyqs'],
@@ -196,6 +216,7 @@ const PUBLIC_ROUTES = new Set(['/api/auth/login', '/api/email/webhooks']);
  */
 const ROUTER_MOUNTS = {
   accounting: '/api/accounting',
+  sectionEightyNineRelief: '/api/section-89-relief',
   appraisal: '/api/appraisals',
   archive: '/api/archive',
   asset: '/api/assets',
@@ -204,6 +225,10 @@ const ROUTER_MOUNTS = {
   audit: '/api/audit-logs',
   clientInvoice: '/api/clients',
   compliance: '/api/compliance',
+  aggregatorContribution: '/api/aggregator-contribution',
+  standingOrders: '/api/standing-orders',
+  epfRemittance: '/api/epf-remittance',
+
   contract: '/api/contracts',
   apprenticeship: '/api/apprenticeships',
   contractLabour: '/api/contract-labour',
@@ -214,11 +239,15 @@ const ROUTER_MOUNTS = {
   employee: '/api/employees',
   employeePortal: '/api/employee-portal',
   esop: '/api/esop',
+  holiday: '/api/holidays',
+  professionalTax: '/api/professional-tax',
+
   expense: '/api/expenses',
   flashcard: '/api/flashcards',
   forecast: '/api/forecasts',
   eps: '/api/eps',
   gratuity: '/api/gratuity',
+  gratuityEntitlement: '/api/gratuity-entitlement',
   grievance: '/api/grievances',
 
   // Mounted at the root — `app.use(healthRoutes)` with no prefix — on purpose,
@@ -229,8 +258,11 @@ const ROUTER_MOUNTS = {
   health: null,
 
   injuryCompensation: '/api/injury-compensation',
+  layoffs: '/api/layoffs',
   integration: '/api/integrations',
   labourWelfareFund: '/api/labour-welfare-fund',
+  youngPersons: '/api/young-persons',
+
   leaveClosure: '/api/leave-closure',
   loan: '/api/loans',
   lta: '/api/lta',
@@ -238,9 +270,13 @@ const ROUTER_MOUNTS = {
   notification: '/api/notifications',
   payEquity: '/api/pay-equity',
   pension: '/api/pension',
+  internationalWorker: '/api/international-workers',
+  shopsEstablishments: '/api/establishments',
   payroll: '/api/payroll',
   pyq: '/api/pyqs',
   recruitment: '/api/recruitment',
+  edli: '/api/edli',
+
   regionalTax: '/api/regional-tax',
   reports: '/api/reports',
   role: '/api/roles',
@@ -249,8 +285,11 @@ const ROUTER_MOUNTS = {
   scheduler: '/api/schedules',
   search: '/api/search',
   settlement: '/api/settlements',
+  suspensions: '/api/suspensions',
   shiftRoster: '/api/shifts',
   minimumWages: '/api/minimum-wages',
+  vacancyNotification: '/api/vacancy-notification',
+
   statutoryBonus: '/api/statutory-bonus',
   perquisite: '/api/perquisites',
   taxProof: '/api/tax-proofs',
@@ -260,6 +299,7 @@ const ROUTER_MOUNTS = {
   esi: '/api/esi',
   vendor: '/api/vendors',
   constructionCess: '/api/construction-cess',
+  noticeOfChange: '/api/notice-of-change',
   wageDeduction: '/api/wage-deductions',
   webhook: '/api/webhooks',
   workingHours: '/api/working-hours',

@@ -160,9 +160,8 @@ exports.getAttendance = async (req, res, next) => {
 
     const existing = await Attendance.findOne({
       employeeId: employee._id,
-      tenantId: req.tenantId,
       year,
-      month,
+      month
     });
 
     const policy = await loadLeavePolicy(req.userId);
@@ -211,9 +210,8 @@ exports.upsertAttendance = async (req, res, next) => {
 
     const existing = await Attendance.findOne({
       employeeId: employee._id,
-      tenantId: req.tenantId,
       year,
-      month,
+      month
     });
 
     // A month whose payroll has been paid is settled.
@@ -255,7 +253,12 @@ exports.upsertAttendance = async (req, res, next) => {
     const leaveCheck = canTakePaidLeave(priorBalance, totals.paidLeave);
 
     const saved = await Attendance.findOneAndUpdate(
-      { employeeId: employee._id, tenantId: req.tenantId, year, month },
+      {
+        employeeId: employee._id,
+        year,
+        month,
+        lockedAt: null
+      },
       {
         $set: {
           employeeName: employee.fullName,
@@ -265,13 +268,14 @@ exports.upsertAttendance = async (req, res, next) => {
         },
         $setOnInsert: {
           employeeId: employee._id,
+
           // `createdBy` is required by the schema and is only written on
           // insert, so it belongs in $setOnInsert alongside the tenant. #585
           // dropped it, which made every upsert that had to insert throw (#613).
           createdBy: req.userId,
-          tenantId: req.tenantId,
+
           year,
-          month,
+          month
         },
       },
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
@@ -372,7 +376,7 @@ exports.bulkMarkAttendance = async (req, res, next) => {
     // Scoped: ids belonging to another account simply do not come back.
     const employees = await Employee.find({
       _id: { $in: ids },
-      createdBy: req.userId, tenantId: req.tenantId,
+      createdBy: req.userId
     });
 
     if (employees.length === 0) {
@@ -381,9 +385,9 @@ exports.bulkMarkAttendance = async (req, res, next) => {
 
     const existingDocs = await Attendance.find({
       employeeId: { $in: employees.map((e) => e._id) },
-      createdBy: req.userId, tenantId: req.tenantId,
+      createdBy: req.userId,
       year,
-      month,
+      month
     });
     const byEmployee = new Map(existingDocs.map((d) => [String(d.employeeId), d]));
 
@@ -411,7 +415,7 @@ exports.bulkMarkAttendance = async (req, res, next) => {
         continue;
       }
 
-      const base = existing ? existing.days.map((d) => ({ ...d.toObject?.() ?? d })) : buildDefaultGrid(year, month);
+      const base = existing ? existing.days.map((d) => ({ ...(d.toObject?.() ?? d) })) : buildDefaultGrid(year, month);
       const byDay = new Map(base.map((d) => [d.day, d]));
 
       for (let day = fromDay; day <= toDay; day += 1) {
@@ -433,7 +437,12 @@ exports.bulkMarkAttendance = async (req, res, next) => {
       const totals = computeTotals(validation.days);
 
       await Attendance.findOneAndUpdate(
-        { employeeId: employee._id, tenantId: req.tenantId, year, month },
+        {
+          employeeId: employee._id,
+          year,
+          month,
+          lockedAt: null
+        },
         {
           $set: {
             employeeName: employee.fullName,
@@ -444,9 +453,8 @@ exports.bulkMarkAttendance = async (req, res, next) => {
           $setOnInsert: {
             employeeId: employee._id,
             createdBy: req.userId,
-            tenantId: req.tenantId,
             year,
-            month,
+            month
           },
         },
         { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
@@ -500,9 +508,8 @@ exports.getMonthSummary = async (req, res, next) => {
     const { year, month } = period;
 
     const records = await Attendance.find({
-      tenantId: req.tenantId,
       year,
-      month,
+      month
     }).sort({ employeeName: 1 });
 
     const summary = records.map((record) => ({
@@ -602,19 +609,17 @@ exports.syncBiometricAttendance = async (req, res, next) => {
 
     let attendanceRecord = await Attendance.findOne({
       employeeId: owned.employee._id,
-      tenantId: req.tenantId,
       year: period.year,
-      month: period.month,
+      month: period.month
     });
 
     if (!attendanceRecord) {
       attendanceRecord = new Attendance({
         employeeId: owned.employee._id,
-        tenantId: req.tenantId,
         year: period.year,
         month: period.month,
         days: validated.days,
-        summary: totals,
+        summary: totals
       });
     } else {
       attendanceRecord.days = validated.days;

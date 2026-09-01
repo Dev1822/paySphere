@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Forex Reconciliation Report Controller
+ * @description Computes variance between payroll run conversion rates and current market rates.
+ * Issue: #1844
+ */
 const PayrollUpdate = require('../models/payroll.model');
 const ExchangeRate = require('../models/exchangeRate.model');
 
@@ -10,7 +15,7 @@ exports.getReconciliationReport = async (req, res, next) => {
   try {
     const { month, year } = req.query;
 
-    const query = { tenantId: req.tenantId };
+    const query = {};
     if (month) query.month = parseInt(month, 10);
     if (year) query.year = parseInt(year, 10);
 

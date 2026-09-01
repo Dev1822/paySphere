@@ -14,7 +14,9 @@ const eventBus = require('../services/event.service');
 
 exports.getActivePrograms = async (req, res, next) => {
   try {
-    const programs = await ReferralProgram.find({ tenantId: req.tenantId, isActive: true });
+    const programs = await ReferralProgram.find({
+      isActive: true
+    });
     res.status(200).json({ programs });
   } catch (error) { next(error); }
 };
@@ -22,17 +24,18 @@ exports.getActivePrograms = async (req, res, next) => {
 exports.submitReferral = async (req, res, next) => {
   try {
     const { programId, candidateName, candidateEmail, candidatePhone, resumeUrl } = req.body;
-    const referrer = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+    const referrer = await Employee.findOne({
+      userId: req.userId
+    });
     if (!referrer) return res.status(404).json({ message: 'Employee profile not found' });
 
     const candidate = await ReferralCandidate.create({
-      tenantId: req.tenantId,
       programId,
       referrerId: referrer._id,
       candidateName,
       candidateEmail,
       candidatePhone,
-      resumeUrl,
+      resumeUrl
     });
 
     res.status(201).json({ message: 'Referral submitted successfully', candidate });
@@ -41,14 +44,20 @@ exports.submitReferral = async (req, res, next) => {
 
 exports.getMyReferrals = async (req, res, next) => {
   try {
-    const referrer = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+    const referrer = await Employee.findOne({
+      userId: req.userId
+    });
     if (!referrer) return res.status(404).json({ message: 'Employee profile not found' });
 
-    const referrals = await ReferralCandidate.find({ tenantId: req.tenantId, referrerId: referrer._id })
+    const referrals = await ReferralCandidate.find({
+      referrerId: referrer._id
+    })
       .populate('programId', 'title bountyAmount milestoneSplits')
       .sort({ createdAt: -1 });
 
-    const payouts = await ReferralPayout.find({ tenantId: req.tenantId, referrerId: referrer._id });
+    const payouts = await ReferralPayout.find({
+      referrerId: referrer._id
+    });
     const payoutMap = new Map(payouts.map((p) => [p.candidateId.toString(), p]));
 
     const data = referrals.map((r) => ({
@@ -83,12 +92,11 @@ exports.updateCandidateStatus = async (req, res, next) => {
         for (const split of splits) {
           const amount = Math.round(((program.bountyAmount * (split.percentage || 50)) / 100) * 100) / 100;
           await ReferralPayout.create({
-            tenantId: req.tenantId,
             candidateId: candidate._id,
             referrerId: candidate.referrerId,
             milestoneLabel: split.label,
             amount,
-            status: split.trigger === 'HIRED' ? 'Approved' : 'Pending',
+            status: split.trigger === 'HIRED' ? 'Approved' : 'Pending'
           });
         }
       }
@@ -115,9 +123,8 @@ exports.processVestedReferralPayouts = async (req, res, next) => {
     const engineResult = await processMilestonePayouts(req.tenantId);
 
     const approvedPayouts = await ReferralPayout.find({
-      tenantId: req.tenantId,
       status: 'Approved',
-      payrollRunId: null,
+      payrollRunId: null
     }).populate('referrerId', 'fullName monthlySalary');
 
     const payrollLines = generateReferralPayrollLineItems(approvedPayouts);
@@ -149,7 +156,7 @@ exports.processVestedReferralPayouts = async (req, res, next) => {
  */
 exports.getPendingVestingSummary = async (req, res, next) => {
   try {
-    const payouts = await ReferralPayout.find({ tenantId: req.tenantId })
+    const payouts = await ReferralPayout.find({})
       .populate('referrerId', 'fullName department')
       .populate('candidateId', 'candidateName status hiredAt');
 
@@ -174,7 +181,7 @@ exports.getPendingVestingSummary = async (req, res, next) => {
 
 exports.getAdminPipeline = async (req, res, next) => {
   try {
-    const candidates = await ReferralCandidate.find({ tenantId: req.tenantId })
+    const candidates = await ReferralCandidate.find({})
       .populate('referrerId', 'fullName department')
       .populate('programId', 'title')
       .sort({ createdAt: -1 });

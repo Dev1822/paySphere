@@ -48,7 +48,6 @@ exports.createEvent = async (req, res, next) => {
     }
 
     const event = await CompanyEvent.create({
-      tenantId: req.tenantId,
       title: sanitizeText(title),
       description: description ? sanitizeText(description) : '',
       category: category || 'social',
@@ -63,7 +62,7 @@ exports.createEvent = async (req, res, next) => {
       isPublic: isPublic !== false,
       tags: tags || [],
       recurrence: recurrence || { frequency: 'none', interval: 1 },
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -98,7 +97,7 @@ exports.createEvent = async (req, res, next) => {
 exports.getEvents = async (req, res, next) => {
   try {
     const { category, upcoming, search, month, year } = req.query;
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
 
     if (category) filter.category = category;
 
@@ -143,8 +142,7 @@ exports.getEventById = async (req, res, next) => {
   try {
     const { id } = req.params;
     const event = await CompanyEvent.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     }).populate('createdBy', 'fullName email');
 
     if (!event) return res.status(404).json({ message: 'Event not found' });
@@ -152,23 +150,19 @@ exports.getEventById = async (req, res, next) => {
     // Get RSVP stats
     const going = await EventRSVP.countDocuments({
       eventId: id,
-      tenantId: req.tenantId,
-      status: 'going',
+      status: 'going'
     });
     const maybe = await EventRSVP.countDocuments({
       eventId: id,
-      tenantId: req.tenantId,
-      status: 'maybe',
+      status: 'maybe'
     });
     const notGoing = await EventRSVP.countDocuments({
       eventId: id,
-      tenantId: req.tenantId,
-      status: 'not-going',
+      status: 'not-going'
     });
     const checkedIn = await EventRSVP.countDocuments({
       eventId: id,
-      tenantId: req.tenantId,
-      checkedIn: true,
+      checkedIn: true
     });
 
     return res.status(200).json({
@@ -213,8 +207,7 @@ exports.updateEvent = async (req, res, next) => {
     } = req.body;
 
     const event = await CompanyEvent.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!event) return res.status(404).json({ message: 'Event not found' });
 
@@ -265,13 +258,14 @@ exports.deleteEvent = async (req, res, next) => {
   try {
     const { id } = req.params;
     const event = await CompanyEvent.findOneAndDelete({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!event) return res.status(404).json({ message: 'Event not found' });
 
     // Clean up RSVPs
-    await EventRSVP.deleteMany({ eventId: id, tenantId: req.tenantId });
+    await EventRSVP.deleteMany({
+      eventId: id
+    });
 
     eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
@@ -310,8 +304,7 @@ exports.rsvp = async (req, res, next) => {
     }
 
     const event = await CompanyEvent.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!event) return res.status(404).json({ message: 'Event not found' });
 
@@ -319,14 +312,12 @@ exports.rsvp = async (req, res, next) => {
     if (status === 'going' && event.maxAttendees) {
       const currentGoing = await EventRSVP.countDocuments({
         eventId: id,
-        tenantId: req.tenantId,
-        status: 'going',
+        status: 'going'
       });
       const alreadyGoing = await EventRSVP.findOne({
         eventId: id,
-        tenantId: req.tenantId,
         employeeId: req.userId,
-        status: 'going',
+        status: 'going'
       });
       if (!alreadyGoing && currentGoing >= event.maxAttendees) {
         return res
@@ -337,15 +328,16 @@ exports.rsvp = async (req, res, next) => {
 
     // Find employee
     const employee = await Employee.findOne({
-      createdBy: req.userId,
-      tenantId: req.tenantId,
-      deletedAt: null,
+      createdBy: req.userId
     });
     if (!employee)
       return res.status(404).json({ message: 'No employee record found' });
 
     const rsvp = await EventRSVP.findOneAndUpdate(
-      { eventId: id, employeeId: employee._id, tenantId: req.tenantId },
+      {
+        eventId: id,
+        employeeId: employee._id
+      },
       { status, note: note ? sanitizeText(note) : '', respondedAt: new Date() },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
@@ -380,23 +372,19 @@ exports.checkIn = async (req, res, next) => {
     const { id } = req.params;
 
     const event = await CompanyEvent.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!event) return res.status(404).json({ message: 'Event not found' });
 
     const employee = await Employee.findOne({
-      createdBy: req.userId,
-      tenantId: req.tenantId,
-      deletedAt: null,
+      createdBy: req.userId
     });
     if (!employee)
       return res.status(404).json({ message: 'No employee record found' });
 
     const rsvp = await EventRSVP.findOne({
       eventId: id,
-      employeeId: employee._id,
-      tenantId: req.tenantId,
+      employeeId: employee._id
     });
 
     if (!rsvp || rsvp.status === 'not-going') {
@@ -429,15 +417,12 @@ exports.checkIn = async (req, res, next) => {
 exports.getMyRSVPs = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      createdBy: req.userId,
-      tenantId: req.tenantId,
-      deletedAt: null,
+      createdBy: req.userId
     });
     if (!employee) return res.status(200).json({ rsvps: [] });
 
     const rsvps = await EventRSVP.find({
-      employeeId: employee._id,
-      tenantId: req.tenantId,
+      employeeId: employee._id
     })
       .populate({
         path: 'eventId',
@@ -462,7 +447,9 @@ exports.getEventAttendees = async (req, res, next) => {
     const { id } = req.params;
     const { status } = req.query;
 
-    const filter = { eventId: id, tenantId: req.tenantId };
+    const filter = {
+      eventId: id
+    };
     if (status) filter.status = status;
 
     const rsvps = await EventRSVP.find(filter)
@@ -486,12 +473,13 @@ exports.getEventAnalytics = async (req, res, next) => {
     const { id } = req.params;
 
     const event = await CompanyEvent.findOne({
-      _id: id,
-      tenantId: req.tenantId,
+      _id: id
     });
     if (!event) return res.status(404).json({ message: 'Event not found' });
 
-    const rsvps = await EventRSVP.find({ eventId: id, tenantId: req.tenantId });
+    const rsvps = await EventRSVP.find({
+      eventId: id
+    });
     const going = rsvps.filter((r) => r.status === 'going').length;
     const maybe = rsvps.filter((r) => r.status === 'maybe').length;
     const notGoing = rsvps.filter((r) => r.status === 'not-going').length;

@@ -5,7 +5,6 @@
 
 const FringeBenefitRecord = require('../models/fringeBenefitRecord.model');
 const { calculateFbtMetrics } = require('../services/fbtCalculator.service');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 async function calculatePreview(req, res) {
@@ -54,7 +53,6 @@ async function recordBenefit(req, res) {
     });
 
     const record = await FringeBenefitRecord.create({
-      tenantId: req.tenantId,
       employeeId,
       benefitCategory,
       quarter,
@@ -66,7 +64,7 @@ async function recordBenefit(req, res) {
       grossedUpTaxableValue: metrics.grossedUpTaxableValue,
       fbtRatePercent: metrics.fbtRatePercent,
       employerFbtLiability: metrics.employerFbtLiability,
-      recordedBy: req.userId,
+      recordedBy: req.userId
     });
 
     return res.status(201).json({ message: 'Fringe benefit recorded successfully.', record });
@@ -78,7 +76,7 @@ async function recordBenefit(req, res) {
 
 async function getRecords(req, res) {
   try {
-    const filter = { ...tenantFilter(req) };
+    const filter = { ...{} };
     if (req.query.quarter) filter.quarter = req.query.quarter;
     if (req.query.benefitCategory) filter.benefitCategory = req.query.benefitCategory;
     if (req.query.employeeId) filter.employeeId = req.query.employeeId;
@@ -103,7 +101,7 @@ async function getQuarterlySummaryReport(req, res) {
     }
 
     const records = await FringeBenefitRecord.find({
-      ...tenantFilter(req),
+      ...{},
       quarter,
     }).lean();
 

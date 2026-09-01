@@ -9,7 +9,13 @@ const multer                = require('multer');
 const auth                  = require('../middlewares/auth.middleware');
 const { requirePermission } = require('../middlewares/rbac.middleware');
 const { PERMISSIONS }       = require('../config/permissions');
-const { startImport, getImportJob, commitJob, rollbackJob } = require('../controllers/employeeImport.controller');
+const {
+  startImport,
+  getImportJob,
+  commitJob,
+  rollbackJob,
+  getImportProgress,
+} = require('../controllers/employeeImport.controller');
 const { integrationSecurity } = require('../middlewares/integrationSecurity');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -20,7 +26,8 @@ router.post('/import',               auth, requirePermission(PERMISSIONS.WRITE_E
 router.get('/import/:jobId',         auth, requirePermission(PERMISSIONS.READ_EMPLOYEE),  getImportJob);
 router.post('/import/:jobId/commit', auth, requirePermission(PERMISSIONS.WRITE_EMPLOYEE), commitJob);
 router.delete('/import/:jobId',      auth, requirePermission(PERMISSIONS.WRITE_EMPLOYEE), rollbackJob);
-
+// GET progress/report for an import job
+router.get('/import/:jobId/progress', auth,  requirePermission(PERMISSIONS.READ_EMPLOYEE),  getImportProgress);
 router.post('/sync-receiver', integrationSecurity, async (req, res) => {
   res.status(200).json({
     success: true,

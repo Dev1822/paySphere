@@ -38,11 +38,12 @@ function generateSignature(payload, secret) {
 
 /**
  * Custom backoff strategy for BullMQ.
- * Retries at: 1m, 5m, 30m, 2h (as per Issue #645 requirements).
+ * Implements exponential backoff: 60s, 120s, 240s, 480s, 960s (up to 5 attempts).
  */
 const customBackoffStrategy = (attemptsMade) => {
-  const delays = [60000, 300000, 1800000, 7200000]; // 1m, 5m, 30m, 2h
-  return delays[attemptsMade] || null; // null tells BullMQ to stop retrying
+  if (attemptsMade > 5) return null; // Stop retrying after 5 attempts
+  // Math.pow(2, attemptsMade - 1) * 60000 -> 1m, 2m, 4m, 8m, 16m
+  return Math.pow(2, attemptsMade - 1) * 60000;
 };
 
 /**
@@ -52,11 +53,12 @@ const customBackoffStrategy = (attemptsMade) => {
  * BullMQ worker (which would need a real Redis connection).
  */
 async function processWebhookJob(job) {
-  const { endpointId, tenantId, url, secret, eventName, payload } = job.data;
+  const { endpointId, tenantId, url, signingSecret, eventName, payload } =
+    job.data;
   const attempt = job.attemptsMade + 1;
 
   // 1. Generate HMAC Signature
-  const signature = generateSignature(payload, secret);
+  const signature = generateSignature(payload, signingSecret);
 
   // 2. Prepare Delivery Log Entry
   const deliveryLog = {
@@ -123,9 +125,8 @@ async function processWebhookJob(job) {
 
     // Calculate next retry time if it will be retried
     if (attempt < 5) {
-      const delays = [60000, 300000, 1800000, 7200000];
       deliveryLog.nextRetryAt = new Date(
-        Date.now() + (delays[attempt - 1] || 0),
+        Date.now() + Math.pow(2, attempt - 1) * 60000,
       );
     } else {
       deliveryLog.isDlq = true;

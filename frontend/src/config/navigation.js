@@ -78,6 +78,11 @@ export const APP_ROUTES = [
     component: lazy(() => import('../pages/ResetPassword')),
     isProtected: false,
   },
+  {
+    path: '/verify-payslip',
+    component: lazy(() => import('../pages/payroll/PayslipVerificationPage')),
+    isProtected: false,
+  },
 
   // ── Overview ─────────────────────────────────────────────────────────────
   {
@@ -120,6 +125,19 @@ export const APP_ROUTES = [
     icon: 'people',
   },
   {
+    // In People rather than in Payroll, and deliberately not beside Leave. A
+    // holiday is not leave — it is not applied for, cannot be refused, is not
+    // deducted from a balance, and three of them cannot be moved at all.
+    // Filing it under Leave would put a substitute control next to days that
+    // have none (#1970).
+    path: '/holiday-calendar',
+    component: lazy(() => import('../pages/HolidayCalendarRegister')),
+    appShell: true,
+    label: 'Holiday calendar',
+    group: 'people',
+    icon: 'calendar',
+  },
+  {
     path: '/add-employee',
     component: lazy(() => import('../pages/AddEmployee')),
     label: 'Add employee',
@@ -139,6 +157,14 @@ export const APP_ROUTES = [
     label: 'Archive',
     group: 'people',
     icon: 'archive',
+  },
+  {
+    path: '/bulk-operations',
+    component: lazy(() => import('../pages/BulkOperationsCenter')),
+    label: 'Bulk operations',
+    group: 'people',
+    icon: 'briefcase',
+    appShell: true,
   },
   {
     path: '/appraisals',
@@ -164,6 +190,32 @@ export const APP_ROUTES = [
     icon: 'chart',
   },
   {
+    // Retention analytics sits in People beside Pay equity — both answer
+    // workforce-stability questions, and the risk scores here feed directly
+    // into the compensation decisions on that page (#1902).
+    path: '/retention',
+    component: lazy(() => import('../components/EmployeeRetentionDashboard')),
+    label: 'Retention analytics',
+    group: 'people',
+    icon: 'chart',
+  },
+  {
+    path: '/compensation-intelligence',
+    component: lazy(
+      () => import('../pages/compensation/CompensationIntelligencePage'),
+    ),
+    label: 'Compensation Intelligence',
+    group: 'people',
+    icon: 'calculator',
+  },
+  {
+    path: '/offer-letters',
+    component: lazy(() => import('../pages/OfferLetterBuilder')),
+    label: 'Offer letters',
+    group: 'people',
+    icon: 'document',
+  },
+  {
     path: '/templates',
     component: lazy(() => import('../pages/LetterTemplateManager')),
     label: 'Letter templates',
@@ -186,6 +238,31 @@ export const APP_ROUTES = [
     group: 'people',
     icon: 'shield',
   },
+  {
+    // In Compliance rather than Payroll. The contribution itself is a payroll
+    // figure and the ECR already owns it; what this page holds is the liability
+    // that arises from the *date* the contribution was remitted, which is not a
+    // payroll number and is not owed to the employee (#1875).
+    path: '/epf-remittance',
+    component: lazy(() => import('../pages/EpfRemittanceLedger')),
+    appShell: true,
+    label: 'EPF remittance & 7Q/14B',
+    group: 'compliance',
+    icon: 'shield',
+  },
+
+  {
+    // In Compliance rather than Payroll, and not beside Settlements. A lay-off
+    // is not a separation — the employment subsists — and the largest thing on
+    // the page is not a payment at all: above the Chapter VB threshold the
+    // question is whether the employer was entitled to act (#1830).
+    path: '/layoffs',
+    component: lazy(() => import('../pages/LayoffRegister')),
+    appShell: true,
+    label: 'Lay-off & Chapter VB',
+    group: 'compliance',
+    icon: 'shield',
+  },
 
   {
     path: '/compensation',
@@ -201,6 +278,15 @@ export const APP_ROUTES = [
     label: 'Onboarding tracker',
     group: 'people',
     icon: 'rocket',
+  },
+  {
+    // Offboarding is the lifecycle counterpart to onboarding — the natural
+    // companion for an HR manager reviewing the People section.
+    path: '/offboarding',
+    component: lazy(() => import('../components/EmployeeOffboardingTracker')),
+    label: 'Offboarding tracker',
+    group: 'people',
+    icon: 'exit',
   },
   {
     // In People rather than Compliance: engaging an apprentice and keeping the
@@ -230,6 +316,16 @@ export const APP_ROUTES = [
 
   // ── Payroll ──────────────────────────────────────────────────────────────
   {
+    path: '/payslip-templates',
+    component: lazy(
+      () => import('../components/payroll/PayslipTemplateDesigner'),
+    ),
+    label: 'Payslip Templates',
+    group: 'payroll',
+    icon: 'document',
+    appShell: true,
+  },
+  {
     path: '/approvals',
     component: lazy(() => import('../pages/Approvals')),
     appShell: true,
@@ -238,12 +334,37 @@ export const APP_ROUTES = [
     icon: 'check',
   },
   {
+    // In Payroll rather than in Compliance. The relief is a figure that changes
+    // what is deducted this month, and the people who act on it are the ones
+    // running the deduction — putting it under Compliance would file it beside
+    // things nobody touches until an audit (#1969).
+    path: '/section-89-relief',
+    component: lazy(() => import('../pages/SectionEightyNineReliefRegister')),
+    appShell: true,
+    label: 'Section 89(1) relief',
+    group: 'payroll',
+    icon: 'calculator',
+  },
+  {
     path: '/loans',
     component: lazy(() => import('../pages/Loans')),
     appShell: true,
     label: 'Loans & advances',
     group: 'payroll',
     icon: 'wallet',
+  },
+  {
+    // In Payroll and directly above Settlements, because the two are adjacent
+    // and are not the same: a settlement ends an employment, and a suspension
+    // is an employment that subsists while producing no work and owing a rising
+    // statutory scale. Filing it with leave would be worse — leave pays nothing
+    // and this pays fifty per cent rising to a hundred (#1828).
+    path: '/suspensions',
+    component: lazy(() => import('../pages/SuspensionRegister')),
+    appShell: true,
+    label: 'Suspensions',
+    group: 'payroll',
+    icon: 'clock',
   },
   {
     path: '/settlements',
@@ -284,11 +405,59 @@ export const APP_ROUTES = [
     icon: 'chart',
   },
   {
+    // In Compliance rather than Payroll, though the deduction lands on a
+    // payslip. The page is organised by registration certificate rather than by
+    // employee, because the state that applies is the state of the place of
+    // work and a company with two offices remits to two authorities (#1876).
+    path: '/professional-tax',
+    component: lazy(() => import('../pages/ProfessionalTaxRegister')),
+    appShell: true,
+    label: 'Professional tax',
+    group: 'compliance',
+    icon: 'shield',
+  },
+
+  {
     path: '/budget',
     component: lazy(() => import('../pages/BudgetPlanner')),
     label: 'Budget planner',
     group: 'payroll',
     icon: 'target',
+  },
+  {
+    path: '/wellness',
+    component: lazy(() => import('../components/EmployeeWellnessDashboard')),
+    label: 'Employee Wellness',
+    group: 'payroll',
+    icon: 'health',
+  },
+  {
+    path: '/pulse-survey',
+    component: lazy(() => import('../components/EmployeePulseSurvey')),
+    label: 'Pulse Survey',
+    group: 'payroll',
+    icon: 'clipboard',
+  },
+  {
+    path: '/recognition',
+    component: lazy(() => import('../components/EmployeeRecognitionWall')),
+    label: 'Recognition Wall',
+    group: 'payroll',
+    icon: 'trophy',
+  },
+  {
+    path: '/team-performance',
+    component: lazy(() => import('../components/TeamPerformanceDashboard')),
+    label: 'Team Performance',
+    group: 'payroll',
+    icon: 'chart',
+  },
+  {
+    path: '/learning',
+    component: lazy(() => import('../components/EmployeeLearningTracker')),
+    label: 'Learning Tracker',
+    group: 'payroll',
+    icon: 'book',
   },
   {
     // In Payroll rather than Compliance: it is a deduction that has to be in
@@ -391,6 +560,18 @@ export const APP_ROUTES = [
 
   // ── Compliance ───────────────────────────────────────────────────────────
   {
+    // In Compliance rather than in Payroll. The figures are payroll figures,
+    // but the thing that has to be watched is a certificate lapsing on a date
+    // nobody is looking at — and that belongs beside the other obligations with
+    // deadlines rather than beside the run (#1971).
+    path: '/international-workers',
+    component: lazy(() => import('../pages/InternationalWorkerRegister')),
+    appShell: true,
+    label: 'International workers',
+    group: 'compliance',
+    icon: 'globe',
+  },
+  {
     // In Compliance rather than Payroll: the register's subject is who the
     // scheme covers, and the fact people come to it for — that somebody above
     // the ceiling is still covered until the period ends — is a compliance
@@ -416,6 +597,19 @@ export const APP_ROUTES = [
     icon: 'shield',
   },
   {
+    // In Compliance, and deliberately not beside the working-hours page even
+    // though section 7 is about hours. That page answers an excess hour with a
+    // rate; this one has no currency on it at all, because an underage
+    // engagement has no compensable amount (#1877).
+    path: '/young-persons',
+    component: lazy(() => import('../pages/YoungPersonsRegister')),
+    appShell: true,
+    label: 'Children & adolescents',
+    group: 'compliance',
+    icon: 'shield',
+  },
+
+  {
     // In Compliance rather than Finance, even though a contractor is a vendor.
     // The vendor ledger's question is "what do we owe this counterparty"; this
     // one's is "what are we liable for on account of people we do not employ",
@@ -424,6 +618,19 @@ export const APP_ROUTES = [
     component: lazy(() => import('../pages/ContractLabourRegister')),
     appShell: true,
     label: 'Contract labour',
+    group: 'compliance',
+    icon: 'shield',
+  },
+  {
+    // Directly under Contract labour, which is its nearest neighbour: both are
+    // about people the establishment does not employ. They part company on
+    // what is owed — there, a contingent liability for a contractor's workmen;
+    // here, a share of the platform's own turnover, on account of workers
+    // section 2(35) puts outside the employment relationship entirely (#1829).
+    path: '/aggregator-contribution',
+    component: lazy(() => import('../pages/AggregatorContribution')),
+    appShell: true,
+    label: 'Aggregator contribution',
     group: 'compliance',
     icon: 'shield',
   },
@@ -518,6 +725,19 @@ export const APP_ROUTES = [
     employee: true,
   },
   {
+    // In Compliance rather than beside Settlements, though a death in service
+    // triggers both. A settlement is what the employer owes; this is what the
+    // scheme pays out of contributions already remitted, and the employer only
+    // files the claim (#1878).
+    path: '/edli',
+    component: lazy(() => import('../pages/EdliAssuranceRegister')),
+    appShell: true,
+    label: 'EDLI assurance',
+    group: 'compliance',
+    icon: 'shield',
+  },
+
+  {
     // In Workplace rather than Payroll: the desk is about where people are
     // working and under what arrangement, and the money follows from that
     // rather than the other way round (#1348).
@@ -552,6 +772,14 @@ export const APP_ROUTES = [
     icon: 'megaphone',
     employee: true,
   },
+  {
+    path: '/wellness-hub',
+    component: lazy(() => import('../pages/wellness/EmployeeWellnessHubPage')),
+    label: 'Wellness Hub',
+    group: 'workplace',
+    icon: 'heart',
+    employee: true,
+  },
 
   {
     path: '/team-health',
@@ -563,6 +791,14 @@ export const APP_ROUTES = [
   },
 
   // ── Learning ─────────────────────────────────────────────────────────────
+  {
+    path: '/learning-hub',
+    component: lazy(() => import('../pages/learning/EmployeeLearningHubPage')),
+    label: 'Learning Hub',
+    group: 'learning',
+    icon: 'graduationCap',
+    employee: true,
+  },
   {
     path: '/flashcards',
     component: lazy(() => import('../pages/Flashcards')),
@@ -613,6 +849,19 @@ export const APP_ROUTES = [
       () => import('../pages/assets/EnterpriseAssetDashboardPage'),
     ),
   },
+  {
+    // In Compliance rather than in Recruitment. The page owns nothing in the
+    // hiring pipeline and section 5 means notifying a vacancy creates no
+    // obligation about who is hired — putting it beside the requisitions would
+    // imply the opposite (#1879).
+    path: '/vacancy-notification',
+    component: lazy(() => import('../pages/VacancyNotificationRegister')),
+    appShell: true,
+    label: 'Vacancy notification',
+    group: 'compliance',
+    icon: 'shield',
+  },
+
   {
     path: '/enterprise/compliance-audit',
     component: lazy(
@@ -685,6 +934,16 @@ export const APP_ROUTES = [
     ),
   },
   {
+    path: '/employee-referrals',
+    component: lazy(
+      () => import('../pages/referrals/EmployeeReferralProgramPage'),
+    ),
+    label: 'Employee Referrals',
+    group: 'enterprise',
+    icon: 'group_add',
+    employee: true,
+  },
+  {
     path: '/enterprise/employee-relations',
     component: lazy(
       () => import('../pages/enterprise/EmployeeRelationsHubPage'),
@@ -693,6 +952,15 @@ export const APP_ROUTES = [
   },
 
   {
+    path: '/workforce-analytics',
+    component: lazy(
+      () => import('../pages/analytics/WorkforceAnalyticsDashboardPage'),
+    ),
+    label: 'Workforce Analytics',
+    group: 'people',
+    icon: 'chart',
+  },
+  {
     path: '/settings',
     component: lazy(() => import('../pages/Settings')),
   },
@@ -700,6 +968,13 @@ export const APP_ROUTES = [
     path: '/settings/system-health',
     component: lazy(() => import('../pages/SystemHealth')),
     appShell: true,
+  },
+  {
+    path: '/developer',
+    component: lazy(() => import('../pages/DeveloperCenter')),
+    label: 'Developer Center',
+    group: 'workplace',
+    icon: 'code',
   },
   {
     path: '/profile',

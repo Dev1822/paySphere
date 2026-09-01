@@ -254,6 +254,30 @@ function effectiveRate(totalTax, socialSecurity, gross) {
   return round2(((totalTax + socialSecurity) * 100) / income);
 }
 
+/**
+ * Calculates tax specifically on a bonus using either the AGGREGATE or SUPPLEMENTAL method.
+ *
+ * @param {number} bonus The bonus amount
+ * @param {number} baseAnnualIncome The annualized base salary (gross - deductions)
+ * @param {object[]} brackets The tax slabs
+ * @param {object} [options={}] Options { method: 'AGGREGATE' | 'SUPPLEMENTAL', supplementalRate: number }
+ * @returns {number} The tax amount to withhold from the bonus
+ */
+function taxOnBonus(bonus, baseAnnualIncome, brackets, options = {}) {
+  const method = options.method || 'AGGREGATE';
+  
+  if (method === 'SUPPLEMENTAL') {
+    const rate = Number(options.supplementalRate) || 22; // default flat supplemental rate
+    return round2(bonus * (rate / 100));
+  } else {
+    // AGGREGATE method:
+    // Tax is (Tax on base + bonus) - (Tax on base)
+    const baseIncomeTax = taxOn(baseAnnualIncome, brackets).totalTax;
+    const combinedIncomeTax = taxOn(baseAnnualIncome + bonus, brackets).totalTax;
+    return round2(Math.max(0, combinedIncomeTax - baseIncomeTax));
+  }
+}
+
 module.exports = {
   round2,
   isUnbounded,
@@ -261,5 +285,6 @@ module.exports = {
   taxableWithin,
   validateSlabs,
   taxOn,
+  taxOnBonus,
   effectiveRate,
 };

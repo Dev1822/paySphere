@@ -1,10 +1,9 @@
-const crypto = require("crypto");
-const mongoose = require("mongoose");
-const WebhookEndpoint = require("../models/webhookEndpoint.model");
-const WebhookDelivery = require("../models/webhookDelivery.model");
-const eventBus = require("../services/event.service");
-const { requireTenant } = require("../utils/tenantScope");
-const logger = require("../utils/logger");
+const crypto = require('crypto');
+const mongoose = require('mongoose');
+const WebhookEndpoint = require('../models/webhookEndpoint.model');
+const WebhookDelivery = require('../models/webhookDelivery.model');
+const eventBus = require('../services/event.service');
+const logger = require('../utils/logger');
 
 /**
  * Webhook endpoint CRUD (#474).
@@ -23,13 +22,13 @@ const logger = require("../utils/logger");
 
 /** The events a webhook may subscribe to. Mirrors the model enum. */
 const SUBSCRIBABLE_EVENTS = [
-  "EMPLOYEE_CREATE",
-  "EMPLOYEE_UPDATE",
-  "EMPLOYEE_DELETE",
-  "PAYROLL_FINALIZE",
-  "PAYROLL_APPROVE",
-  "PAYROLL_REJECT",
-  "PAYROLL_PAID",
+  'EMPLOYEE_CREATE',
+  'EMPLOYEE_UPDATE',
+  'EMPLOYEE_DELETE',
+  'PAYROLL_FINALIZE',
+  'PAYROLL_APPROVE',
+  'PAYROLL_REJECT',
+  'PAYROLL_PAID',
 ];
 
 const URL_PATTERN = /^https?:\/\/.+/i;
@@ -44,7 +43,7 @@ const DELIVERIES_LIMIT = 50;
  * @returns {string}
  */
 function generateSecret() {
-  return crypto.randomBytes(32).toString("hex");
+  return crypto.randomBytes(32).toString('hex');
 }
 
 /**
@@ -55,16 +54,16 @@ function generateSecret() {
  * @returns {string}
  */
 function maskSecret(secret) {
-  if (typeof secret !== "string" || secret.length < 8) return "••••••••";
+  if (typeof secret !== 'string' || secret.length < 8) return '••••••••';
   return `${secret.slice(0, 4)}••••${secret.slice(-4)}`;
 }
 
 /**
- * @param {object} webhook a document or plain object with a `secret` field
+ * @param {object} webhook a document or plain object with a `signingSecret` field
  * @returns {object} a plain object with the secret masked
  */
 function toMaskedWebhook(webhook) {
-  return { ...webhook, secret: maskSecret(webhook.secret) };
+  return { ...webhook, signingSecret: maskSecret(webhook.signingSecret) };
 }
 
 /**
@@ -77,7 +76,7 @@ function validateEvents(events) {
   if (!Array.isArray(events) || events.length === 0) {
     return {
       ok: false,
-      message: "subscribedEvents must be a non-empty array",
+      message: 'subscribedEvents must be a non-empty array',
     };
   }
 
@@ -85,7 +84,7 @@ function validateEvents(events) {
   if (unknown.length > 0) {
     return {
       ok: false,
-      message: `subscribedEvents must be a subset of: ${SUBSCRIBABLE_EVENTS.join(", ")}`,
+      message: `subscribedEvents must be a subset of: ${SUBSCRIBABLE_EVENTS.join(', ')}`,
     };
   }
 
@@ -99,8 +98,8 @@ function validateEvents(events) {
  * @returns {{ok: true, url: string} | {ok: false, message: string}}
  */
 function validateUrl(url) {
-  if (typeof url !== "string" || !URL_PATTERN.test(url.trim())) {
-    return { ok: false, message: "url must be a valid http(s) URL" };
+  if (typeof url !== 'string' || !URL_PATTERN.test(url.trim())) {
+    return { ok: false, message: 'url must be a valid http(s) URL' };
   }
   return { ok: true, url: url.trim() };
 }
@@ -122,7 +121,8 @@ exports.createWebhook = async (req, res, next) => {
 
     if (
       description !== undefined &&
-      (typeof description !== "string" || description.length > MAX_DESCRIPTION_LENGTH)
+      (typeof description !== 'string' ||
+        description.length > MAX_DESCRIPTION_LENGTH)
     ) {
       return res.status(400).json({
         message: `description cannot exceed ${MAX_DESCRIPTION_LENGTH} characters`,
@@ -135,24 +135,24 @@ exports.createWebhook = async (req, res, next) => {
     const webhook = new WebhookEndpoint({
       tenantId,
       url: urlCheck.url,
-      secret: generateSecret(),
+      signingSecret: generateSecret(),
       subscribedEvents: eventsCheck.events,
-      description: (description || "").trim().slice(0, MAX_DESCRIPTION_LENGTH),
+      description: (description || '').trim().slice(0, MAX_DESCRIPTION_LENGTH),
       createdBy: req.userId,
     });
 
     await webhook.save();
 
-    eventBus.emit("AUDIT_LOG", {
+    eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
-      action: "WEBHOOK_CREATE",
-      resourceType: "Webhook",
+      action: 'WEBHOOK_CREATE',
+      resourceType: 'Webhook',
       resourceIds: [webhook._id],
       details: { url: webhook.url, events: webhook.subscribedEvents },
       req,
     });
 
-    logger.info("Webhook endpoint created", {
+    logger.info('Webhook endpoint created', {
       webhookId: String(webhook._id),
       url: webhook.url,
       userId: req.userId,
@@ -170,7 +170,7 @@ exports.getWebhooks = async (req, res, next) => {
     const tenantId = requireTenant(req);
 
     const webhooks = await WebhookEndpoint.find({ tenantId })
-      .sort("-createdAt")
+      .sort('-createdAt')
       .lean();
 
     res.status(200).json(webhooks.map(toMaskedWebhook));
@@ -187,7 +187,7 @@ exports.getWebhook = async (req, res, next) => {
     // An unparseable id used to reach findOne and throw a CastError — a 500 for
     // what is plainly a bad request (same pattern as scheduler.controller.js).
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid webhook id format" });
+      return res.status(400).json({ message: 'Invalid webhook id format' });
     }
 
     const webhook = await WebhookEndpoint.findOne({ _id: id, tenantId }).lean();
@@ -195,7 +195,7 @@ exports.getWebhook = async (req, res, next) => {
     if (!webhook) {
       // Indistinguishable from "does not exist", so a caller cannot probe for
       // another company's endpoint ids.
-      return res.status(404).json({ message: "Webhook endpoint not found" });
+      return res.status(404).json({ message: 'Webhook endpoint not found' });
     }
 
     res.status(200).json(toMaskedWebhook(webhook));
@@ -210,13 +210,13 @@ exports.updateWebhook = async (req, res, next) => {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid webhook id format" });
+      return res.status(400).json({ message: 'Invalid webhook id format' });
     }
 
     const webhook = await WebhookEndpoint.findOne({ _id: id, tenantId });
 
     if (!webhook) {
-      return res.status(404).json({ message: "Webhook endpoint not found" });
+      return res.status(404).json({ message: 'Webhook endpoint not found' });
     }
 
     const { url, description, subscribedEvents, isActive } = req.body || {};
@@ -239,7 +239,7 @@ exports.updateWebhook = async (req, res, next) => {
 
     if (description !== undefined) {
       if (
-        typeof description !== "string" ||
+        typeof description !== 'string' ||
         description.length > MAX_DESCRIPTION_LENGTH
       ) {
         return res.status(400).json({
@@ -250,8 +250,8 @@ exports.updateWebhook = async (req, res, next) => {
     }
 
     if (isActive !== undefined) {
-      if (typeof isActive !== "boolean") {
-        return res.status(400).json({ message: "isActive must be a boolean" });
+      if (typeof isActive !== 'boolean') {
+        return res.status(400).json({ message: 'isActive must be a boolean' });
       }
       webhook.isActive = isActive;
     }
@@ -262,15 +262,15 @@ exports.updateWebhook = async (req, res, next) => {
       description === undefined &&
       isActive === undefined
     ) {
-      return res.status(400).json({ message: "Nothing to update" });
+      return res.status(400).json({ message: 'Nothing to update' });
     }
 
     await webhook.save();
 
-    eventBus.emit("AUDIT_LOG", {
+    eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
-      action: "WEBHOOK_UPDATE",
-      resourceType: "Webhook",
+      action: 'WEBHOOK_UPDATE',
+      resourceType: 'Webhook',
       resourceIds: [webhook._id],
       details: {
         url: webhook.url,
@@ -280,7 +280,7 @@ exports.updateWebhook = async (req, res, next) => {
       req,
     });
 
-    logger.info("Webhook endpoint updated", {
+    logger.info('Webhook endpoint updated', {
       webhookId: String(webhook._id),
       userId: req.userId,
     });
@@ -297,30 +297,33 @@ exports.deleteWebhook = async (req, res, next) => {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid webhook id format" });
+      return res.status(400).json({ message: 'Invalid webhook id format' });
     }
 
-    const webhook = await WebhookEndpoint.findOneAndDelete({ _id: id, tenantId });
+    const webhook = await WebhookEndpoint.findOneAndDelete({
+      _id: id,
+      tenantId,
+    });
 
     if (!webhook) {
-      return res.status(404).json({ message: "Webhook endpoint not found" });
+      return res.status(404).json({ message: 'Webhook endpoint not found' });
     }
 
-    eventBus.emit("AUDIT_LOG", {
+    eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
-      action: "WEBHOOK_DELETE",
-      resourceType: "Webhook",
+      action: 'WEBHOOK_DELETE',
+      resourceType: 'Webhook',
       resourceIds: [id],
       details: { url: webhook.url },
       req,
     });
 
-    logger.info("Webhook endpoint deleted", {
+    logger.info('Webhook endpoint deleted', {
       webhookId: id,
       userId: req.userId,
     });
 
-    res.status(200).json({ message: "Webhook endpoint deleted successfully" });
+    res.status(200).json({ message: 'Webhook endpoint deleted successfully' });
   } catch (error) {
     next(error);
   }
@@ -332,36 +335,36 @@ exports.regenerateWebhookSecret = async (req, res, next) => {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid webhook id format" });
+      return res.status(400).json({ message: 'Invalid webhook id format' });
     }
 
     const webhook = await WebhookEndpoint.findOne({ _id: id, tenantId });
 
     if (!webhook) {
-      return res.status(404).json({ message: "Webhook endpoint not found" });
+      return res.status(404).json({ message: 'Webhook endpoint not found' });
     }
 
     const newSecret = generateSecret();
-    webhook.secret = newSecret;
+    webhook.signingSecret = newSecret;
     await webhook.save();
 
-    eventBus.emit("AUDIT_LOG", {
+    eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
-      action: "WEBHOOK_SECRET_REGENERATED",
-      resourceType: "Webhook",
+      action: 'WEBHOOK_SECRET_REGENERATED',
+      resourceType: 'Webhook',
       resourceIds: [webhook._id],
       details: { url: webhook.url },
       req,
     });
 
-    logger.info("Webhook secret regenerated", {
+    logger.info('Webhook secret regenerated', {
       webhookId: String(webhook._id),
       userId: req.userId,
     });
 
     res.status(200).json({
-      message: "Webhook secret regenerated. The new secret is shown once.",
-      secret: newSecret,
+      message: 'Webhook secret regenerated. The new secret is shown once.',
+      signingSecret: newSecret,
     });
   } catch (error) {
     next(error);
@@ -374,18 +377,18 @@ exports.getWebhookDeliveries = async (req, res, next) => {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid webhook id format" });
+      return res.status(400).json({ message: 'Invalid webhook id format' });
     }
 
     // Scoped to the tenant, and the endpoint must exist first, so one company
     // cannot read another's delivery history.
     const webhook = await WebhookEndpoint.findOne({ _id: id, tenantId }).lean();
     if (!webhook) {
-      return res.status(404).json({ message: "Webhook endpoint not found" });
+      return res.status(404).json({ message: 'Webhook endpoint not found' });
     }
 
     const deliveries = await WebhookDelivery.find({ tenantId, endpointId: id })
-      .sort("-createdAt")
+      .sort('-createdAt')
       .limit(DELIVERIES_LIMIT)
       .lean();
 
@@ -401,16 +404,16 @@ exports.retryWebhookDelivery = async (req, res, next) => {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid delivery id format" });
+      return res.status(400).json({ message: 'Invalid delivery id format' });
     }
 
-    const webhookService = require("../services/webhook.service");
+    const webhookService = require('../services/webhook.service');
     const delivery = await webhookService.retryDlqJob(id, tenantId);
 
-    eventBus.emit("AUDIT_LOG", {
+    eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
-      action: "WEBHOOK_RETRY",
-      resourceType: "Webhook",
+      action: 'WEBHOOK_RETRY',
+      resourceType: 'Webhook',
       resourceIds: [delivery.endpointId],
       details: { deliveryId: id },
       req,
@@ -418,11 +421,14 @@ exports.retryWebhookDelivery = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: "Webhook delivery successfully enqueued for retry",
+      message: 'Webhook delivery successfully enqueued for retry',
       delivery,
     });
   } catch (error) {
-    if (error.message.includes("not found") || error.message.includes("inactive")) {
+    if (
+      error.message.includes('not found') ||
+      error.message.includes('inactive')
+    ) {
       return res.status(404).json({ message: error.message });
     }
     next(error);
@@ -435,35 +441,37 @@ exports.testWebhook = async (req, res, next) => {
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid webhook id format" });
+      return res.status(400).json({ message: 'Invalid webhook id format' });
     }
 
     const webhook = await WebhookEndpoint.findOne({ _id: id, tenantId });
     if (!webhook) {
-      return res.status(404).json({ message: "Webhook endpoint not found" });
+      return res.status(404).json({ message: 'Webhook endpoint not found' });
     }
 
     const testPayload = {
-      event: "TEST_EVENT",
+      event: 'TEST_EVENT',
       timestamp: new Date().toISOString(),
       data: {
-        message: "This is a test notification from PaySphere.",
-        testId: crypto.randomBytes(8).toString("hex"),
+        message: 'This is a test notification from PaySphere.',
+        testId: crypto.randomBytes(8).toString('hex'),
       },
       resourceIds: [],
     };
 
-    const webhookService = require("../services/webhook.service");
-    await webhookService.webhookQueue.add("deliver", {
+    const webhookService = require('../services/webhook.service');
+    await webhookService.webhookQueue.add('deliver', {
       endpointId: webhook._id.toString(),
       tenantId: tenantId.toString(),
       url: webhook.url,
-      secret: webhook.secret,
-      eventName: "TEST_EVENT",
+      signingSecret: webhook.signingSecret,
+      eventName: 'TEST_EVENT',
       payload: testPayload,
     });
 
-    res.status(200).json({ success: true, message: "Test webhook enqueued successfully." });
+    res
+      .status(200)
+      .json({ success: true, message: 'Test webhook enqueued successfully.' });
   } catch (error) {
     next(error);
   }

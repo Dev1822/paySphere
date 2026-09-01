@@ -9,7 +9,7 @@
 import type { NextFunction, Request, Response } from 'express';
 
 /** Populated by `auth.middleware` and `rbac.middleware` before the handler runs. */
-export interface TenantRequest
+export interface TenantRequest<
   Params = Record<string, string>,
   ResBody = unknown,
   ReqBody = unknown,
@@ -25,11 +25,7 @@ export interface AssetIdParams {
 
 export type DepreciationMethod = 'SLM' | 'WDV';
 export type AssetStatus =
-  | 'Available'
-  | 'Assigned'
-  | 'Maintenance'
-  | 'Retired'
-  | 'Lost';
+  'Available' | 'Assigned' | 'Maintenance' | 'Retired' | 'Lost';
 
 export interface AssetCategoryDocument {
   _id: unknown;
@@ -197,7 +193,7 @@ export interface FixedAssetRegisterCategoryRow {
 export interface FixedAssetRegisterResponseBody {
   period: { startDate: string | null; endDate: string | null };
   categories: FixedAssetRegisterCategoryRow[];
-  totals: Omit
+  totals: Omit<
     FixedAssetRegisterCategoryRow,
     'categoryId' | 'categoryName' | 'depreciationMethod'
   >;
@@ -253,7 +249,7 @@ export interface ImpairAssetResponseBody {
 
 // --- Middleware / handler shape --------------------------------------------
 
-type Handler
+type Handler<
   ReqBody = unknown,
   ResBody = unknown,
   Params = Record<string, string>,
@@ -270,27 +266,27 @@ interface AssetController {
   getAssets: Handler<unknown, GetAssetsResponseBody>;
   assignAsset: Handler<AssignAssetBody, AssignmentResponseBody, AssetIdParams>;
   returnAsset: Handler<ReturnAssetBody, AssignmentResponseBody, AssetIdParams>;
-  runMonthlyDepreciation: Handler
+  runMonthlyDepreciation: Handler<
     RunDepreciationBody,
     RunDepreciationResponseBody
   >;
-  getDepreciationSchedule: Handler
+  getDepreciationSchedule: Handler<
     unknown,
     GetDepreciationScheduleResponseBody,
     AssetIdParams
   >;
-  disposeAsset: Handler
+  disposeAsset: Handler<
     DisposeAssetBody,
     DisposeAssetResponseBody,
     AssetIdParams
   >;
-  getFixedAssetRegister: Handler
+  getFixedAssetRegister: Handler<
     unknown,
     FixedAssetRegisterResponseBody,
     Record<string, string>,
     FixedAssetRegisterQuery
   >;
-  getOverdueReturns: Handler
+  getOverdueReturns: Handler<
     unknown,
     OverdueReturnsResponseBody,
     Record<string, string>,
@@ -314,8 +310,7 @@ export const getAssets = legacyController.getAssets;
 export const assignAsset = legacyController.assignAsset;
 export const returnAsset = legacyController.returnAsset;
 export const runMonthlyDepreciation = legacyController.runMonthlyDepreciation;
-export const getDepreciationSchedule =
-  legacyController.getDepreciationSchedule;
+export const getDepreciationSchedule = legacyController.getDepreciationSchedule;
 export const disposeAsset = legacyController.disposeAsset;
 export const getFixedAssetRegister = legacyController.getFixedAssetRegister;
 export const getOverdueReturns = legacyController.getOverdueReturns;

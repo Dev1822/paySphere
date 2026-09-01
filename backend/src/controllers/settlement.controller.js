@@ -181,7 +181,9 @@ exports.initiateExit = async (req, res, next) => {
     const nextStatus = EMPLOYMENT_STATUS.NOTICE_PERIOD;
 
     await Employee.updateOne(
-      { _id: employee._id, tenantId: req.tenantId },
+      {
+        _id: employee._id
+      },
       {
         $set: {
           employmentStatus: nextStatus,
@@ -205,20 +207,21 @@ exports.initiateExit = async (req, res, next) => {
 
     const ExitClearance = require('../models/exitClearance.model');
     await ExitClearance.findOneAndUpdate(
-      { employeeId: employee._id, tenantId: req.tenantId },
+      {
+        employeeId: employee._id
+      },
       {
         $setOnInsert: {
           employeeId: employee._id,
-          tenantId: req.tenantId,
           status: 'Pending',
           itClearance: { status: 'Pending', notes: '' },
           hrClearance: { status: 'Pending', notes: '' },
           adminClearance: { status: 'Pending', notes: '' },
           hasTrainingAgreement: Boolean(body.hasTrainingAgreement),
           trainingClawbackAmount: Number(body.trainingClawbackAmount) || 0
-        }
+        },
       },
-      { upsert: true, new: true }
+      { upsert: true, new: true },
     );
 
     eventBus.emit('AUDIT_LOG', {
@@ -241,7 +244,8 @@ exports.initiateExit = async (req, res, next) => {
     });
 
     res.status(200).json({
-      message: 'Exit initiated. The employee remains payable until their last working day.',
+      message:
+        'Exit initiated. The employee remains payable until their last working day.',
       employeeId: String(employee._id),
       employmentStatus: nextStatus,
       lastWorkingDay,
@@ -308,11 +312,12 @@ exports.createSettlement = async (req, res, next) => {
       created = await Settlement.create({
         employeeId: employee._id,
         employeeName: employee.fullName,
+
         // Both: `createdBy` records who opened the settlement, `tenantId`
         // decides who can see it. #585 dropped the first while the schema still
         // required it, so this create() threw on every call (#613).
         createdBy: req.userId,
-        tenantId: req.tenantId,
+
         lastWorkingDay: lwd,
         joiningDate: employee.joiningDate,
         exitType: employee.exitDetails?.exitType || EXIT_TYPE.RESIGNATION,
@@ -326,8 +331,11 @@ exports.createSettlement = async (req, res, next) => {
         explanations: computed.explanations,
         policySnapshot: computed.policy,
         status: SETTLEMENT_STATUS.DRAFT,
-        negativeOverride: Boolean(body.allowNegative) && computed.netSettlement < 0,
-        notes: sanitizeText(body.notes || ''),
+
+        negativeOverride:
+          Boolean(body.allowNegative) && computed.netSettlement < 0,
+
+        notes: sanitizeText(body.notes || '')
       });
     } catch (error) {
       if (error && error.code === 11000) {
@@ -359,7 +367,9 @@ exports.createSettlement = async (req, res, next) => {
       netSettlement: created.netSettlement,
     });
 
-    res.status(201).json({ message: 'Settlement drafted', settlement: created });
+    res
+      .status(201)
+      .json({ message: 'Settlement drafted', settlement: created });
   } catch (error) {
     next(error);
   }
@@ -402,13 +412,16 @@ exports.updateSettlement = async (req, res, next) => {
       policy,
       body: {
         lastWorkingDay: body.lastWorkingDay || settlement.lastWorkingDay,
-        unusedLeaveDays: body.unusedLeaveDays ?? settlement.earnings.encashableDays,
+        unusedLeaveDays:
+          body.unusedLeaveDays ?? settlement.earnings.encashableDays,
         noticePeriodDays: body.noticePeriodDays,
         noticeServedDays: body.noticeServedDays,
         bonus: body.bonus ?? settlement.earnings.bonus,
         otherEarnings: body.otherEarnings ?? settlement.earnings.other,
-        advanceRecovery: body.advanceRecovery ?? settlement.deductions.advanceRecovery,
-        assetRecovery: body.assetRecovery ?? settlement.deductions.assetRecovery,
+        advanceRecovery:
+          body.advanceRecovery ?? settlement.deductions.advanceRecovery,
+        assetRecovery:
+          body.assetRecovery ?? settlement.deductions.assetRecovery,
         otherDeductions: body.otherDeductions ?? settlement.deductions.other,
       },
     });
@@ -484,11 +497,26 @@ function makeTransitionHandler(target, decorate = () => ({})) {
       // Marking an F&F paid is the moment the employee actually leaves.
       if (target === SETTLEMENT_STATUS.PAID) {
         await Employee.updateOne(
-          { _id: settlement.employeeId, tenantId: req.tenantId },
+          {
+            _id: settlement.employeeId
+          },
           {
             $set: {
               employmentStatus: EMPLOYMENT_STATUS.EXITED,
               isActive: isActiveStatus(EMPLOYMENT_STATUS.EXITED),
+            },
+          },
+        );
+
+        const Position = require('../models/position.model');
+        await Position.updateOne(
+          {
+            employeeId: settlement.employeeId
+          },
+          {
+            $set: {
+              status: 'Vacant',
+              employeeId: null,
             },
           },
         );
@@ -526,13 +554,28 @@ function makeTransitionHandler(target, decorate = () => ({})) {
   };
 }
 
-exports.submitSettlement = makeTransitionHandler(SETTLEMENT_STATUS.PENDING_APPROVAL);
+exports.submitSettlement = makeTransitionHandler(
+  SETTLEMENT_STATUS.PENDING_APPROVAL,
+);
 
 exports.approveSettlement = makeTransitionHandler(
   SETTLEMENT_STATUS.APPROVED,
-  (settlement, req) => ({
-    fields: { approvedBy: req.userId, approvedAt: new Date(), rejectionReason: undefined },
-  }),
+  (settlement, req) => {
+    if (settlement.negativeOverride && String(settlement.createdBy) === String(req.userId)) {
+      return {
+        error: 'Segregation of duties violation: Negative settlements require dual authorization (maker-checker). You cannot approve a negative settlement that you created.',
+        status: 403,
+      };
+    }
+    
+    return {
+      fields: {
+        approvedBy: req.userId,
+        approvedAt: new Date(),
+        rejectionReason: undefined,
+      },
+    };
+  },
 );
 
 exports.rejectSettlement = makeTransitionHandler(
@@ -567,7 +610,7 @@ exports.getSettlements = async (req, res, next) => {
     let limit = parseInt(req.query.limit, 10);
     if (isNaN(limit) || limit < 1 || limit > 100) limit = 20;
 
-    const query = { tenantId: req.tenantId };
+    const query = {};
 
     if (req.query.status) {
       if (!Object.values(SETTLEMENT_STATUS).includes(req.query.status)) {
@@ -615,8 +658,7 @@ exports.getSettlementById = async (req, res, next) => {
     // The payroll history the exit deliberately preserves — the thing
     // `deleteEmployee` would have destroyed.
     const payrollHistoryCount = await PayrollUpdate.countDocuments({
-      employeeId: owned.settlement.employeeId,
-      tenantId: req.tenantId,
+      employeeId: owned.settlement.employeeId
     });
 
     res.status(200).json({
@@ -632,12 +674,13 @@ exports.getClearanceStatus = async (req, res, next) => {
   try {
     const ExitClearance = require('../models/exitClearance.model');
     const clearance = await ExitClearance.findOne({
-      employeeId: req.params.employeeId,
-      tenantId: req.tenantId,
+      employeeId: req.params.employeeId
     }).populate('employeeId', 'fullName email department');
 
     if (!clearance) {
-      return res.status(404).json({ message: 'Exit clearance record not found' });
+      return res
+        .status(404)
+        .json({ message: 'Exit clearance record not found' });
     }
 
     res.status(200).json({ success: true, clearance });
@@ -657,9 +700,13 @@ exports.submitClearanceSignoff = async (req, res, next) => {
     }
 
     const ExitClearance = require('../models/exitClearance.model');
-    const clearance = await ExitClearance.findOne({ employeeId, tenantId: req.tenantId });
+    const clearance = await ExitClearance.findOne({
+      employeeId
+    });
     if (!clearance) {
-      return res.status(404).json({ message: 'Exit clearance record not found' });
+      return res
+        .status(404)
+        .json({ message: 'Exit clearance record not found' });
     }
 
     const stepKey = `${department}Clearance`;
@@ -670,10 +717,14 @@ exports.submitClearanceSignoff = async (req, res, next) => {
       notes: notes || '',
     };
 
-    const steps = [clearance.itClearance.status, clearance.hrClearance.status, clearance.adminClearance.status];
-    if (steps.every(s => s === 'Cleared')) {
+    const steps = [
+      clearance.itClearance.status,
+      clearance.hrClearance.status,
+      clearance.adminClearance.status,
+    ];
+    if (steps.every((s) => s === 'Cleared')) {
       clearance.status = 'Completed';
-    } else if (steps.some(s => s === 'Rejected')) {
+    } else if (steps.some((s) => s === 'Rejected')) {
       clearance.status = 'Rejected';
     } else {
       clearance.status = 'Pending';

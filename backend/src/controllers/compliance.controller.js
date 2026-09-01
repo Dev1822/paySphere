@@ -107,9 +107,7 @@ exports.generateForm16 = async (req, res, next) => {
     const fy = parseFinancialYear(req.query.fy);
     if (!fy.ok) return res.status(400).json({ message: fy.message });
 
-    const config = await ComplianceConfig.findOne({
-      tenantId: req.tenantId,
-    }).lean();
+    const config = await ComplianceConfig.findOne({}).lean();
 
     if (!config) {
       return res.status(400).json({
@@ -220,9 +218,7 @@ exports.generateForm24Q = async (req, res, next) => {
         .json({ message: 'Invalid quarter. Use Q1, Q2, Q3 or Q4.' });
     }
 
-    const config = await ComplianceConfig.findOne({
-      tenantId: req.tenantId,
-    }).lean();
+    const config = await ComplianceConfig.findOne({}).lean();
 
     // #933 read the config and then went straight to `config.tan` inside the
     // row map — a TypeError for every tenant that has not set compliance up,
@@ -329,9 +325,7 @@ exports.generateForm24Q = async (req, res, next) => {
  */
 exports.getComplianceConfig = async (req, res, next) => {
   try {
-    const config = await ComplianceConfig.findOne({
-      tenantId: req.tenantId,
-    }).lean();
+    const config = await ComplianceConfig.findOne({}).lean();
 
     // Null rather than a 404: a tenant that has never set this up is the normal
     // state, and the client needs to render an empty form for it.
@@ -376,8 +370,8 @@ exports.upsertComplianceConfig = async (req, res, next) => {
     }
 
     const config = await ComplianceConfig.findOneAndUpdate(
-      { tenantId: req.tenantId },
-      { $set: update, $setOnInsert: { tenantId: req.tenantId } },
+      {},
+      { $set: update, $setOnInsert: {} },
       {
         new: true,
         upsert: true,
@@ -417,7 +411,9 @@ exports.getTaxDeclarations = async (req, res, next) => {
     const fy = parseFinancialYear(req.query.fy);
     if (!fy.ok) return res.status(400).json({ message: fy.message });
 
-    const filter = { tenantId: req.tenantId, financialYear: fy.fyStartYear };
+    const filter = {
+      financialYear: fy.fyStartYear
+    };
 
     if (req.query.employeeId) {
       if (!mongoose.Types.ObjectId.isValid(req.query.employeeId)) {
@@ -458,8 +454,7 @@ exports.upsertTaxDeclaration = async (req, res, next) => {
     // Scoped by tenant: without it, a valid employee id belonging to another
     // company would open a declaration row against that company's employee.
     const employee = await Employee.findOne({
-      _id: employeeId,
-      tenantId: req.tenantId,
+      _id: employeeId
     }).lean();
 
     if (!employee) {
@@ -503,13 +498,15 @@ exports.upsertTaxDeclaration = async (req, res, next) => {
     }
 
     const declaration = await EmployeeTaxDeclaration.findOneAndUpdate(
-      { tenantId: req.tenantId, employeeId, financialYear: fy.fyStartYear },
+      {
+        employeeId,
+        financialYear: fy.fyStartYear
+      },
       {
         $set: update,
         $setOnInsert: {
-          tenantId: req.tenantId,
           employeeId,
-          financialYear: fy.fyStartYear,
+          financialYear: fy.fyStartYear
         },
       },
       {

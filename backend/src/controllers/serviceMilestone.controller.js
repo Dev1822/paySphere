@@ -32,18 +32,17 @@ const logger = require('../utils/logger');
  */
 exports.getConfig = async (req, res, next) => {
   try {
-    let config = await MilestoneConfig.findOne({ tenantId: req.tenantId });
+    let config = await MilestoneConfig.findOne({});
     if (!config) {
       // Return a default config (not persisted) so the frontend has something
       // to display before the admin saves one for the first time.
       config = {
-        tenantId: req.tenantId,
         isEnabled: false,
         evaluationMode: 'Anniversary',
         advanceNoticeDays: 7,
         maxEvaluationYears: 30,
         tiers: [],
-        isNew: true,
+        isNew: true
       };
     }
     return res.status(200).json({ config });
@@ -87,7 +86,7 @@ exports.upsertConfig = async (req, res, next) => {
     update.updatedBy = req.userId;
 
     const config = await MilestoneConfig.findOneAndUpdate(
-      { tenantId: req.tenantId },
+      {},
       { $set: update, $setOnInsert: { createdBy: req.userId } },
       { upsert: true, new: true, runValidators: true },
     );
@@ -130,7 +129,7 @@ exports.evaluateSingle = async (req, res, next) => {
       return res.status(400).json({ message: 'Invalid employee ID' });
     }
 
-    const config = await MilestoneConfig.findOne({ tenantId: req.tenantId });
+    const config = await MilestoneConfig.findOne({});
     if (!config || !config.isEnabled) {
       return res
         .status(400)
@@ -139,8 +138,7 @@ exports.evaluateSingle = async (req, res, next) => {
 
     const employee = await Employee.findOne({
       _id: req.params.employeeId,
-      tenantId: req.tenantId,
-      isActive: true,
+      isActive: true
     })
       .select('_id fullName department joiningDate role')
       .lean();
@@ -155,9 +153,8 @@ exports.evaluateSingle = async (req, res, next) => {
     let existingAchievement = null;
     if (result.qualifies) {
       existingAchievement = await MilestoneAchievement.findOne({
-        tenantId: req.tenantId,
         employeeId: employee._id,
-        yearsAchieved: result.yearsOfService,
+        yearsAchieved: result.yearsOfService
       }).lean();
     }
 
@@ -190,7 +187,7 @@ exports.evaluateSingle = async (req, res, next) => {
  */
 exports.evaluateBatch = async (req, res, next) => {
   try {
-    const config = await MilestoneConfig.findOne({ tenantId: req.tenantId });
+    const config = await MilestoneConfig.findOne({});
     if (!config || !config.isEnabled) {
       return res
         .status(400)
@@ -199,14 +196,13 @@ exports.evaluateBatch = async (req, res, next) => {
 
     // Fetch all active employees
     const employees = await Employee.find({
-      tenantId: req.tenantId,
-      isActive: true,
+      isActive: true
     })
       .select('_id fullName department joiningDate role')
       .lean();
 
     // Fetch existing achievements to avoid duplicates
-    const existing = await MilestoneAchievement.find({ tenantId: req.tenantId })
+    const existing = await MilestoneAchievement.find({})
       .select('employeeId yearsAchieved')
       .lean();
 
@@ -221,7 +217,6 @@ exports.evaluateBatch = async (req, res, next) => {
     for (const detection of result.detected) {
       try {
         const achievement = await MilestoneAchievement.create({
-          tenantId: req.tenantId,
           employeeId: detection.employeeId,
           yearsAchieved: detection.yearsOfService,
           tierLabel: detection.tier.label,
@@ -230,7 +225,7 @@ exports.evaluateBatch = async (req, res, next) => {
           rewardDescription: detection.tier.reward.description || '',
           detectedAt: new Date(),
           status: 'Detected',
-          announcementPosted: detection.tier.announcePublicly || false,
+          announcementPosted: detection.tier.announcePublicly || false
         });
         created.push(achievement);
       } catch (createErr) {
@@ -247,14 +242,13 @@ exports.evaluateBatch = async (req, res, next) => {
 
     // Log the evaluation run
     const evalLog = await MilestoneEvaluationLog.create({
-      tenantId: req.tenantId,
       triggerType: 'Manual',
       evaluatedBy: req.userId,
       evaluatedAt: new Date(),
       employeesEvaluated: result.evaluated,
       milestonesDetected: created.length,
       duplicatesSkipped: result.skipped,
-      status: 'Completed',
+      status: 'Completed'
     });
 
     eventBus.emitAuditLog({
@@ -293,7 +287,7 @@ exports.evaluateBatch = async (req, res, next) => {
  */
 exports.getAchievements = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
 
     if (req.query.status) filter.status = req.query.status;
     if (
@@ -358,8 +352,7 @@ exports.getAchievementById = async (req, res, next) => {
     }
 
     const achievement = await MilestoneAchievement.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     })
       .populate('employeeId', 'fullName department role joiningDate')
       .populate('reviewedBy', 'fullName')
@@ -386,8 +379,7 @@ exports.acknowledgeAchievement = async (req, res, next) => {
     }
 
     const achievement = await MilestoneAchievement.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!achievement) {
@@ -438,8 +430,7 @@ exports.disburseAchievement = async (req, res, next) => {
     }
 
     const achievement = await MilestoneAchievement.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!achievement) {
@@ -502,8 +493,7 @@ exports.skipAchievement = async (req, res, next) => {
     }
 
     const achievement = await MilestoneAchievement.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!achievement) {
@@ -554,8 +544,7 @@ exports.skipAchievement = async (req, res, next) => {
 exports.getMyMilestones = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     })
       .select('_id fullName department joiningDate')
       .lean();
@@ -565,8 +554,7 @@ exports.getMyMilestones = async (req, res, next) => {
     }
 
     const achievements = await MilestoneAchievement.find({
-      tenantId: req.tenantId,
-      employeeId: employee._id,
+      employeeId: employee._id
     })
       .sort({ yearsAchieved: 1 })
       .lean();
@@ -574,7 +562,7 @@ exports.getMyMilestones = async (req, res, next) => {
     const yearsOfService = completedYearsOfService(employee.joiningDate);
 
     // Find the next milestone
-    const config = await MilestoneConfig.findOne({ tenantId: req.tenantId });
+    const config = await MilestoneConfig.findOne({});
     const achievedYears = new Set(achievements.map((a) => a.yearsAchieved));
     let nextMilestone = null;
 
@@ -623,7 +611,7 @@ exports.getMyMilestones = async (req, res, next) => {
  */
 exports.getDashboard = async (req, res, next) => {
   try {
-    const config = await MilestoneConfig.findOne({ tenantId: req.tenantId });
+    const config = await MilestoneConfig.findOne({});
 
     // Count achievements by status
     const statusCounts = await MilestoneAchievement.aggregate([
@@ -670,15 +658,12 @@ exports.getDashboard = async (req, res, next) => {
     let upcoming = [];
     if (config?.isEnabled) {
       const employees = await Employee.find({
-        tenantId: req.tenantId,
-        isActive: true,
+        isActive: true
       })
         .select('_id fullName department joiningDate')
         .lean();
 
-      const existing = await MilestoneAchievement.find({
-        tenantId: req.tenantId,
-      })
+      const existing = await MilestoneAchievement.find({})
         .select('employeeId yearsAchieved')
         .lean();
 
@@ -693,9 +678,7 @@ exports.getDashboard = async (req, res, next) => {
     }
 
     // Recent evaluation runs
-    const recentRuns = await MilestoneEvaluationLog.find({
-      tenantId: req.tenantId,
-    })
+    const recentRuns = await MilestoneEvaluationLog.find({})
       .populate('evaluatedBy', 'fullName')
       .sort({ evaluatedAt: -1 })
       .limit(5)
@@ -739,13 +722,13 @@ exports.getEvaluationLogs = async (req, res, next) => {
     const skip = (page - 1) * limit;
 
     const [logs, total] = await Promise.all([
-      MilestoneEvaluationLog.find({ tenantId: req.tenantId })
+      MilestoneEvaluationLog.find({})
         .populate('evaluatedBy', 'fullName')
         .sort({ evaluatedAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      MilestoneEvaluationLog.countDocuments({ tenantId: req.tenantId }),
+      MilestoneEvaluationLog.countDocuments({}),
     ]);
 
     return res.status(200).json({
@@ -768,8 +751,7 @@ exports.getEmployeeHistory = async (req, res, next) => {
     }
 
     const employee = await Employee.findOne({
-      _id: req.params.employeeId,
-      tenantId: req.tenantId,
+      _id: req.params.employeeId
     })
       .select('_id fullName department role joiningDate')
       .lean();
@@ -779,8 +761,7 @@ exports.getEmployeeHistory = async (req, res, next) => {
     }
 
     const achievements = await MilestoneAchievement.find({
-      tenantId: req.tenantId,
-      employeeId: employee._id,
+      employeeId: employee._id
     })
       .populate('reviewedBy', 'fullName')
       .sort({ yearsAchieved: 1 })

@@ -19,16 +19,28 @@ function calculateNetSalary(employee, user, adjustments = {}) {
     daysInMonth = 30,
     weeklyOffs = 0,
     holidaysCount = 0,
+    calculationRule = null,
   } = adjustments || {};
+
+  const rules = calculationRule?.rules || {};
+  const leaveRules = rules.leave || {};
+  const overtimeRules = rules.overtime || {};
+  const deductionRules = rules.deductions || {};
+  const bonusRules = rules.bonus || {};
+  const salaryRules = rules.salary || {};
+  const maxLeaveDays =
+    Number.isFinite(Number(leaveRules.maxDays)) &&
+    Number(leaveRules.maxDays) > 0
+      ? Number(leaveRules.maxDays)
+      : 31;
 
   leaveDays =
     typeof leaveDays === 'number' &&
     !isNaN(leaveDays) &&
     Number.isFinite(leaveDays) &&
     leaveDays >= 0
-      ? Math.min(leaveDays, 31)
-      : 0;
-  overtimeHours =
+      ? Math.min(leaveDays, maxLeaveDays)
+      : 0;  overtimeHours =
     typeof overtimeHours === 'number' &&
     !isNaN(overtimeHours) &&
     Number.isFinite(overtimeHours) &&
@@ -40,16 +52,30 @@ function calculateNetSalary(employee, user, adjustments = {}) {
     !isNaN(bonus) &&
     Number.isFinite(bonus) &&
     bonus >= 0
-      ? clamp(bonus, 0, MONTHLY_SALARY_MAX)
+      ? clamp(
+          bonus *
+            (Number.isFinite(Number(bonusRules.multiplier))
+              ? Number(bonusRules.multiplier)
+              : 1),
+          0,
+          MONTHLY_SALARY_MAX,
+        )
       : 0;
+
   deductions =
     typeof deductions === 'number' &&
     !isNaN(deductions) &&
     Number.isFinite(deductions) &&
     deductions >= 0
-      ? clamp(deductions, 0, MONTHLY_SALARY_MAX)
+      ? clamp(
+          deductions *
+            (Number.isFinite(Number(deductionRules.multiplier))
+              ? Number(deductionRules.multiplier)
+              : 1),
+          0,
+          MONTHLY_SALARY_MAX,
+        )
       : 0;
-
   const rawSalary = employee ? Number(employee.monthlySalary) : 0;
   const baseSalary =
     !isNaN(rawSalary) && Number.isFinite(rawSalary) && rawSalary >= 0
@@ -57,31 +83,54 @@ function calculateNetSalary(employee, user, adjustments = {}) {
       : 0;
 
   const userDailyRate = user ? Number(user.defaultDailyRate) : 0;
+
+  const configuredDivisor =
+    Number.isFinite(Number(salaryRules.dailyRateDivisor)) &&
+    Number(salaryRules.dailyRateDivisor) > 0
+      ? Number(salaryRules.dailyRateDivisor)
+      : Number.isFinite(Number(leaveRules.dailyRateDivisor)) &&
+          Number(leaveRules.dailyRateDivisor) > 0
+        ? Number(leaveRules.dailyRateDivisor)
+        : null;
+
   const workingDays = Math.max(1, daysInMonth - weeklyOffs - holidaysCount);
+
   const dailyRate =
     !isNaN(userDailyRate) && Number.isFinite(userDailyRate) && userDailyRate > 0
       ? clamp(userDailyRate, 0, DAILY_RATE_MAX)
-      : baseSalary / workingDays;
-
+      : baseSalary / (configuredDivisor || workingDays);
   const leaveDeduction = Math.round(
     Math.min(dailyRate * leaveDays, MAX_SAFE_PAYROLL),
   );
 
   const empOvertime = employee ? Number(employee.overtimeRate) : 0;
   const userOvertime = user ? Number(user.defaultOvertimeRate) : 0;
+  const configuredOvertimeMultiplier =
+    Number.isFinite(Number(overtimeRules.rateMultiplier)) &&
+    Number(overtimeRules.rateMultiplier) >= 0
+      ? Number(overtimeRules.rateMultiplier)
+      : 1;
+
   const overtimeRate =
     !isNaN(empOvertime) && Number.isFinite(empOvertime) && empOvertime > 0
-      ? clamp(empOvertime, 0, OVERTIME_RATE_MAX)
+      ? clamp(
+          empOvertime * configuredOvertimeMultiplier,
+          0,
+          OVERTIME_RATE_MAX,
+        )
       : !isNaN(userOvertime) &&
           Number.isFinite(userOvertime) &&
           userOvertime > 0
-        ? clamp(userOvertime, 0, OVERTIME_RATE_MAX)
+        ? clamp(
+            userOvertime * configuredOvertimeMultiplier,
+            0,
+            OVERTIME_RATE_MAX,
+          )
         : 0;
 
   const overtimePay = Math.round(
     Math.min(overtimeRate * overtimeHours, MAX_SAFE_PAYROLL),
   );
-
   const customDedsTotal = Array.isArray(customDeductions)
     ? customDeductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0)
     : 0;

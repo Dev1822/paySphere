@@ -116,15 +116,16 @@ exports.createCourse = async (req, res, next) => {
     }
 
     const course = await TrainingCourse.create({
-      tenantId: req.tenantId,
       code,
       title,
       description,
       category,
       isMandatory,
       appliesTo,
+
       // targetDepartments (#1085) is an alias for appliesToValues when appliesTo is department-based
       appliesToValues: appliesToValues || targetDepartments || [],
+
       durationMinutes,
       passMark,
       maxAttempts,
@@ -132,7 +133,7 @@ exports.createCourse = async (req, res, next) => {
       validityDays: validityDays || 365,
       reminderLeadDays,
       externalLink,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -169,7 +170,7 @@ exports.createCourse = async (req, res, next) => {
  */
 exports.getCourses = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (req.query.category) filter.category = req.query.category;
     if (req.query.mandatory === 'true') filter.isMandatory = true;
 
@@ -214,8 +215,7 @@ exports.updateCourse = async (req, res, next) => {
     ];
 
     const course = await TrainingCourse.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!course) return res.status(404).json({ message: 'Course not found' });
 
@@ -270,8 +270,7 @@ exports.assignCourse = async (req, res, next) => {
     }
 
     const course = await TrainingCourse.findOne({
-      _id: courseId,
-      tenantId: req.tenantId,
+      _id: courseId
     }).lean();
     if (!course) return res.status(404).json({ message: 'Course not found' });
     if (!course.isActive) {
@@ -280,7 +279,9 @@ exports.assignCourse = async (req, res, next) => {
 
     const { employeeIds } = req.body;
 
-    const employeeFilter = { tenantId: req.tenantId, isActive: true };
+    const employeeFilter = {
+      isActive: true
+    };
     if (Array.isArray(employeeIds) && employeeIds.length > 0) {
       const valid = employeeIds.filter((id) => mongoose.isValidObjectId(id));
       if (valid.length === 0) {
@@ -310,9 +311,8 @@ exports.assignCourse = async (req, res, next) => {
     }
 
     const existing = await TrainingEnrollment.find({
-      tenantId: req.tenantId,
       courseId: course._id,
-      employeeId: { $in: targets.map((employee) => employee._id) },
+      employeeId: { $in: targets.map((employee) => employee._id) }
     })
       .select('employeeId')
       .lean();
@@ -328,12 +328,11 @@ exports.assignCourse = async (req, res, next) => {
       // Use ordered: false to gracefully skip duplicates (#1085 pattern)
       await TrainingEnrollment.insertMany(
         toCreate.map((employee) => ({
-          tenantId: req.tenantId,
           courseId: course._id,
           employeeId: employee._id,
           status: ENROLLMENT_STATUS.ASSIGNED,
           assignedAt: new Date(),
-          assignedBy: req.userId,
+          assignedBy: req.userId
         })),
         { ordered: false },
       );
@@ -388,8 +387,7 @@ exports.completeEnrollment = async (req, res, next) => {
     const { score, completedAt, certificateReference } = req.body;
 
     const enrollment = await TrainingEnrollment.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!enrollment)
       return res.status(404).json({ message: 'Enrollment not found' });
@@ -403,8 +401,7 @@ exports.completeEnrollment = async (req, res, next) => {
     }
 
     const course = await TrainingCourse.findOne({
-      _id: enrollment.courseId,
-      tenantId: req.tenantId,
+      _id: enrollment.courseId
     }).lean();
     if (!course) return res.status(404).json({ message: 'Course not found' });
 
@@ -486,8 +483,7 @@ exports.uploadCertificate = async (req, res, next) => {
 
     // EmployeeTrainingRecord is aliased to TrainingEnrollment in the model
     const record = await EmployeeTrainingRecord.findOne({
-      _id: recordId,
-      tenantId: req.tenantId,
+      _id: recordId
     });
     if (!record) {
       return res.status(404).json({ message: 'Training record not found' });
@@ -569,8 +565,7 @@ exports.waiveEnrollment = async (req, res, next) => {
     }
 
     const enrollment = await TrainingEnrollment.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
     if (!enrollment)
       return res.status(404).json({ message: 'Enrollment not found' });
@@ -608,8 +603,7 @@ exports.waiveEnrollment = async (req, res, next) => {
 exports.getMyTraining = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     })
       .select('_id fullName department role')
       .lean();
@@ -623,13 +617,11 @@ exports.getMyTraining = async (req, res, next) => {
     const asOf = resolveAsOf(req.query.asOf);
 
     const enrollments = await TrainingEnrollment.find({
-      tenantId: req.tenantId,
-      employeeId: employee._id,
+      employeeId: employee._id
     }).lean();
 
     const courses = await TrainingCourse.find({
-      tenantId: req.tenantId,
-      _id: { $in: enrollments.map((row) => row.courseId) },
+      _id: { $in: enrollments.map((row) => row.courseId) }
     }).lean();
 
     const courseById = new Map(
@@ -700,9 +692,8 @@ exports.getDashboardStats = async (req, res, next) => {
     in30Days.setDate(in30Days.getDate() + 30);
 
     const expiringRecords = await EmployeeTrainingRecord.find({
-      tenantId: req.tenantId,
       status: ENROLLMENT_STATUS.COMPLETED,
-      validUntil: { $gte: now, $lte: in30Days },
+      validUntil: { $gte: now, $lte: in30Days }
     })
       .populate('employeeId', 'fullName department')
       .populate('courseId', 'title code')
@@ -713,8 +704,7 @@ exports.getDashboardStats = async (req, res, next) => {
     return res.status(200).json({ stats, expiringRecords });
   } catch (error) {
     logger.error('Failed to load dashboard stats', {
-      tenantId: req.tenantId,
-      error: error.message,
+      error: error.message
     });
     return next(error);
   }
@@ -777,10 +767,11 @@ exports.getRenewalsDue = async (req, res, next) => {
     const horizonDays = Number(req.query.horizonDays) || 30;
 
     const [courses, enrollments] = await Promise.all([
-      TrainingCourse.find({ tenantId: req.tenantId, isActive: true }).lean(),
+      TrainingCourse.find({
+        isActive: true
+      }).lean(),
       TrainingEnrollment.find({
-        tenantId: req.tenantId,
-        status: ENROLLMENT_STATUS.COMPLETED,
+        status: ENROLLMENT_STATUS.COMPLETED
       }).lean(),
     ]);
 

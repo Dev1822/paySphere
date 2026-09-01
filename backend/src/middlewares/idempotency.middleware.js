@@ -1,11 +1,67 @@
 const redisClient = require('../config/redis');
 const IdempotencyRecord = require('../models/idempotencyRecord.model');
 const logger = require('../utils/logger');
+const { createCircuitBreaker } = require('../utils/circuitBreaker');
+const { acquireFallbackLock, getFallbackRecord, completeFallbackRecord } = require('../utils/idempotencyFallback');
+
+const fetchBreaker = createCircuitBreaker(async ({ tenantId, idempotencyKey, isRedisAvailable, redisKey }) => {
+  if (isRedisAvailable) {
+    const data = await redisClient.get(redisKey);
+    return data ? JSON.parse(data) : null;
+  } else {
+    return await IdempotencyRecord.findOne({ tenantId, idempotencyKey }).lean();
+  }
+}, 'idempotency-fetch');
+
+const saveProcessingBreaker = createCircuitBreaker(async ({ tenantId, idempotencyKey, isRedisAvailable, redisKey, processingRecord }) => {
+  if (isRedisAvailable) {
+    const acquired = await redisClient.set(
+      redisKey,
+      JSON.stringify(processingRecord),
+      'PX',
+      24 * 60 * 60 * 1000,
+      'NX',
+    );
+    if (!acquired) {
+      const err = new Error('Duplicate Processing');
+      err.code = 'DUPLICATE';
+      throw err;
+    }
+  } else {
+    try {
+      await IdempotencyRecord.create(processingRecord);
+    } catch (err) {
+      if (err.code === 11000) {
+        const error = new Error('Duplicate Processing');
+        error.code = 'DUPLICATE';
+        throw error;
+      }
+      throw err;
+    }
+  }
+}, 'idempotency-save-processing');
+
+const saveCompletionBreaker = createCircuitBreaker(async ({ tenantId, idempotencyKey, isRedisAvailable, redisKey, completedRecord }) => {
+  if (isRedisAvailable) {
+    await redisClient.set(
+      redisKey,
+      JSON.stringify(completedRecord),
+      'PX',
+      24 * 60 * 60 * 1000,
+    );
+  } else {
+    await IdempotencyRecord.updateOne(
+      { tenantId, idempotencyKey },
+      { $set: completedRecord },
+      { upsert: true },
+    );
+  }
+}, 'idempotency-save-completion');
 
 /**
  * Idempotency Middleware based on IETF Idempotency-Key draft.
- * Prevents duplicate execution of non-idempotent operations (like POST/PUT/PATCH)
- * on network retries.
+ * Prevents duplicate execution of non-idempotent operations.
+ * Implements circuit breaker and local disk fallback for resilience.
  */
 const idempotencyMiddleware = async (req, res, next) => {
   if (req.method !== 'POST' && req.method !== 'PATCH' && req.method !== 'PUT') {
@@ -14,70 +70,41 @@ const idempotencyMiddleware = async (req, res, next) => {
 
   const idempotencyKey = req.headers['idempotency-key'];
   if (!idempotencyKey) {
-    return res
-      .status(400)
-      .json({ error: 'Idempotency-Key header is required' });
+    return res.status(400).json({ error: 'Idempotency-Key header is required' });
   }
 
   const tenantId = req.tenantId || (req.user && req.user.tenantId);
   if (!tenantId) {
-    // If the route doesn't have tenant scope, we still need a way to isolate keys.
-    // For now, if no tenantId, we'll reject it or use a default 'global' if safe.
-    // Assuming all idempotency protected routes are tenant-scoped.
-    return res
-      .status(400)
-      .json({ error: 'Tenant context required for idempotency' });
+    return res.status(400).json({ error: 'Tenant context required for idempotency' });
   }
 
   const redisKey = `idempotency:${tenantId}:${idempotencyKey}`;
-  const isRedisAvailable =
-    redisClient.isRedisAvailable && redisClient.isRedisAvailable();
+  const isRedisAvailable = redisClient.isRedisAvailable && redisClient.isRedisAvailable();
 
   let existingRecord = null;
+  let usedFallback = false;
 
   try {
-    if (isRedisAvailable) {
-      const data = await redisClient.get(redisKey);
-      if (data) {
-        existingRecord = JSON.parse(data);
-      }
-    } else {
-      existingRecord = await IdempotencyRecord.findOne({
-        tenantId,
-        idempotencyKey,
-      }).lean();
-    }
+    existingRecord = await fetchBreaker.fire({ tenantId, idempotencyKey, isRedisAvailable, redisKey });
   } catch (error) {
-    logger.error('Error fetching idempotency record', {
-      error: error.message,
-      tenantId,
-      idempotencyKey,
-    });
-    // Proceed if we can't fetch, although this risks duplication, returning 500 might be safer.
-    // We will fail closed to prevent duplication.
-    return res
-      .status(500)
-      .json({ error: 'Internal server error checking idempotency' });
+    logger.warn('Circuit breaker open or fetch failed, falling back to local disk', { error: error.message });
+    usedFallback = true;
+    try {
+      existingRecord = await getFallbackRecord(tenantId, idempotencyKey);
+    } catch (fallbackError) {
+      return res.status(500).json({ error: 'Internal server error checking idempotency' });
+    }
   }
 
   if (existingRecord) {
     if (existingRecord.status === 'processing') {
-      return res
-        .status(409)
-        .json({
-          error: 'A request with this Idempotency-Key is already processing',
-        });
+      return res.status(409).json({ error: 'A request with this Idempotency-Key is already processing' });
     }
-
     if (existingRecord.status === 'completed') {
-      // Return the cached response
-      return res
-        .status(existingRecord.responseStatus || 200)
-        .json(existingRecord.responseBody);
+      return res.status(existingRecord.responseStatus || 200).json(existingRecord.responseBody);
     }
   }
 
-  // Register the key as processing
   const processingRecord = {
     tenantId,
     idempotencyKey,
@@ -85,47 +112,29 @@ const idempotencyMiddleware = async (req, res, next) => {
     expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
   };
 
-  try {
-    if (isRedisAvailable) {
-      // Set NX (Only set the key if it does not already exist) to handle concurrent requests gracefully
-      const acquired = await redisClient.set(
-        redisKey,
-        JSON.stringify(processingRecord),
-        'PX',
-        24 * 60 * 60 * 1000,
-        'NX',
-      );
-      if (!acquired) {
-        // Another request slipped in
-        return res
-          .status(409)
-          .json({
-            error: 'A request with this Idempotency-Key is already processing',
-          });
+  if (!usedFallback) {
+    try {
+      await saveProcessingBreaker.fire({ tenantId, idempotencyKey, isRedisAvailable, redisKey, processingRecord });
+    } catch (error) {
+      if (error.code === 'DUPLICATE') {
+        return res.status(409).json({ error: 'A request with this Idempotency-Key is already processing' });
       }
-    } else {
-      await IdempotencyRecord.create(processingRecord);
+      logger.warn('Circuit breaker open or save failed, falling back to local disk', { error: error.message });
+      usedFallback = true;
     }
-  } catch (error) {
-    if (error.code === 11000) {
-      // MongoDB duplicate key error
-      return res
-        .status(409)
-        .json({
-          error: 'A request with this Idempotency-Key is already processing',
-        });
-    }
-    logger.error('Error saving processing idempotency record', {
-      error: error.message,
-      tenantId,
-      idempotencyKey,
-    });
-    return res
-      .status(500)
-      .json({ error: 'Internal server error saving idempotency status' });
   }
 
-  // Hook into response to save the result
+  if (usedFallback) {
+    try {
+      const acquired = await acquireFallbackLock(tenantId, idempotencyKey);
+      if (!acquired) {
+        return res.status(409).json({ error: 'A request with this Idempotency-Key is already processing' });
+      }
+    } catch (fallbackError) {
+      return res.status(500).json({ error: 'Internal server error saving idempotency status' });
+    }
+  }
+
   const originalJson = res.json.bind(res);
   const originalSend = res.send.bind(res);
 
@@ -134,9 +143,7 @@ const idempotencyMiddleware = async (req, res, next) => {
     if (typeof body === 'string') {
       try {
         parsedBody = JSON.parse(body);
-      } catch (e) {
-        // Leave as string if not JSON
-      }
+      } catch (e) {}
     }
 
     const completedRecord = {
@@ -145,30 +152,18 @@ const idempotencyMiddleware = async (req, res, next) => {
       status: 'completed',
       responseBody: parsedBody,
       responseStatus: status || res.statusCode || 200,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     };
 
-    try {
-      if (isRedisAvailable) {
-        await redisClient.set(
-          redisKey,
-          JSON.stringify(completedRecord),
-          'PX',
-          24 * 60 * 60 * 1000,
-        );
-      } else {
-        await IdempotencyRecord.updateOne(
-          { tenantId, idempotencyKey },
-          { $set: completedRecord },
-          { upsert: true },
-        );
+    if (usedFallback) {
+      await completeFallbackRecord(tenantId, idempotencyKey, completedRecord.responseStatus, completedRecord.responseBody);
+    } else {
+      try {
+        await saveCompletionBreaker.fire({ tenantId, idempotencyKey, isRedisAvailable, redisKey, completedRecord });
+      } catch (error) {
+        logger.warn('Circuit breaker open or save completion failed, falling back to local disk', { error: error.message });
+        await completeFallbackRecord(tenantId, idempotencyKey, completedRecord.responseStatus, completedRecord.responseBody);
       }
-    } catch (error) {
-      logger.error('Error saving completed idempotency record', {
-        error: error.message,
-        tenantId,
-        idempotencyKey,
-      });
     }
   };
 
@@ -179,7 +174,6 @@ const idempotencyMiddleware = async (req, res, next) => {
 
   res.send = function (body) {
     if (typeof body === 'string') {
-      // Only intercept object/json bodies usually, but strings might be error messages
       saveCompletion(body, res.statusCode);
     }
     return originalSend(body);

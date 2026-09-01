@@ -1,8 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 
 const FlashcardDeck = require('../models/flashcardDeck.model');
-const tenantScopeUtils = require('../utils/tenantScope');
-const { tenantFilter } = tenantScopeUtils;
 const geminiUtils = require('../utils/gemini');
 const { generateSummaryTags } = geminiUtils;
 
@@ -94,7 +92,7 @@ export async function createDeck(
         .json({ message: 'A flashcard deck must have at least one card' });
     }
 
-    const filter = tenantFilter(req);
+    const filter = {};
 
     let tags: string[] = [];
     if (isPublic) {
@@ -116,7 +114,6 @@ export async function createDeck(
       cards,
       tags,
       createdBy: req.userId,
-      tenantId: filter.tenantId,
     });
 
     return res.status(201).json(newDeck);
@@ -134,7 +131,7 @@ export async function getMyDecks(
   next: NextFunction,
 ): Promise<Response | void> {
   try {
-    const filter = tenantFilter(req, { createdBy: req.userId });
+    const filter = { createdBy: req.userId };
     const decks = await FlashcardDeck.find(filter).sort({ createdAt: -1 });
     return res.status(200).json(decks);
   } catch (error) {
@@ -307,7 +304,7 @@ export async function cloneDeck(
 ): Promise<Response | void> {
   try {
     const { id } = req.params;
-    const filter = tenantFilter(req);
+    const filter = {};
 
     // `filter` was computed on the line above and then not used — the fetch
     // went through `findById`, so a deck belonging to another company was
@@ -343,7 +340,6 @@ export async function cloneDeck(
       cards: originalDeck.cards.map((c) => ({ front: c.front, back: c.back })),
       clonedFromId: originalDeck._id,
       createdBy: req.userId,
-      tenantId: filter.tenantId,
       tags: originalDeck.tags,
     });
 

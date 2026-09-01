@@ -27,6 +27,13 @@ jest.mock('../../models/settlement.model');
 jest.mock('../../models/employee.model');
 jest.mock('../../models/payroll.model');
 jest.mock('../../models/user.model');
+jest.mock('../../models/exitClearance.model', () => ({
+  findOne: jest.fn().mockResolvedValue(null),
+  findOneAndUpdate: jest.fn().mockResolvedValue(null),
+}));
+jest.mock('../../models/position.model', () => ({
+  updateOne: jest.fn().mockResolvedValue({ nModified: 1 }),
+}));
 jest.mock('../../services/cache.service', () => ({
   invalidateAnalytics: jest.fn().mockResolvedValue(undefined),
 }));
@@ -275,7 +282,10 @@ describe('createSettlement (#462)', () => {
   test('falls back to the exit details when no last working day is supplied', async () => {
     Employee.findOne.mockResolvedValue(
       employeeDoc({
-        exitDetails: { lastWorkingDay: new Date('2026-06-20'), noticePeriodDays: 30 },
+        exitDetails: {
+          lastWorkingDay: new Date('2026-06-20'),
+          noticePeriodDays: 30,
+        },
       }),
     );
     delete req.body.lastWorkingDay;
@@ -403,7 +413,12 @@ describe('settlement status ladder (#462)', () => {
   let req, res, next;
 
   beforeEach(() => {
-    req = { userId: OWNER, tenantId: TENANT, params: { id: SETTLEMENT_ID }, body: {} };
+    req = {
+      userId: OWNER,
+      tenantId: TENANT,
+      params: { id: SETTLEMENT_ID },
+      body: {},
+    };
     res = makeRes();
     next = jest.fn();
   });
@@ -419,7 +434,9 @@ describe('settlement status ladder (#462)', () => {
   });
 
   test('a pending settlement can be approved, and the approver is recorded', async () => {
-    const settlement = settlementDoc({ status: SETTLEMENT_STATUS.PENDING_APPROVAL });
+    const settlement = settlementDoc({
+      status: SETTLEMENT_STATUS.PENDING_APPROVAL,
+    });
     Settlement.findOne.mockResolvedValue(settlement);
 
     await approveSettlement(req, res, next);
@@ -430,14 +447,18 @@ describe('settlement status ladder (#462)', () => {
   });
 
   test('rejection sends it back to draft and requires a reason', async () => {
-    const settlement = settlementDoc({ status: SETTLEMENT_STATUS.PENDING_APPROVAL });
+    const settlement = settlementDoc({
+      status: SETTLEMENT_STATUS.PENDING_APPROVAL,
+    });
     Settlement.findOne.mockResolvedValue(settlement);
 
     await rejectSettlement(req, res, next);
     expect(res.status).toHaveBeenCalledWith(400);
 
     jest.clearAllMocks();
-    const second = settlementDoc({ status: SETTLEMENT_STATUS.PENDING_APPROVAL });
+    const second = settlementDoc({
+      status: SETTLEMENT_STATUS.PENDING_APPROVAL,
+    });
     Settlement.findOne.mockResolvedValue(second);
     req.body = { reason: 'Asset recovery looks wrong' };
 
@@ -460,7 +481,11 @@ describe('settlement status ladder (#462)', () => {
   test('paid is terminal', async () => {
     // A settled F&F must not be reopened, for the same reason a paid payroll
     // row must not be (#251).
-    for (const handler of [submitSettlement, approveSettlement, cancelSettlement]) {
+    for (const handler of [
+      submitSettlement,
+      approveSettlement,
+      cancelSettlement,
+    ]) {
       jest.clearAllMocks();
       const settlement = settlementDoc({ status: SETTLEMENT_STATUS.PAID });
       Settlement.findOne.mockResolvedValue(settlement);
@@ -539,7 +564,11 @@ describe('getSettlements / getSettlementById (#462)', () => {
   });
 
   test('rejects an unknown status filter', async () => {
-    const req = { userId: OWNER, tenantId: TENANT, query: { status: 'settled' } };
+    const req = {
+      userId: OWNER,
+      tenantId: TENANT,
+      query: { status: 'settled' },
+    };
     const res = makeRes();
 
     await getSettlements(req, res, jest.fn());
@@ -548,7 +577,11 @@ describe('getSettlements / getSettlementById (#462)', () => {
   });
 
   test('clamps pagination', async () => {
-    const req = { userId: OWNER, tenantId: TENANT, query: { page: '-3', limit: '9999' } };
+    const req = {
+      userId: OWNER,
+      tenantId: TENANT,
+      query: { page: '-3', limit: '9999' },
+    };
     const res = makeRes();
 
     await getSettlements(req, res, jest.fn());
@@ -560,7 +593,11 @@ describe('getSettlements / getSettlementById (#462)', () => {
     Settlement.findOne.mockResolvedValue(settlementDoc());
     PayrollUpdate.countDocuments.mockResolvedValue(14);
 
-    const req = { userId: OWNER, tenantId: TENANT, params: { id: SETTLEMENT_ID } };
+    const req = {
+      userId: OWNER,
+      tenantId: TENANT,
+      params: { id: SETTLEMENT_ID },
+    };
     const res = makeRes();
 
     await getSettlementById(req, res, jest.fn());

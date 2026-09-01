@@ -21,6 +21,24 @@
  * `__tests__/app.routeMounting.test.js` now asserts it so a future merge cannot
  * drop a router without a test going red.
  */
+const { tenantContextMiddleware } = require('./middlewares/tenantContext.middleware');
+const { tenantGuard } = require('./middlewares/tenantGuard.middleware');
+const mongoose = require('mongoose');
+const piiMaskingPlugin = require('./utils/piiMaskingPlugin');
+const tenantEnforcementPlugin = require('./models/plugins/tenantEnforcement.plugin');
+const payrollReconciliationRoutes = require('./routes/payrollReconciliation.routes');
+const checkPayrollRunLocking = require('./middlewares/payrollRunLocking.middleware');
+
+app.use('/api/payroll-reconciliation', payrollReconciliationRoutes);
+
+// Apply locking check to data modification endpoints
+app.use('/api/attendance', checkPayrollRunLocking);
+app.use('/api/leave', checkPayrollRunLocking);
+app.use('/api/compensation', checkPayrollRunLocking);
+app.use('/api/employee', checkPayrollRunLocking);
+
+app.use('/api/payroll', payrollRoutes);mongoose.plugin(piiMaskingPlugin);
+mongoose.plugin(tenantEnforcementPlugin);
 
 const express = require('express');
 const cors = require('cors');
@@ -51,6 +69,9 @@ const employeeRoutes = require('./routes/employee.routes');
 const customFieldRoutes = require('./routes/customField.routes');
 const employeeImportRoutes = require('./routes/employeeImport.routes');
 const payrollRoutes = require('./routes/payroll.routes');
+const forecastRoutes = require('./routes/forecast.routes');
+const retroactiveRoutes = require('./routes/retroactive.routes');
+const sandboxRoutes = require('./routes/sandbox.routes');
 const payrollApprovalRoutes = require('./routes/payrollApproval.routes');
 const payrollComparisonRoutes = require('./routes/payrollComparison.routes');
 const employeeCompensationRoutes = require('./routes/employeeCompensation.routes');
@@ -76,7 +97,14 @@ const minimumWagesRoutes = require('./routes/minimumWages.routes');
 const wageDeductionRoutes = require('./routes/wageDeductions.routes');
 const reportsRoutes = require('./routes/reports.routes');
 const auditRoutes = require('./routes/audit.routes');
+// EPF belated remittance, sections 7Q and 14B (#1875). Next to the layoff
+// router because both hold a liability that arises from a date rather than
+// from a pay period, and apart from the compliance router because that one
+// files what is owed while this one answers what the delay in paying it cost.
+const epfRemittanceRoutes = require('./routes/epfRemittance.routes');
+
 const attendanceRoutes = require('./routes/attendance.routes');
+const attendanceGatewayRoutes = require('./routes/attendanceGateway.routes');
 
 // Working hours compliance (#1702). Next to attendance because it reads that
 // ledger, and separate from it because the questions differ: attendance answers
@@ -84,6 +112,20 @@ const attendanceRoutes = require('./routes/attendance.routes');
 // which is a question about the employer rather than about the employee.
 const workingHoursRoutes = require('./routes/workingHours.routes');
 const settlementRoutes = require('./routes/settlement.routes');
+
+// Section 10A of the Standing Orders Act, 1946 (#1828). Next to the settlement
+// router because both are about an employment that has stopped producing work,
+// and apart from it because this one has not ended: the workman may be
+// reinstated, and running a suspension through the full-and-final machinery
+// would close the record and make reinstatement a re-hire.
+const suspensionRoutes = require('./routes/suspensions.routes');
+// Section 89(1) relief on salary arrears (#1969). Apart from the payroll router
+// because it owns nothing there: it reads an arrear's amount, the period it
+// relates to and the date of receipt, writes nothing back, and never reopens a
+// closed period. Section 192(2A) makes the employer's authority to give the
+// relief conditional on the employee's Form 10E, which is the one thing the
+// router refuses on.
+const sectionEightyNineReliefRoutes = require('./routes/sectionEightyNineRelief.routes');
 
 // Employees' Compensation Act, 1923 (#1699). Next to settlements because both
 // answer "what is owed to this person now that something has happened to the
@@ -96,6 +138,14 @@ const settlementRoutes = require('./routes/settlement.routes');
 // taken by the longitudinal compensation timeline, which is a different subject
 // wearing three quarters of the same name.
 const injuryCompensationRoutes = require('./routes/injuryCompensation.routes');
+
+// Industrial Disputes Act, Chapters VA and VB (#1830). Next to the
+// injury-compensation router because both hold liabilities that arise from an
+// event rather than from a pay period, and apart from the settlement router
+// because a lay-off is not a separation: the employment subsists, and the
+// largest thing this router answers is whether the employer's act was lawful
+// rather than what it costs.
+const layoffRoutes = require('./routes/layoffs.routes');
 
 // Employees' State Insurance Act, 1948 (#1768). Next to the injury
 // compensation router because section 53 decides between them: a claim under
@@ -123,6 +173,12 @@ const schedulerRoutes = require('./routes/scheduler.routes');
 const employeePortalRoutes = require('./routes/employeePortal.routes');
 const workflowRoutes = require('./routes/workflow.routes');
 const salaryHistoryRoutes = require('./routes/salaryHistory.routes');
+// Professional tax, Article 276 and the state enactments (#1876). Apart from
+// the tax router because that one answers to the Income-tax Act, while this
+// answers to a different state for every office — and the state that applies is
+// the state of the place of work rather than of the registered office.
+const professionalTaxRoutes = require('./routes/professionalTax.routes');
+
 const dashboardRoutes = require('./routes/dashboard.routes');
 
 // Pay equity analytics (#1347). Next to the dashboard and stats routers because
@@ -133,22 +189,52 @@ const statsRoutes = require('./routes/stats.routes');
 const departmentsRoutes = require('./routes/departments.routes');
 const flashcardRoutes = require('./routes/flashcard.routes');
 const webhookRoutes = require('./routes/webhook.routes');
+const apiKeyRoutes = require('./routes/apiKey.routes');
 const integrationRoutes = require('./routes/integration.routes');
+// National and Festival Holidays Acts (#1970). Apart from the leave router
+// because a holiday is not leave: it is not applied for, cannot be refused, is
+// not deducted from a balance, and three of them cannot be moved at all. Apart
+// from the attendance router for the same reason a holiday worked is not
+// overtime — the entitlement is a whole day however few hours were worked.
+const holidayRoutes = require('./routes/nationalFestivalHolidays.routes');
 const archiveRoutes = require('./routes/archive.routes');
 const documentVaultRoutes = require('./routes/documentVault.routes');
 const notificationRoutes = require('./routes/notification.routes');
 const monthlyUpdatesRoutes = require('./routes/monthlyUpdates.routes');
 const expenseRoutes = require('./routes/expense.routes');
 const fringeBenefitsRoutes = require('./routes/fringeBenefits.routes');
+const timelineRoutes = require('./routes/timeline.routes');
+const escrowRoutes = require('./routes/escrow.routes');
 
 // Labour Welfare Fund (#1701). There is no central Act — fifteen or so state
 // enactments that agree on almost nothing — so the state rule is data and this
 // router is the calendar and the register built on top of it.
+// Child and Adolescent Labour Act, 1986 (#1877). Apart from the working-hours
+// router even though the section 7 limits look like its subject: that engine
+// answers an excess hour by computing the section 59 double rate, and for
+// anybody under eighteen there is no rate at which the hour becomes lawful.
+const youngPersonRoutes = require('./routes/youngPersons.routes');
+
 const labourWelfareFundRoutes = require('./routes/labourWelfareFund.routes');
 const varianceReportRoutes = require('./routes/varianceReport.routes');
 const searchRoutes = require('./routes/search.routes');
 const emailRoutes = require('./routes/email.routes');
 const complianceRoutes = require('./routes/compliance.routes');
+
+// Code on Social Security, 2020, section 114 (#1829). Next to the compliance
+// router because the contribution is a filing, and apart from every other
+// statutory router here because its base is neither a wage nor a headcount: an
+// aggregator owes a share of its own turnover on account of workers who are
+// expressly not its employees.
+const aggregatorContributionRoutes = require('./routes/aggregatorContribution.routes');
+// Industrial Disputes Act section 9A (#1973). Apart from every router that
+// makes a change in conditions of service, because it observes them and owns
+// none of them: a salary revision, a roster change and a contribution change are
+// each effected elsewhere, and putting a twenty-one-day rule in each of those
+// three places is five copies that will drift. Apart from #1830's Chapter VB
+// router too — that one is about employment ending, this one is about the terms
+// of employment continuing, and they share an Act and nothing else.
+const noticeOfChangeRoutes = require('./routes/noticeOfChange.routes');
 const forexRoutes = require('./routes/forex.routes');
 const announcementRoutes = require('./routes/announcement.routes');
 const companyEventRoutes = require('./routes/companyEvent.routes');
@@ -170,6 +256,19 @@ const vendorRoutes = require('./routes/vendor.routes');
 // project cost rather than a wage, which is why it is not in the payroll tree
 // at all.
 const constructionCessRoutes = require('./routes/constructionCess.routes');
+// EPF International Workers, paragraph 83 (#1971). Apart from the EPF routers
+// because it covers the members the ₹15,000 wage ceiling never applies to. It
+// supplies the contribution basis and does not build the ECR — `ecrGenerator`
+// keeps that — and a shortfall it finds is fed to #1875 rather than recomputed.
+const internationalWorkerRoutes = require('./routes/internationalWorkerPf.routes');
+// Shops and Commercial Establishments Acts (#1972). Apart from the entity
+// router because that records who the company is, and this records whether a
+// place of business is lawfully open — different objects with different
+// lifecycles. Apart from the document vault for the same reason: the vault will
+// hold the scanned certificate and remind on a date, but it does not know that
+// a certificate which has expired means the establishment is trading
+// unregistered rather than filing a renewal late.
+const shopsEstablishmentsRoutes = require('./routes/shopsEstablishments.routes');
 
 // Contract Labour (Regulation and Abolition) Act, 1970 (#1700). Next to the
 // vendor router because a contractor is one, and separate from it because this
@@ -191,6 +290,20 @@ const apprenticeshipRoutes = require('./routes/apprenticeships.routes');
 // neither the site nor the trade but the fact of having been recruited in one
 // state and employed in another, which neither of the other two routers can see.
 const migrantWorkmenRoutes = require('./routes/migrantWorkmen.routes');
+// Industrial Employment (Standing Orders) Act, 1946 (#2029). Apart from #1828's
+// subsistence router, which reads whether the orders are certified from a
+// boolean somebody typed, and apart from #1972's establishment register:
+// registration under a Shops Act and certification of standing orders are
+// different instruments under different Acts at different thresholds — a shop
+// with four employees is registered and has no standing orders, a factory with
+// four hundred has both.
+const standingOrdersRoutes = require('./routes/standingOrders.routes');
+// EDLI paragraph 22, the assurance benefit (#1878). Apart from the settlement
+// router even though a death in service also triggers a full and final: that
+// one answers what the employer owes, and this answers what the scheme pays out
+// of contributions already remitted, where the employer only files the claim.
+const edliRoutes = require('./routes/edli.routes');
+
 const grievanceRoutes = require('./routes/grievance.routes');
 const taxProofRoutes = require('./routes/taxProof.routes');
 
@@ -204,11 +317,19 @@ const perquisiteRoutes = require('./routes/perquisites.routes');
 // completely different rule set behind it: the entitlement is a four-year
 // statutory block rather than a financial year.
 const ltaRoutes = require('./routes/lta.routes');
+// Payment of Gratuity Act, 1972 (#2031). Apart from the settlement router,
+// which computes the amount once and holds no state afterwards, and apart from
+// #1344's valuation router, which measures the whole workforce's obligation
+// under Ind AS 19. This one owns the obligation for one person: the thirty days
+// that run from the last working day whether or not anybody applies, the ten per
+// cent that accrues until payment, the Form F that decides who is paid on death,
+// and the two sub-sections of section 4(6).
+const gratuityEntitlementRoutes = require('./routes/gratuityEntitlement.routes');
 const appraisalRoutes = require('./routes/appraisal.routes');
 const contractRoutes = require('./routes/contract.routes');
-const forecastRoutes = require('./routes/forecast.routes');
 const accountingRoutes = require('./routes/accounting.routes');
 const clientInvoiceRoutes = require('./routes/clientInvoice.routes');
+const intercompanyBillingRoutes = require('./routes/intercompanyBilling.routes');
 const shiftRosterRoutes = require('./routes/shiftRoster.routes');
 const shiftPreferenceRoutes = require('./routes/shiftPreference.routes');
 const successionRoutes = require('./routes/succession.routes');
@@ -225,6 +346,12 @@ const travelRoutes = require('./routes/travel.routes');
 // assignment runs for years, changes where the employee is tax resident and is
 // the reason the employer files in a second country. The two share a plane and
 // nothing else.
+// Employment Exchanges (CNV) Act, 1959 (#1879). Apart from the recruitment
+// router because it owns nothing there: it reads a requisition's category,
+// intended fill date and expected duration, writes nothing back, and section 5
+// means notifying a vacancy creates no obligation about who is hired.
+const vacancyNotificationRoutes = require('./routes/vacancyNotification.routes');
+
 const assignmentRoutes = require('./routes/assignment.routes');
 
 // Stock option schemes, grants, vesting and exercises (#1073). Equity was the
@@ -240,6 +367,7 @@ const cryptoRouter = require('./services/CryptoPayrollService').default;
 // before it — `OfferLetterBuilder.jsx` types in a name and a salary by hand
 // because there was no candidate record to draw them from.
 const recruitmentRoutes = require('./routes/recruitment.routes');
+const headcountPlanningRoutes = require('./routes/headcountPlanning.routes');
 const referralBonusRoutes = require('./routes/referralBonus.routes');
 
 // Salary disbursement (#1075). Payroll was computed to the rupee and then
@@ -255,14 +383,19 @@ const leaveClosureRoutes = require('./routes/leaveClosure.routes');
 const treasuryRoutes = require('./routes/treasury.routes');
 const regionalTaxRoutes = require('./routes/regionalTax.routes');
 const salaryAdjustmentRoutes = require('./routes/salaryAdjustment.routes');
+const compensationCycleRoutes = require('./routes/compensationCycle.routes');
+const deferredCompensationRoutes = require('./routes/deferredCompensation.routes');
 const pensionRoutes = require('./routes/pension.routes');
 const fbpRoutes = require('./routes/fbp.routes');
 const teamRoutes = require('./routes/team.routes');
 const healthChallengeRoutes = require('./routes/healthChallenge.routes');
+const offboardingRoutes = require('./routes/offboarding.routes');
+const competencyRoutes = require('./routes/competency.routes');
 const {
   tenantRouter: subscriptionTenantRoutes,
   adminRouter: subscriptionAdminRoutes,
 } = require('./routes/subscription.routes');
+const skillInventoryRoutes = require('./routes/skillInventory.routes');
 
 // #896. `app.use('/api/roles', roleRoutes)` was in the route table below and
 // this line was not, so `roleRoutes` was a free variable and evaluating this
@@ -292,9 +425,11 @@ const app = express();
 // header itself, and advertising the framework and its version is free
 // reconnaissance.
 app.disable('x-powered-by');
-
+app.use(tenantContextMiddleware());
+app.use(tenantGuard());
 app.use(auditContextMiddleware);
-
+app.use('/api/audit', require('./routes/audit.routes'));
+app.use('/api/audit', require('./routes/auditIntegrity.routes'));
 // Sentry user context configuration (#770)
 app.use((req, res, next) => {
   if (req.auditContext) {
@@ -433,7 +568,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: 'http://localhost:5000',
+        url: process.env.API_URL || 'http://localhost:5000',
         description: 'Development Server',
       },
     ],
@@ -448,11 +583,23 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 const healthRoutes = require('./routes/health.routes');
 app.use(healthRoutes);
 
+const { apiGateway } = require('./middlewares/apiGateway.middleware');
+app.use('/api', apiGateway);
 app.use('/api', generalRateLimiter);
 app.use('/api/auth', userRoutes);
 app.use('/api/employees', employeeRoutes);
+
+const probationRoutes = require('./routes/probation.routes');
+app.use('/api/probation', probationRoutes);
 app.use('/api/custom-fields', customFieldRoutes);
 app.use('/api/employees', employeeImportRoutes);
+
+const bulkOperationRoutes = require('./routes/bulkOperation.routes');
+app.use('/api/bulk-operations', bulkOperationRoutes);
+
+app.use('/api/payroll/forecast', forecastRoutes);
+app.use('/api/payroll/retroactive', retroactiveRoutes);
+app.use('/api/payroll/sandbox', sandboxRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/payroll', payrollApprovalRoutes);
 app.use('/api/payroll-comparison', payrollComparisonRoutes);
@@ -460,6 +607,9 @@ app.use('/api/compensation', employeeCompensationRoutes);
 
 const letterTemplateRoutes = require('./routes/letterTemplate.routes');
 app.use('/api/templates', letterTemplateRoutes);
+
+const payslipTemplateRoutes = require('./routes/payslipTemplate.routes');
+app.use('/api/payslip-templates', payslipTemplateRoutes);
 
 // #1346. Its own prefix rather than a sub-path of `/api/payroll`: the
 // discretionary bonus on a payroll row and the statutory bonus under the Act
@@ -480,9 +630,25 @@ app.use('/api/minimum-wages', minimumWagesRoutes);
 // owns `/rules`, `/assessment`, `/registers` and `/deferred`.
 app.use('/api/wage-deductions', wageDeductionRoutes);
 app.use('/api/reports', reportsRoutes);
+
+// #1969. The router owns `/rules`, `/rate-tables`, `/assessed-years`,
+// `/claims`, `/claims/:id/form-10e`, `/claims/:id/apply` and `/position`. It
+// computes the relief unconditionally and *gives* it only against a recorded
+// Form 10E — a payroll that reduced the deduction without one has
+// short-deducted, and the section 201(1A) interest is the employer's.
+app.use('/api/section-89-relief', sectionEightyNineReliefRoutes);
 app.use('/api/employee-portal', employeePortalRoutes);
+// #1875. The router owns `/rules`, `/months`, `/waivers`, `/position` and
+// `/assessments`. It does not recompute what a wage month owed —
+// `ecrGenerator.utils.js` stays the single place that decides that — and no
+// endpoint on it returns section 7Q interest and section 14B damages added
+// together, because one of the two cannot be waived and the other can be
+// waived to nil.
+app.use('/api/epf-remittance', epfRemittanceRoutes);
+
 app.use('/api/schedules', schedulerRoutes);
 app.use('/api/audit-logs', auditRoutes);
+app.use('/api/attendance', attendanceGatewayRoutes);
 app.use('/api/attendance', attendanceRoutes);
 
 // #1702. Its own prefix rather than a sub-path of `/api/attendance`: an
@@ -492,11 +658,21 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/working-hours', workingHoursRoutes);
 app.use('/api/settlements', settlementRoutes);
 
+// #1828. The router owns `/rules`, `/assessments` and the suspensions
+// themselves. `/assessment` is declared above `/:id` inside it, so a
+// suspension can never be addressed as one.
+app.use('/api/suspensions', suspensionRoutes);
+
 // #1699. Its own prefix rather than a sub-path of `/api/settlements`: a
 // settlement is paid to somebody who is leaving, and a compensation claim for
 // temporary disablement is paid to somebody who is still on the rolls and
 // coming back. The router owns `/schedules`, `/preview` and `/claims`.
 app.use('/api/injury-compensation', injuryCompensationRoutes);
+
+// #1830. The router owns `/rules`, `/spells`, `/actions`, `/reemployment` and
+// `/assessments`. It does not reimplement #1597's section 25F calculation —
+// where both apply, this one says whether that figure is the right one at all.
+app.use('/api/layoffs', layoffRoutes);
 
 // #1768. Its own prefix rather than a sub-path of `/api/compliance`: the
 // compliance router files what the tax authorities want, and this is a
@@ -516,6 +692,15 @@ app.use('/api/loans', loanRoutes);
 app.use('/api/treasury', treasuryRoutes);
 app.use('/api/regional-tax', regionalTaxRoutes);
 app.use('/api/salary-adjustments', salaryAdjustmentRoutes);
+app.use('/api/compensation-cycles', compensationCycleRoutes);
+// #1876. The router owns `/rules`, `/profiles`, `/registrations`, `/payments`,
+// `/assessment` and `/section-16iii`. It returns one remittance per
+// registration certificate and no total across them — a company with offices in
+// two states remits to two authorities on two schedules, and a combined figure
+// is not a number anyone can pay.
+app.use('/api/professional-tax', professionalTaxRoutes);
+
+app.use('/api/deferred-compensation', deferredCompensationRoutes);
 app.use('/api/pension', pensionRoutes);
 
 // The archive browser for soft-deleted employees (#759). Mounted by one of the
@@ -539,10 +724,22 @@ app.use('/api/forex', forexRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/events', companyEventRoutes);
 
+app.use('/api/escrow', escrowRoutes);
+
 // Webhook endpoints (#474) — an admin lets an external system subscribe to
 // payroll and employee events. The controller and models were written in #645
 // but never mounted here, so the whole feature was a 404.
 app.use('/api/webhooks', webhookRoutes);
+
+// #1970. The router owns `/rules`, `/calendars`, `/substitutions`, `/worked`,
+// `/eligibility` and `/position`. It refuses a substitution against 26 January,
+// 15 August or 2 October rather than recording one — that is outside the
+// employer's power rather than a policy they may set — and it produces a
+// payable for a holiday worked without posting it to any run.
+app.use('/api/holidays', holidayRoutes);
+
+// API Keys for B2B system-to-system integrations
+app.use('/api/api-keys', apiKeyRoutes);
 
 // HRMS integrations (#954). `src/integrations/` has held a working adapter
 // layer — BambooHR, Workday, a registry that validates them — with no
@@ -573,6 +770,12 @@ app.use('/api/public/verification', publicVerificationRoutes);
 // ever called, so until #896 *no* route had security headers or an access log —
 // the dashboard was not a special case, it was just the one that got noticed.
 app.use('/api/dashboard', dashboardRoutes);
+// #1877. The router owns `/rules`, `/age-records`, `/register`, `/findings` and
+// `/assessments`. No endpoint on it returns a monetary figure: an underage
+// engagement has no compensable amount, and a rupee here would be summed into a
+// compliance provision by the first report that read it.
+app.use('/api/young-persons', youngPersonRoutes);
+
 app.use('/api/stats', statsRoutes);
 
 // #1347. The router owns `/preview`, `/reports`, `/compa-ratio` and `/bands`.
@@ -592,6 +795,7 @@ app.use('/api/monthly-updates', monthlyUpdatesRoutes);
 // part that belongs to this file.
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/fringe-benefits', fringeBenefitsRoutes);
+app.use('/api', timelineRoutes);
 
 // #1701. The router owns `/rules`, `/preview`, `/calendar` and
 // `/contributions`.
@@ -610,6 +814,22 @@ app.use('/api/search', searchRoutes);
 // neither of the two models it requires had been committed (#951).
 app.use('/api/compliance', complianceRoutes);
 
+// #1829. The router owns `/rules`, `/turnover`, `/workers` and `/assessments`.
+// `/workers` is a register of people rather than of engagements, which is why
+// it does not live under `/api/employees` — section 2(35) puts a gig worker
+// outside the employment relationship entirely.
+app.use('/api/aggregator-contribution', aggregatorContributionRoutes);
+
+// #1973. The router owns `/rules`, `/queue`, `/changes`,
+// `/changes/:id/classification`, `/changes/:id/population`,
+// `/changes/:id/notices`, `/changes/:id/effective-date`,
+// `/changes/:id/proceeding` and `/changes/:id/exemption`. It blocks nothing —
+// section 9A creates a notice obligation and a section 31 penalty, not
+// invalidity, and a router that refused to save a change would be asserting a
+// remedy the Act does not give. Where a proceeding is pending it returns
+// SECTION_33_PERMISSION_REQUIRED with no notice window at all.
+app.use('/api/notice-of-change', noticeOfChangeRoutes);
+
 // ─── Feature routers that were never mounted (#1009) ───────────────────────
 //
 // Eleven of them, each shipped complete — router, controller, models, utils,
@@ -626,6 +846,22 @@ app.use('/api/compliance', complianceRoutes);
 // the two line up. Most are unsurprising; the two that are not are called out.
 
 app.use('/api/assets', assetRoutes);
+
+// #1971. The router owns `/rules`, `/status`, `/certificates`,
+// `/certificates/expiring`, `/contributions`, `/withdrawal`, `/iw-1` and
+// `/position`. It refuses a withdrawal on two months' unemployment with the
+// reason attached rather than a bare no — that ground reaches a domestic member
+// and not this one.
+app.use('/api/international-workers', internationalWorkerRoutes);
+
+// #1972. The router owns `/rules`, `/registrations`, `/particulars`,
+// `/closures`, `/expiring` and `/position`. It reports a lapsed certificate as
+// operating unregistered rather than as a renewal overdue, and it returns the
+// weekly holiday as two verdicts rather than one — the establishment's notified
+// closing day and the employee's entitlement to a whole day off are separate
+// obligations, and a single answer answers whichever one the reader was not
+// asking about.
+app.use('/api/establishments', shopsEstablishmentsRoutes);
 app.use('/api/vendors', vendorRoutes);
 
 // #1827. The router owns `/rules`, `/projects`, `/beneficiaries` and
@@ -635,6 +871,12 @@ app.use('/api/construction-cess', constructionCessRoutes);
 
 // #1700. The router owns `/contractors`, `/deployments`, `/assessment`,
 // `/returns` and `/registers`.
+// #1878. The router owns `/rules`, `/nominations`, `/exemption`,
+// `/prior-service`, `/preview` and `/claims`. It does not recompute the 0.5 per
+// cent contribution — `ecrGenerator.utils.js` stays the single place for that —
+// and it will not commit a claim with no payee resolved.
+app.use('/api/edli', edliRoutes);
+
 app.use('/api/contract-labour', contractLabourRoutes);
 
 // #1771. Its own prefix rather than a sub-path of `/api/contract-labour`, for
@@ -648,6 +890,15 @@ app.use('/api/apprenticeships', apprenticeshipRoutes);
 // be reached through the other. The router owns `/rules`, `/workmen`,
 // `/facilities` and `/assessments`.
 app.use('/api/migrant-workmen', migrantWorkmenRoutes);
+
+// #2029. The router owns `/rules`, `/queue`, `/establishments`,
+// `/establishments/:id` and the headcount, certification and modification
+// sub-paths. It reports an uncertified establishment as governed by the Model
+// Standing Orders rather than by nothing — section 12A deems them adopted, and
+// 'no standing orders' is wrong in the direction that matters — and it returns
+// a modification inside the six-month bar as BARRED_UNILATERALLY, because the
+// bar lifts on an agreement with the workmen rather than only on time.
+app.use('/api/standing-orders', standingOrdersRoutes);
 
 // POSH grievances (#958). Gated by `requireICC` rather than `requirePermission`
 // — the committee is deliberately not the same population as "HR", and admins
@@ -665,6 +916,14 @@ app.use('/api/perquisites', perquisiteRoutes);
 // #1345. The router owns `/claims`, `/preview`, `/entitlement`, `/my-claims`,
 // `/queue` and `/summary/:employeeId`.
 app.use('/api/lta', ltaRoutes);
+
+// #2031. The router owns `/rules`, `/queue`, `/nominations`, `/claims`,
+// `/claims/:id` and the notices, forfeiture and payment sub-paths. It does not
+// recompute the amount — `settlement.js` keeps the five-year gate, the 15/26
+// formula and the ceiling — and it reports the section 7(3A) interest whether
+// or not anybody asked, because it accrues at a statutory rate from a date the
+// system already knows.
+app.use('/api/gratuity-entitlement', gratuityEntitlementRoutes);
 app.use('/api/appraisals', appraisalRoutes);
 app.use('/api/contracts', contractRoutes);
 
@@ -689,6 +948,13 @@ app.use('/api/shift-preferences', shiftPreferenceRoutes);
 // Succession Planning Hub
 app.use('/api/succession', successionRoutes);
 
+// #1879. The router owns `/rules`, `/headcounts`, `/determinations`,
+// `/notifications`, `/returns` and `/position`. It does not block a hire made
+// without a notification — the Act does not make the appointment invalid, and a
+// product that blocked it would assert a consequence the statute does not
+// create.
+app.use('/api/vacancy-notification', vacancyNotificationRoutes);
+
 app.use('/api/pyqs', pyqRoutes);
 
 // Business travel (#1077). The router owns `/policies`, `/requests`,
@@ -708,6 +974,7 @@ app.use('/api', cryptoRouter);
 // Recruitment (#1074). The router owns `/requisitions`, `/candidates` and
 // `/analytics`, so the prefix carries no noun of its own.
 app.use('/api/recruitment', recruitmentRoutes);
+app.use('/api/headcount-planning', headcountPlanningRoutes);
 
 // Referral Bonus Tracking
 app.use('/api/referral-bonuses', referralBonusRoutes);
@@ -736,6 +1003,39 @@ app.use('/api/policies', companyPolicyRoutes);
 // Peer Nomination & Awards (#peer-nominations). Employee-driven recognition
 // with category configuration, cycle management, voting, review, and analytics.
 app.use('/api/peer-nominations', peerNominationRoutes);
+
+// Employee Offboarding & Exit Clearance Tracker (#1374). The router
+// owns `/dashboard`, `/reports/attrition`, `/checklist`, `/assets`,
+// `/knowledge-transfer`, `/exit-interview` and `/settlement` sub-paths.
+app.use('/api/offboarding', offboardingRoutes);
+
+// Skill Inventory & Competency Framework
+app.use('/api/skills', skillInventoryRoutes);
+
+// Employee competency tracking — skills, proficiency levels, gap analysis.
+// Placed next to team because the two share the employee directory and the
+// department dimension the matrix uses.
+app.use('/api/competencies', competencyRoutes);
+
+// Workforce Cost Forecasting — salary projections, scenario comparison,
+// headcount modeling, and statutory contribution estimates.
+const workforceCostForecastRoutes = require('./routes/workforceCostForecast.routes');
+app.use('/api/workforce-cost-forecast', workforceCostForecastRoutes);
+
+// Payroll Anomaly Alert Rules — configurable threshold-based anomaly detection,
+// scan engine, alert records, and disposition management.
+const alertRuleRoutes = require('./routes/alertRule.routes');
+app.use('/api/alert-rules', alertRuleRoutes);
+
+// Talent Retention Analytics — flight risk, attrition trends, compensation benchmarks.
+const retentionAnalyticsRoutes = require('./routes/retentionAnalytics.routes');
+app.use('/api/retention-analytics', retentionAnalyticsRoutes);
+
+// Pulse Surveys — engagement polling and analytics.
+const pulseSurveyRoutes = require('./routes/pulseSurvey.routes');
+const surveyAnalyticsRoutes = require('./routes/surveyAnalytics.routes');
+app.use('/api/pulse-surveys', pulseSurveyRoutes);
+app.use('/api/pulse-surveys/analytics', surveyAnalyticsRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────
 // Must be registered AFTER all valid routes but BEFORE error handlers.

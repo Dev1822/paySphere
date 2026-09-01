@@ -5,7 +5,6 @@
 
 const PsuGrant = require('../models/psuGrant.model');
 const { evaluateRelativeTsrVesting } = require('../services/psuValuation.service');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 async function createGrant(req, res) {
@@ -27,18 +26,19 @@ async function createGrant(req, res) {
     }
 
     const grant = await PsuGrant.create({
-      tenantId: req.tenantId,
       employeeId,
       grantNumber,
       grantDate: grantDate || new Date(),
+
       performancePeriod: performancePeriod || {
         startDate: new Date(),
         endDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000),
       },
+
       targetShares: Number(targetShares),
       baselineCompanyStockPrice: Number(baselineCompanyStockPrice),
       peerTickers: Array.isArray(peerTickers) ? peerTickers : [],
-      status: 'active',
+      status: 'active'
     });
 
     return res.status(201).json({ message: 'PSU Grant registered successfully.', psuGrant: grant });
@@ -50,7 +50,7 @@ async function createGrant(req, res) {
 
 async function getGrants(req, res) {
   try {
-    const filter = { ...tenantFilter(req) };
+    const filter = { ...{} };
     if (req.query.employeeId) filter.employeeId = req.query.employeeId;
     if (req.query.status) filter.status = req.query.status;
 
@@ -71,7 +71,7 @@ async function evaluateGrantVesting(req, res) {
     const { id } = req.params;
     const { finalCompanyPrice, peersFinalPrices } = req.body;
 
-    const grant = await PsuGrant.findOne({ _id: id, ...tenantFilter(req) });
+    const grant = await PsuGrant.findOne({ _id: id, ...{} });
     if (!grant) {
       return res.status(404).json({ message: 'PSU Grant not found.' });
     }

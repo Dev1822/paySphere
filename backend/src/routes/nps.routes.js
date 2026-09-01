@@ -10,10 +10,10 @@ const {
   simulateNpsTaxImpact,
   getMonthlyContributionStatement,
 } = require('../controllers/nps.controller');
-const { protect } = require('../middlewares/auth.middleware');
+const auth = require('../middlewares/auth.middleware');
 
-router.post('/corporate-enrollment', protect, enrollCorporateNps);
-router.get('/tax-impact-simulator', protect, simulateNpsTaxImpact);
-router.get('/monthly-contribution-statement', protect, getMonthlyContributionStatement);
+router.post('/corporate-enrollment', auth, enrollCorporateNps);
+router.get('/tax-impact-simulator', auth, simulateNpsTaxImpact);
+router.get('/monthly-contribution-statement', auth, getMonthlyContributionStatement);
 
 module.exports = router;

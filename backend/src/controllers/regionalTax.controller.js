@@ -15,7 +15,9 @@ exports.upsertJurisdiction = async (req, res, next) => {
         const { stateCode, stateName, country, hasNexus, registrationNumber } = req.body;
 
         const jurisdiction = await TaxJurisdiction.findOneAndUpdate(
-            { tenantId: req.tenantId, stateCode: stateCode.toUpperCase() },
+            {
+                stateCode: stateCode.toUpperCase()
+            },
             {
                 stateName, country, hasNexus, registrationNumber,
                 nexusEstablishedDate: hasNexus ? new Date() : null
@@ -33,12 +35,14 @@ exports.saveTaxRules = async (req, res, next) => {
 
         // Deactivate previous rules for this jurisdiction
         await StateTaxRules.updateMany(
-            { tenantId: req.tenantId, jurisdictionId, effectiveTo: null },
+            {
+                jurisdictionId,
+                effectiveTo: null
+            },
             { $set: { effectiveTo: new Date() } }
         );
 
         const rules = await StateTaxRules.create({
-            tenantId: req.tenantId,
             jurisdictionId,
             standardDeduction,
             brackets: brackets || [],
@@ -54,7 +58,7 @@ exports.saveTaxRules = async (req, res, next) => {
 
 exports.getJurisdictions = async (req, res, next) => {
     try {
-        const jurisdictions = await TaxJurisdiction.find({ tenantId: req.tenantId }).sort({ stateName: 1 });
+        const jurisdictions = await TaxJurisdiction.find({}).sort({ stateName: 1 });
         res.status(200).json({ jurisdictions });
     } catch (error) { next(error); }
 };
@@ -63,7 +67,6 @@ exports.getRemoteWorkerReport = async (req, res, next) => {
     try {
         // Fetch all active employees with a declared work location/state
         const employees = await Employee.find({
-            tenantId: req.tenantId,
             isActive: true,
             isDeleted: { $ne: true },
             'address.state': { $exists: true, $ne: '' }
@@ -118,7 +121,7 @@ exports.syncTaxSlabs = async (req, res, next) => {
 exports.getSyncLogs = async (req, res, next) => {
     try {
         const { TaxSyncLog } = require('../models/regionalTax.model');
-        const logs = await TaxSyncLog.find({ tenantId: req.tenantId }).sort({ createdAt: -1 });
+        const logs = await TaxSyncLog.find({}).sort({ createdAt: -1 });
         res.status(200).json({ logs });
     } catch (error) { next(error); }
 };

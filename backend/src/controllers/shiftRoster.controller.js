@@ -11,7 +11,6 @@ const {
 } = require('../models/shiftRoster.model');
 const { BurnoutTelemetry } = require('../models/BurnoutRiskModels');
 const { validateShiftAssignment } = require('../utils/shiftConflictDetector');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
 const {
@@ -27,12 +26,11 @@ exports.createTemplate = async (req, res, next) => {
   try {
     const { name, startTime, endTime, colorCode, breakDurationMins } = req.body;
     const template = await ShiftTemplate.create({
-      tenantId: req.tenantId,
       name,
       startTime,
       endTime,
       colorCode,
-      breakDurationMins,
+      breakDurationMins
     });
     res.status(201).json({ message: 'Shift template created', template });
   } catch (error) {
@@ -49,7 +47,7 @@ exports.createTemplate = async (req, res, next) => {
 exports.getRoster = async (req, res, next) => {
   try {
     const { start, end } = req.query;
-    const query = { tenantId: req.tenantId };
+    const query = {};
 
     if (start && end) {
       query.date = { $gte: new Date(start), $lte: new Date(end) };
@@ -84,8 +82,7 @@ exports.assignShift = async (req, res, next) => {
     }
 
     const template = await ShiftTemplate.findOne({
-      _id: shiftTemplateId,
-      tenantId: req.tenantId,
+      _id: shiftTemplateId
     });
     if (!template)
       return res.status(404).json({ message: 'Shift template not found' });
@@ -107,14 +104,11 @@ exports.assignShift = async (req, res, next) => {
     endDate.setDate(endDate.getDate() + 6);
 
     const existingShifts = await ShiftRoster.find({
-      tenantId: req.tenantId,
       employeeId,
-      date: { $gte: startDate, $lte: endDate },
+      date: { $gte: startDate, $lte: endDate }
     }).lean();
 
-    const allTemplates = await ShiftTemplate.find({
-      tenantId: req.tenantId,
-    }).lean();
+    const allTemplates = await ShiftTemplate.find({}).lean();
     const templateMap = allTemplates.reduce((acc, t) => {
       acc[t._id.toString()] = t;
       return acc;
@@ -140,10 +134,9 @@ exports.assignShift = async (req, res, next) => {
 
     // If valid, create the roster entry
     const rosterEntry = await ShiftRoster.create({
-      tenantId: req.tenantId,
       employeeId,
       shiftTemplateId,
-      date: targetDate,
+      date: targetDate
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -180,18 +173,16 @@ exports.requestSwap = async (req, res, next) => {
     const { originalRosterId, replacementId } = req.body;
 
     const originalRoster = await ShiftRoster.findOne({
-      _id: originalRosterId,
-      tenantId: req.tenantId,
+      _id: originalRosterId
     });
     if (!originalRoster)
       return res.status(404).json({ message: 'Original shift not found' });
 
     // Create swap request
     const request = await ShiftSwapRequest.create({
-      tenantId: req.tenantId,
       originalRosterId,
       requesterId: originalRoster.employeeId,
-      replacementId,
+      replacementId
     });
 
     // In a real app, emit a notification/socket event to the replacement employee here
@@ -220,7 +211,7 @@ exports.approveSwap = async (req, res, next) => {
     // another — and approval rewrites two roster rows, so it is a
     // cross-tenant *write*, not merely a read.
     const request = await ShiftSwapRequest.findOne(
-      tenantFilter(req, { _id: req.params.id }),
+      { _id: req.params.id },
     ).session(session);
 
     if (!request || request.status !== 'Pending Manager') {
@@ -231,7 +222,7 @@ exports.approveSwap = async (req, res, next) => {
     }
 
     const originalRoster = await ShiftRoster.findOne(
-      tenantFilter(req, { _id: request.originalRosterId }),
+      { _id: request.originalRosterId },
     ).session(session);
 
     if (!originalRoster) {
@@ -252,10 +243,10 @@ exports.approveSwap = async (req, res, next) => {
     // tenant check is circular: it carries whatever the attacker's chosen
     // request said.
     const targetRoster = await ShiftRoster.findOne(
-      tenantFilter(req, {
+      {
         employeeId: request.replacementId,
         date: originalRoster.date,
-      }),
+      },
     ).session(session);
 
     if (!targetRoster) {

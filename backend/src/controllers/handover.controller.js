@@ -18,17 +18,18 @@ const eventBus = require('../services/event.service');
 exports.initiateHandover = async (req, res, next) => {
   try {
     const { employeeId, exitDate } = req.body;
-    const employee = await Employee.findOne({ _id: employeeId, tenantId: req.tenantId });
+    const employee = await Employee.findOne({
+      _id: employeeId
+    });
     if (!employee) return res.status(404).json({ message: 'Employee not found' });
 
     const accessChecklist = generateAccessRevocationChecklist(employee.department, employee.role);
 
     const plan = await HandoverPlan.create({
-      tenantId: req.tenantId,
       employeeId: employee._id,
       exitDate: new Date(exitDate),
       accessRevocations: accessChecklist,
-      status: 'In Progress',
+      status: 'In Progress'
     });
 
     res.status(201).json({ message: 'Handover plan initiated', plan });
@@ -38,7 +39,9 @@ exports.initiateHandover = async (req, res, next) => {
 exports.updateKnowledgeTransfer = async (req, res, next) => {
   try {
     const { planId, ktId, isCompleted, link, attachmentUrl } = req.body;
-    const plan = await HandoverPlan.findOne({ _id: planId, tenantId: req.tenantId });
+    const plan = await HandoverPlan.findOne({
+      _id: planId
+    });
     if (!plan) return res.status(404).json({ message: 'Handover plan not found' });
 
     const kt = plan.knowledgeTransfers.id(ktId);
@@ -63,7 +66,9 @@ exports.updateKnowledgeTransfer = async (req, res, next) => {
 exports.updateAssetRecovery = async (req, res, next) => {
   try {
     const { planId, assetId, condition, recoveryNotes, payrollDeduction } = req.body;
-    const plan = await HandoverPlan.findOne({ _id: planId, tenantId: req.tenantId });
+    const plan = await HandoverPlan.findOne({
+      _id: planId
+    });
     if (!plan) return res.status(404).json({ message: 'Handover plan not found' });
 
     const asset = plan.assetRecoveries.id(assetId);
@@ -86,7 +91,9 @@ exports.updateAssetRecovery = async (req, res, next) => {
 exports.revokeAccess = async (req, res, next) => {
   try {
     const { planId, accessId } = req.body;
-    const plan = await HandoverPlan.findOne({ _id: planId, tenantId: req.tenantId });
+    const plan = await HandoverPlan.findOne({
+      _id: planId
+    });
     if (!plan) return res.status(404).json({ message: 'Handover plan not found' });
 
     const access = plan.accessRevocations.id(accessId);
@@ -113,7 +120,9 @@ exports.revokeAccess = async (req, res, next) => {
 exports.managerSignOff = async (req, res, next) => {
   try {
     const { planId, remarks } = req.body;
-    const plan = await HandoverPlan.findOne({ _id: planId, tenantId: req.tenantId });
+    const plan = await HandoverPlan.findOne({
+      _id: planId
+    });
     if (!plan) return res.status(404).json({ message: 'Handover plan not found' });
 
     plan.managerSignOff = true;
@@ -132,10 +141,14 @@ exports.managerSignOff = async (req, res, next) => {
 
 exports.getMyHandover = async (req, res, next) => {
   try {
-    const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+    const employee = await Employee.findOne({
+      userId: req.userId
+    });
     if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
-    const plan = await HandoverPlan.findOne({ employeeId: employee._id, tenantId: req.tenantId });
+    const plan = await HandoverPlan.findOne({
+      employeeId: employee._id
+    });
     res.status(200).json({ plan });
   } catch (error) { next(error); }
 };
@@ -143,7 +156,9 @@ exports.getMyHandover = async (req, res, next) => {
 exports.checkFnFEligibility = async (req, res, next) => {
   try {
     const { employeeId } = req.params;
-    const plan = await HandoverPlan.findOne({ employeeId, tenantId: req.tenantId });
+    const plan = await HandoverPlan.findOne({
+      employeeId
+    });
 
     if (!plan) {
       return res.status(200).json({ isEligible: true, reason: 'No active handover plan found. Clear to proceed.' });
@@ -164,7 +179,9 @@ exports.checkFnFEligibility = async (req, res, next) => {
  */
 exports.getAssetDeductionSummary = async (req, res, next) => {
   try {
-    const plan = await HandoverPlan.findOne({ _id: req.params.planId, tenantId: req.tenantId });
+    const plan = await HandoverPlan.findOne({
+      _id: req.params.planId
+    });
     if (!plan) return res.status(404).json({ message: 'Handover plan not found' });
 
     const deductions = calculateAssetRecoveryDeductions(plan.assetRecoveries || []);
@@ -182,7 +199,9 @@ exports.getAssetDeductionSummary = async (req, res, next) => {
  */
 exports.generateClearanceCertificate = async (req, res, next) => {
   try {
-    const plan = await HandoverPlan.findOne({ _id: req.params.planId, tenantId: req.tenantId });
+    const plan = await HandoverPlan.findOne({
+      _id: req.params.planId
+    });
     if (!plan) return res.status(404).json({ message: 'Handover plan not found' });
 
     const employee = await Employee.findById(plan.employeeId);

@@ -20,8 +20,9 @@ const {
   buildDistributionReport,
   calibrateIncrementBudget,
 } = require('../utils/appraisalNormalizer');
-const { tenantFilter } = require('../utils/tenantScope');
+const User = require('../models/user.model');
 const eventBus = require('../services/event.service');
+const lifecycleEventService = require('../services/lifecycleEvent.service');
 
 /**
  * Load a cycle and the finalised reviews that make up its calibration cohort.
@@ -38,7 +39,7 @@ async function loadCalibrationCohort(req, cycleId) {
   // Scoped (#1010): the id comes from the URL, so an unscoped lookup would let
   // a caller at one company calibrate another company's cycle.
   const cycle = await AppraisalCycle.findOne(
-    tenantFilter(req, { _id: cycleId }),
+    { _id: cycleId },
   );
 
   if (!cycle) {
@@ -46,7 +47,7 @@ async function loadCalibrationCohort(req, cycleId) {
   }
 
   const reviews = await AppraisalReview.find(
-    tenantFilter(req, { cycleId: cycle._id, status: 'Finalized' }),
+    { cycleId: cycle._id, status: 'Finalized' },
   );
 
   return { ok: true, cycle, reviews };
@@ -86,7 +87,7 @@ async function attachSalaries(assignments, reviews, req) {
     .filter(Boolean);
 
   const employees = await Employee.find(
-    tenantFilter(req, { _id: { $in: employeeIds } }),
+    { _id: { $in: employeeIds } },
   ).select('fullName monthlySalary');
 
   const byEmployeeId = new Map(employees.map((emp) => [String(emp._id), emp]));
@@ -151,11 +152,10 @@ exports.createCycle = async (req, res, next) => {
   try {
     const { name, startDate, endDate } = req.body;
     const cycle = await AppraisalCycle.create({
-      tenantId: req.tenantId,
       name,
       startDate,
       endDate,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
     res.status(201).json({ message: 'Appraisal cycle created', cycle });
   } catch (error) {
@@ -181,33 +181,33 @@ exports.upsertGoals = async (req, res, next) => {
 
     // Delete existing goals for this employee/cycle and replace (simplest upsert strategy)
     await AppraisalGoal.deleteMany({
-      tenantId: req.tenantId,
       cycleId,
-      employeeId,
+      employeeId
     });
 
     const newGoals = goals.map((g) => ({
-      tenantId: req.tenantId,
       cycleId,
       employeeId,
       title: g.title,
       description: g.description,
       weightage: g.weightage,
-      targetMetric: g.targetMetric,
+      targetMetric: g.targetMetric
     }));
 
     await AppraisalGoal.insertMany(newGoals);
 
     // Ensure a review document exists in Draft state
     await AppraisalReview.findOneAndUpdate(
-      { tenantId: req.tenantId, cycleId, employeeId },
+      {
+        cycleId,
+        employeeId
+      },
       {
         $setOnInsert: {
-          tenantId: req.tenantId,
           cycleId,
           employeeId,
           managerId: req.userId,
-          status: 'Draft',
+          status: 'Draft'
         },
       },
       { upsert: true, new: true },
@@ -228,7 +228,7 @@ exports.submitSelfReview = async (req, res, next) => {
     // Scoped (#1010). `findById` on a `:id` from the URL let a caller at
     // one company address another company's review.
     const review = await AppraisalReview.findOne(
-      tenantFilter(req, { _id: req.params.id }),
+      { _id: req.params.id },
     );
 
     if (
@@ -257,11 +257,11 @@ exports.submitSelfReview = async (req, res, next) => {
       // this company but to a different employee or a different cycle is
       // still not this review's to rate.
       await AppraisalGoal.findOneAndUpdate(
-        tenantFilter(req, {
+        {
           _id: rating.goalId,
           cycleId: review.cycleId,
           employeeId: review.employeeId,
-        }),
+        },
         {
           selfAchievement: rating.selfAchievement,
           selfRemarks: rating.selfRemarks,
@@ -288,7 +288,7 @@ exports.submitManagerReview = async (req, res, next) => {
     // one carries more: the manager's rating drives `finalScore` and the
     // recommended increment percentage.
     const review = await AppraisalReview.findOne(
-      tenantFilter(req, { _id: req.params.id }),
+      { _id: req.params.id },
     );
 
     if (!review || review.status !== 'Manager-Review') {
@@ -307,11 +307,11 @@ exports.submitManagerReview = async (req, res, next) => {
     // Update manager's rating for each goal
     for (const rating of goalRatings) {
       await AppraisalGoal.findOneAndUpdate(
-        tenantFilter(req, {
+        {
           _id: rating.goalId,
           cycleId: review.cycleId,
           employeeId: review.employeeId,
-        }),
+        },
         {
           managerAchievement: rating.managerAchievement,
           managerRemarks: rating.managerRemarks,
@@ -321,10 +321,10 @@ exports.submitManagerReview = async (req, res, next) => {
 
     // Fetch updated goals to calculate final score
     const goals = await AppraisalGoal.find(
-      tenantFilter(req, {
+      {
         cycleId: review.cycleId,
         employeeId: review.employeeId,
-      }),
+      },
     );
 
     const finalScore = calculateFinalScore(goals, managerOverallRating);
@@ -352,6 +352,20 @@ exports.submitManagerReview = async (req, res, next) => {
       req,
     });
 
+    await lifecycleEventService.recordEvent({
+      employeeId: review.employeeId,
+      tenantId: review.tenantId,
+      eventType: 'APPRAISAL_COMPLETED',
+      category: 'Performance',
+      recordedBy: req.userId,
+      newValues: {
+        finalScore,
+        recommendedIncrement,
+        managerRating: managerOverallRating,
+      },
+      sourceId: review._id,
+    });
+
     res.status(200).json({ message: 'Appraisal finalized', review });
   } catch (error) {
     next(error);
@@ -366,22 +380,19 @@ exports.getMyReview = async (req, res, next) => {
   try {
     const { cycleId } = req.query;
     const employee = await Employee.findOne({
-      userId: req.userId,
-      tenantId: req.tenantId,
+      userId: req.userId
     });
     if (!employee)
       return res.status(404).json({ message: 'Employee profile not found' });
 
     const review = await AppraisalReview.findOne({
-      tenantId: req.tenantId,
       cycleId,
-      employeeId: employee._id,
+      employeeId: employee._id
     }).populate('managerId', 'fullName');
 
     const goals = await AppraisalGoal.find({
-      tenantId: req.tenantId,
       cycleId,
-      employeeId: employee._id,
+      employeeId: employee._id
     });
 
     res.status(200).json({ review, goals });
@@ -547,7 +558,7 @@ exports.calibrateCycle = async (req, res, next) => {
 
         return {
           updateOne: {
-            filter: tenantFilter(req, { _id: review._id }),
+            filter: { _id: review._id },
             update: {
               $set: {
                 normalizedScore: outcome.normalizedScore,

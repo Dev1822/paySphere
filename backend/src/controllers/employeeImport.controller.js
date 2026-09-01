@@ -10,7 +10,6 @@
 
 const EmployeeImport = require('../models/employeeImport.model');
 const { parseAndValidate, commitImport, rollbackImport } = require('../services/employeeImport.service');
-const { tenantFilter } = require('../utils/tenantScope');
 const logger = require('../utils/logger');
 
 async function startImport(req, res) {
@@ -48,7 +47,7 @@ async function startImport(req, res) {
 
 async function getImportJob(req, res) {
   try {
-    const job = await EmployeeImport.findOne({ _id: req.params.jobId, ...tenantFilter(req) });
+    const job = await EmployeeImport.findOne({ _id: req.params.jobId, ...{} });
     if (!job) return res.status(404).json({ message: 'Import job not found.' });
     return res.json({
       jobId:         job._id,
@@ -67,15 +66,19 @@ async function getImportJob(req, res) {
 
 async function commitJob(req, res) {
   try {
-    const result = await commitImport(req.params.jobId, req.tenantId, req.userId);
-    return res.json({ message: 'Import committed successfully.', ...result });
+    const { jobId } = req.params;
+    const result = await commitImportAsync(jobId, req.tenantId, req.userId);
+    return res.json({ 
+      message: 'Import queued for processing.',
+      jobId: result.jobId,
+      status: result.status 
+    });
   } catch (err) {
     if (err.status) return res.status(err.status).json({ message: err.message });
     logger.error('commitJob error', { error: err.message });
     return res.status(500).json({ message: 'Commit failed.' });
   }
 }
-
 async function rollbackJob(req, res) {
   try {
     const result = await rollbackImport(req.params.jobId, req.tenantId);
@@ -86,5 +89,40 @@ async function rollbackJob(req, res) {
     return res.status(500).json({ message: 'Rollback failed.' });
   }
 }
+async function getImportProgress(req, res) {
+  try {
+    const job = await EmployeeImport.findOne({ 
+      _id: req.params.jobId, 
+      ...{} 
+    });
+    
+    if (!job) return res.status(404).json({ message: 'Import job not found.' });
+    
+    const totalBatches = Math.ceil(job.validatedRows.length / job.batchSize);
+    const processedBatches = job.processedBatches.length;
+    const progress = totalBatches > 0 ? Math.round((processedBatches / totalBatches) * 100) : 0;
+    
+    return res.json({
+      jobId: job._id,
+      status: job.status,
+      progress,
+      totalRows: job.totalRows,
+      successfulRows: job.successfulRows,
+      failedRows: job.errorRows,
+      duplicateRows: job.duplicateCount,
+      processedBatches,
+      totalBatches
+    });
+  } catch (err) {
+    logger.error('getImportProgress error', { error: err.message });
+    return res.status(500).json({ message: 'Could not fetch progress.' });
+  }
+}
 
-module.exports = { startImport, getImportJob, commitJob, rollbackJob };
+module.exports = {
+  startImport,
+  getImportJob,
+  commitJob,
+  rollbackJob,
+  getImportProgress
+};

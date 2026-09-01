@@ -1,7 +1,7 @@
 const PayrollEngine = require('../services/PayrollEngine.service');
 const PayrollQueryService = require('../services/payrollQuery.service');
 const PayrollExportService = require('../services/payrollExport.service');
-// `tax.service` and `anomaly.service` were required here by the #693
+const PayrollFinalizationService = require('../services/payrollFinalization.service');// `tax.service` and `anomaly.service` were required here by the #693
 // scaffolding and never called. Left in place they are two more modules loaded
 // on every payroll request for nothing, and `anomaly.service` in particular has
 // a broken require of its own that this file was propagating to app.js at boot
@@ -52,7 +52,6 @@ const {
   resolveStructureForPeriod,
   computeComponentAmounts,
 } = require('../utils/salaryStructure');
-const { requireTenant } = require('../utils/tenantScope');
 const {
   parseDepartments,
   resolveDepartmentEmployeeIds,
@@ -176,7 +175,8 @@ async function transitionPayrollBatch({
   targetStatus,
   extraFields = {},
   expectedVersions = {},
-}) {  // Scoped read first. Anything the caller does not own simply never appears in
+}) {
+  // Scoped read first. Anything the caller does not own simply never appears in
   // this result set, and therefore lands in `notFound` — the caller cannot tell
   // "does not exist" from "belongs to someone else", which is the correct
   // answer to give.
@@ -283,8 +283,7 @@ exports.getPendingApprovals = async (req, res, next) => {
     const skip = (page - 1) * limit;
 
     const query = {
-      tenantId: req.tenantId,
-      status: PAYROLL_STATUS.PENDING_APPROVAL,
+      status: PAYROLL_STATUS.PENDING_APPROVAL
     };
 
     // Optional period narrowing, so a checker can review one month at a time
@@ -351,24 +350,25 @@ exports.getPendingApprovals = async (req, res, next) => {
  * ids, and the handler reported success regardless of whether anything matched.
  */
 exports.approvePayroll = async (req, res, next) => {
+  let payrollRunId;
   try {
     const batch = parsePayrollIdBatch(req.body && req.body.payrollIds);
     if (!batch.ok) {
       return res.status(400).json({ message: batch.message });
     }
 
+    const { tenantId } = req;
+    const { payrollRunId: requestPayrollRunId } = req.body;
     const approvedAt = new Date();
 
     const { applied, notFound, invalidTransition, versionConflicts } =
       await transitionPayrollBatch({
-        tenantId: req.tenantId,
         ids: batch.ids,
         targetStatus: PAYROLL_STATUS.APPROVED,
-        expectedVersions: submittedVersions,        extraFields: {
+        expectedVersions: submittedVersions,
+        extraFields: {
           approvedBy: req.userId,
           approvedAt,
-          // Clear any prior rejection so a resubmitted-then-approved row does not
-          // keep showing a stale reason on the payslip screen.
           rejectionReason: undefined,
           rejectedBy: undefined,
           rejectedAt: undefined,
@@ -382,42 +382,8 @@ exports.approvePayroll = async (req, res, next) => {
         versionConflicts,
       });
     }
-    if (applied.length > 0) {
-      const finalizedAt = new Date();
 
-      const approvedPayrolls = await PayrollUpdate.find({
-        _id: { $in: applied.map((item) => item.payrollId) },
-        tenantId: req.tenantId,
-      });
-
-      const finalizedSnapshotUpdates = approvedPayrolls.map((payroll) => ({
-        updateOne: {
-          filter: {
-            _id: payroll._id,
-            tenantId: req.tenantId,
-            'calculationSnapshot.finalizedAt': {
-              $exists: false,
-            },
-          },
-          update: {
-            $set: {
-              'calculationSnapshot.version':
-                payroll.calculationSnapshot?.version ||
-                PAYROLL_CALCULATION_VERSION,
-              'calculationSnapshot.finalizedAt': finalizedAt,
-              'calculationSnapshot.finalizedBy': req.userId,
-            },
-          },
-        },
-      }));
-
-      if (finalizedSnapshotUpdates.length > 0) {
-        await PayrollUpdate.bulkWrite(finalizedSnapshotUpdates);
-      }
-    }
     if (applied.length === 0) {
-      // Nothing moved. A 409 rather than a 200 so the UI does not tell the user
-      // an approval happened when it did not.
       return res.status(409).json({
         message: 'No payroll records were approved',
         approvedCount: 0,
@@ -426,9 +392,27 @@ exports.approvePayroll = async (req, res, next) => {
       });
     }
 
-    // Approved rows enter every payable total, so the cached analytics are now
-    // stale — the same invalidation contract the finalize path follows (#415).
-    // Invalidate analytics and dashboard caches since financial data changed (Issue #519)
+    // Issue #1902: Use atomic finalization service
+    if (requestPayrollRunId) {
+      payrollRunId = requestPayrollRunId;
+    } else {
+      const PayrollRun = require('../models/payrollRun.model');
+      const newRun = await PayrollRun.create({
+        tenantId,
+        payrollPeriod: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
+        payrollRunType: 'REGULAR',
+        status: 'processing',
+      });
+      payrollRunId = newRun._id;
+    }
+
+    const finalizationResult = await PayrollFinalizationService.finalizePayroll({
+      tenantId,
+      payrollIds: applied.map((item) => mongoose.Types.ObjectId(item.payrollId)),
+      payrollRunId,
+      userId: req.userId,
+    });
+
     await cacheService.invalidateAnalytics(req.userId);
     await cacheService.invalidateDashboardSummary(req.userId);
 
@@ -436,9 +420,10 @@ exports.approvePayroll = async (req, res, next) => {
       userId: req.userId,
       action: 'PAYROLL_APPROVE',
       resourceType: 'Payroll',
-      resourceIds: applied.map((a) => a.payrollId),
+      resourceIds: finalizationResult.applied.map((a) => a.payrollId),
       details: {
         approvedCount: applied.length,
+        finalizedCount: finalizationResult.applied.length,
         notFoundCount: notFound.length,
         invalidTransitionCount: invalidTransition.length,
         totalNetSalary: applied.reduce((sum, a) => sum + (a.netSalary || 0), 0),
@@ -449,7 +434,6 @@ exports.approvePayroll = async (req, res, next) => {
           : 'success',
       req,
     });
-
     logger.info('Payroll approved', {
       userId: req.userId,
       approvedCount: applied.length,
@@ -468,7 +452,38 @@ exports.approvePayroll = async (req, res, next) => {
     next(error);
   }
 };
+async function finalizePayroll(req, res) {
+  try {
+    const { payrollRunId, payrollPeriodId } = req.body;
+    const lockingService = require('../services/PayrollRunLockingService');
 
+    // Check lock is still active
+    const activeLock = await lockingService.getActiveLock(payrollPeriodId);
+    if (!activeLock) {
+      return res.status(400).json({
+        message: 'No active payroll lock found. Lock may have been released.',
+      });
+    }
+
+    // ... existing code - finalize payroll
+    
+    // Store lock reference in payroll record
+    const payroll = await Payroll.findByIdAndUpdate(
+      payrollId,
+      {
+        lockedBy: activeLock._id,
+        inputBoundary: activeLock.inputBoundary,
+      },
+      { new: true }
+    );
+
+    // Release lock after finalization
+    await lockingService.releaseLock(activeLock._id, req.userId, {
+      payrollId,
+      recordsProcessed: payroll.employees.length,
+    });
+
+    // ... rest of existing code
 /**
  * POST /api/payroll/reject — checker sends a batch back to the maker.
  *
@@ -494,15 +509,13 @@ exports.rejectPayroll = async (req, res, next) => {
     const rejectedAt = new Date();
     const payrollsToApprove = await PayrollUpdate.find({
       _id: { $in: batch.ids },
-      tenantId: req.tenantId,
-      status: PAYROLL_STATUS.PENDING_APPROVAL,
+      status: PAYROLL_STATUS.PENDING_APPROVAL
     }).select('_id employeeId calculationSnapshot.employee.version');
 
     const employeeIds = payrollsToApprove.map((payroll) => payroll.employeeId);
 
     const employees = await Employee.find({
-      _id: { $in: employeeIds },
-      tenantId: req.tenantId,
+      _id: { $in: employeeIds }
     }).select('_id __v');
 
     const employeeVersions = new Map(
@@ -511,8 +524,7 @@ exports.rejectPayroll = async (req, res, next) => {
 
     const staleEmployeeVersions = payrollsToApprove
       .filter((payroll) => {
-        const snapshotVersion =
-          payroll.calculationSnapshot?.employee?.version;
+        const snapshotVersion = payroll.calculationSnapshot?.employee?.version;
 
         return (
           snapshotVersion !== undefined &&
@@ -533,16 +545,16 @@ exports.rejectPayroll = async (req, res, next) => {
     }
     const { applied, notFound, invalidTransition, versionConflicts } =
       await transitionPayrollBatch({
-        tenantId: req.tenantId,
         ids: batch.ids,
         targetStatus: PAYROLL_STATUS.REJECTED,
+
         extraFields: {
           rejectionReason: reason,
           rejectedBy: req.userId,
           rejectedAt,
           approvedBy: undefined,
           approvedAt: undefined,
-        },
+        }
       });
 
     if (versionConflicts && versionConflicts.length > 0) {
@@ -636,10 +648,9 @@ exports.markPayrollPaid = async (req, res, next) => {
 
     const { applied, notFound, invalidTransition, versionConflicts } =
       await transitionPayrollBatch({
-        tenantId: req.tenantId,
         ids: batch.ids,
         targetStatus: PAYROLL_STATUS.PAID,
-        extraFields: { paidAt },
+        extraFields: { paidAt }
       });
 
     if (versionConflicts && versionConflicts.length > 0) {
@@ -707,8 +718,8 @@ exports.parsePayrollCSV = async (req, res, next) => {
     const leaveIdx = headers.findIndex((h) => h.includes('leave'));
 
     const employees = await Employee.find({
-      tenantId: req.tenantId,
-      isDeleted: { $ne: true }, // Filter soft-deleted - Issue #526
+      // Filter soft-deleted - Issue #526
+      isDeleted: { $ne: true }
     });
     const activities = [];
     // `require('uuid')` threw MODULE_NOT_FOUND — uuid is not a dependency of
@@ -804,11 +815,18 @@ exports.getExchangeRates = async (req, res, next) => {
 };
 
 exports.submitPayrollForReview = async (req, res, next) => {
+  let lockAcquired = false;
+  let lockKey = '';
+
   try {
     const { activities, month, year } = req.body;
     if (!activities || !Array.isArray(activities) || activities.length === 0) {
       return res.status(400).json({ message: 'No activities to process' });
     }
+    if (!month || !year || isNaN(month) || isNaN(year)) {
+      return res.status(400).json({ message: 'Invalid month or year' });
+    }
+
     const result = await PayrollEngine.executeRun(req, {
       activities,
       month,
@@ -820,6 +838,20 @@ exports.submitPayrollForReview = async (req, res, next) => {
       errors: result.errors,
     });
   } catch (error) {
+    logger.error('Error in submitPayrollForReview:', error);
+    console.error(error.stack);
+    if (
+      error.message &&
+      error.message.includes('Another payroll process is currently running')
+    ) {
+      return res.status(409).json({ message: error.message });
+    }
+    if (
+      error.status === 400 ||
+      error.message.includes('Adolescent scheduling violations')
+    ) {
+      return res.status(400).json({ message: error.message });
+    }
     if (error.validationErrors) {
       return res
         .status(400)
@@ -829,6 +861,10 @@ exports.submitPayrollForReview = async (req, res, next) => {
       return res.status(409).json({ message: error.message, ...error.details });
     }
     next(error);
+  } finally {
+    if (lockAcquired) {
+      await releaseLock(lockKey);
+    }
   }
 };
 
@@ -876,19 +912,15 @@ exports.exportPayrollCSV = async (req, res, next) => {
       : new Date().getFullYear();
 
     if (isNaN(month) || !Number.isInteger(month) || month < 1 || month > 12) {
-      return res
-        .status(400)
-        .json({
-          message:
-            'Invalid month parameter. Must be an integer between 1 and 12.',
-        });
+      return res.status(400).json({
+        message:
+          'Invalid month parameter. Must be an integer between 1 and 12.',
+      });
     }
     if (isNaN(year) || !Number.isInteger(year) || year < 2000 || year > 2100) {
-      return res
-        .status(400)
-        .json({
-          message: 'Invalid year parameter. Must be a valid year integer.',
-        });
+      return res.status(400).json({
+        message: 'Invalid year parameter. Must be a valid year integer.',
+      });
     }
 
     const csvData = await PayrollExportService.exportCSV(req, {
@@ -922,8 +954,7 @@ exports.sendPayslipEmailHandler = async (req, res, next) => {
     }
 
     await PayrollExportService.sendPayslipEmail(req, {
-      payrollId,
-      tenantId: req.tenantId,
+      payrollId
     });
     res.status(200).json({ message: 'Payslip email sent successfully' });
   } catch (error) {
@@ -968,9 +999,8 @@ exports.sendAllPayslipsEmailHandler = async (req, res, next) => {
     }
 
     const data = await PayrollExportService.sendAllPayslipsEmail(req, {
-      tenantId: req.tenantId,
       month,
-      year,
+      year
     });
     res.status(200).json({
       message: `Bulk email dispatch complete. Sent: ${data.sentCount}, Skipped: ${data.skippedCount}, Failed: ${data.failedCount}`,
@@ -1007,3 +1037,54 @@ exports.getMerkleProofHandler = async (req, res, next) => {
     next(error);
   }
 };
+async function generatePayslips(req, res) {
+  try {
+    const { payrollId } = req.params;
+    const { employeeIds } = req.body;
+
+    const payroll = await Payroll.findOne({
+      _id: payrollId,
+      ...tenantFilter(req),
+    });
+    if (!payroll)
+      return res.status(404).json({ message: 'Payroll not found.' });
+
+    if (payroll.status !== 'finalized') {
+      return res
+        .status(400)
+        .json({ message: 'Only finalized payrolls can be processed.' });
+    }
+
+    const payslipService = require('../services/payslipGeneration.service');
+    const results = [];
+
+    for (const empId of employeeIds) {
+      const result = await payslipService.queuePayslipGeneration(
+        payrollId,
+        empId,
+        req.tenantId,
+      );
+      results.push(result);
+    }
+
+    return res.json({ message: 'Payslips queued for generation.', results });
+  } catch (err) {
+    logger.error('generatePayslips error', { error: err.message });
+    return res
+      .status(500)
+      .json({ message: 'Failed to queue payslip generation.' });
+  }
+}
+
+async function getPayslipStatus(req, res) {
+  try {
+    const { jobHash } = req.params;
+    const payslipService = require('../services/payslipGeneration.service');
+    const status = await payslipService.getGenerationStatus(jobHash);
+
+    return res.json(status);
+  } catch (err) {
+    logger.error('getPayslipStatus error', { error: err.message });
+    return res.status(500).json({ message: 'Could not fetch payslip status.' });
+  }
+}

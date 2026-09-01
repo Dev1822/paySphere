@@ -244,7 +244,9 @@ exports.updateRules = async (req, res, next) => {
     }
 
     const rules = await CessRules.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment },
+      {
+        establishment
+      },
       { $set: { ...update, updatedBy: req.userId } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -273,7 +275,7 @@ exports.updateRules = async (req, res, next) => {
  */
 exports.listProjects = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
     if (typeof req.query.establishment === 'string') {
       filter.establishment = req.query.establishment.trim();
     }
@@ -306,22 +308,24 @@ exports.createProject = async (req, res, next) => {
     }
 
     const project = await ConstructionProject.create({
-      tenantId: req.tenantId,
       establishment:
         typeof req.body.establishment === 'string'
           ? req.body.establishment.trim()
           : '',
+
       name: String(req.body.name).trim(),
+
       welfareBoardState:
         typeof req.body.welfareBoardState === 'string'
           ? req.body.welfareBoardState.trim()
           : '',
+
       site: typeof req.body.site === 'string' ? req.body.site.trim() : '',
       totalProjectCost,
       exclusions: sanitiseExclusions(req.body.exclusions),
       startedOn: req.body.startedOn ? new Date(req.body.startedOn) : new Date(),
       buildingWorkers: Math.max(0, Number(req.body.buildingWorkers) || 0),
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -380,8 +384,7 @@ exports.updateProjectCost = async (req, res, next) => {
     }
 
     const before = await ConstructionProject.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!before) return res.status(404).json({ message: 'Project not found' });
@@ -403,7 +406,9 @@ exports.updateProjectCost = async (req, res, next) => {
     }
 
     const project = await ConstructionProject.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       { $set: update },
       { new: true },
     );
@@ -447,15 +452,13 @@ exports.getProject = async (req, res, next) => {
     }
 
     const project = await ConstructionProject.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!project) return res.status(404).json({ message: 'Project not found' });
 
     const bills = await CessBill.find({
-      tenantId: req.tenantId,
-      projectId: project._id,
+      projectId: project._id
     })
       .sort({ billedOn: -1 })
       .lean();
@@ -507,8 +510,7 @@ exports.recordBill = async (req, res, next) => {
     }
 
     const project = await ConstructionProject.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!project) return res.status(404).json({ message: 'Project not found' });
@@ -521,30 +523,36 @@ exports.recordBill = async (req, res, next) => {
     const cessDeducted = Number(req.body.cessDeducted);
 
     const bill = await CessBill.create({
-      tenantId: req.tenantId,
       projectId: project._id,
+
       vendorId: mongoose.isValidObjectId(req.body.vendorId)
         ? req.body.vendorId
         : undefined,
+
       contractorName:
         typeof req.body.contractorName === 'string'
           ? req.body.contractorName.trim()
           : '',
+
       billNumber:
         typeof req.body.billNumber === 'string'
           ? req.body.billNumber.trim()
           : '',
+
       billedOn: req.body.billedOn ? new Date(req.body.billedOn) : new Date(),
       amount,
+
       // Recorded rather than computed. A bill paid gross is the failure the
       // register exists to catch, and defaulting to the correct deduction would
       // assert that it happened.
       cessDeducted:
         Number.isFinite(cessDeducted) && cessDeducted >= 0 ? cessDeducted : 0,
+
       remittedOn: req.body.remittedOn
         ? new Date(req.body.remittedOn)
         : undefined,
-      recordedBy: req.userId,
+
+      recordedBy: req.userId
     });
 
     return res.status(201).json({ bill });
@@ -566,7 +574,9 @@ exports.recordAssessmentOrder = async (req, res, next) => {
     }
 
     const project = await ConstructionProject.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       {
         $set: {
           assessedOn: req.body.assessedOn
@@ -611,11 +621,10 @@ exports.recordAssessmentOrder = async (req, res, next) => {
 exports.listBeneficiaries = async (req, res, next) => {
   try {
     const beneficiaries = await CessBeneficiary.find({
-      tenantId: req.tenantId,
       establishment:
         typeof req.query.establishment === 'string'
           ? req.query.establishment.trim()
-          : '',
+          : ''
     })
       .sort({ name: 1 })
       .limit(500)
@@ -655,12 +664,12 @@ exports.recordBeneficiary = async (req, res, next) => {
 
     const beneficiary = await CessBeneficiary.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         establishment:
           typeof req.body.establishment === 'string'
             ? req.body.establishment.trim()
             : '',
-        name: String(req.body.name).trim(),
+
+        name: String(req.body.name).trim()
       },
       {
         $set: {
@@ -723,9 +732,8 @@ exports.previewAssessment = async (req, res, next) => {
 
     return res.json(
       await buildAssessment({
-        tenantId: req.tenantId,
         establishment,
-        query: req.query,
+        query: req.query
       }),
     );
   } catch (error) {
@@ -738,7 +746,7 @@ exports.previewAssessment = async (req, res, next) => {
  */
 exports.listAssessments = async (req, res, next) => {
   try {
-    const assessments = await CessAssessment.find({ tenantId: req.tenantId })
+    const assessments = await CessAssessment.find({})
       .sort({ periodStart: -1 })
       .limit(50)
       .select('-findings -projects')
@@ -761,16 +769,14 @@ exports.commitAssessment = async (req, res, next) => {
         : '';
 
     const { period, rules, result } = await buildAssessment({
-      tenantId: req.tenantId,
       establishment,
-      query: req.body,
+      query: req.body
     });
 
     const assessment = await CessAssessment.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         establishment,
-        periodStart: period.periodStart,
+        periodStart: period.periodStart
       },
       {
         $set: {
@@ -826,7 +832,9 @@ exports.commitAssessment = async (req, res, next) => {
     await Promise.all(
       result.projects.map((row) =>
         ConstructionProject.updateOne(
-          { _id: row.projectId, tenantId: req.tenantId },
+          {
+            _id: row.projectId
+          },
           { $set: { status: row.status } },
         ),
       ),

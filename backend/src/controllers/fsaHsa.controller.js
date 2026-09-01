@@ -12,8 +12,12 @@ const logger = require('../utils/logger');
 exports.configurePlanYear = async (req, res, next) => {
     try {
         const config = await PlanYearConfiguration.findOneAndUpdate(
-            { tenantId: req.tenantId, planYear: req.body.planYear },
-            { ...req.body, tenantId: req.tenantId },
+            {
+                planYear: req.body.planYear
+            },
+            {
+                ...req.body
+            },
             { upsert: true, new: true }
         );
         res.status(200).json({ message: 'Plan year configuration saved', config });
@@ -24,7 +28,10 @@ exports.submitElection = async (req, res, next) => {
     try {
         const { employeeId, planYear, accountType, electedAnnualAmount, coverageType, isCatchUp, catchUpAmount } = req.body;
 
-        const config = await PlanYearConfiguration.findOne({ tenantId: req.tenantId, planYear, isActive: true });
+        const config = await PlanYearConfiguration.findOne({
+            planYear,
+            isActive: true
+        });
         if (!config) return res.status(400).json({ message: 'No active plan configuration for this year.' });
 
         const limitCheck = validateLimits(electedAnnualAmount, catchUpAmount || 0, accountType, config, coverageType);
@@ -33,7 +40,11 @@ exports.submitElection = async (req, res, next) => {
         }
 
         const election = await FSAHSAElection.findOneAndUpdate(
-            { tenantId: req.tenantId, employeeId, planYear, accountType },
+            {
+                employeeId,
+                planYear,
+                accountType
+            },
             {
                 electedAnnualAmount, coverageType, isCatchUp: isCatchUp || false,
                 catchUpAmount: catchUpAmount || 0, status: 'Active'
@@ -52,11 +63,14 @@ exports.processPayrollDeductions = async (req, res, next) => {
         const { payrollRunId, month, year, paychecksPerYear } = req.body;
         const planYear = year; // Assuming calendar year plan for simplicity
 
-        const config = await PlanYearConfiguration.findOne({ tenantId: req.tenantId, planYear }).session(session);
+        const config = await PlanYearConfiguration.findOne({
+            planYear
+        }).session(session);
         if (!config) throw new Error('Plan year not configured.');
 
         const elections = await FSAHSAElection.find({
-            tenantId: req.tenantId, planYear, status: 'Active'
+            planYear,
+            status: 'Active'
         }).session(session);
 
         const ledgers = [];
@@ -84,9 +98,13 @@ exports.processPayrollDeductions = async (req, res, next) => {
             const newYTD = Math.round((currentYTD + actualDeduction) * 100) / 100;
 
             const ledger = await ContributionLedger.create([{
-                tenantId: req.tenantId, electionId: election._id, employeeId: election.employeeId,
-                payrollRunId, periodMonth: month, periodYear: year,
-                employeeDeduction: actualDeduction, totalContribution: actualDeduction,
+                electionId: election._id,
+                employeeId: election.employeeId,
+                payrollRunId,
+                periodMonth: month,
+                periodYear: year,
+                employeeDeduction: actualDeduction,
+                totalContribution: actualDeduction,
                 ytdAccumulator: newYTD
             }], { session });
 
@@ -115,11 +133,14 @@ exports.processPayrollDeductions = async (req, res, next) => {
 exports.runYearEndTransition = async (req, res, next) => {
     try {
         const { oldPlanYear, newPlanYear } = req.body;
-        const config = await PlanYearConfiguration.findOne({ tenantId: req.tenantId, planYear: oldPlanYear });
+        const config = await PlanYearConfiguration.findOne({
+            planYear: oldPlanYear
+        });
         if (!config) return res.status(404).json({ message: 'Old plan year config not found.' });
 
         const fsaElections = await FSAHSAElection.find({
-            tenantId: req.tenantId, planYear: oldPlanYear, accountType: 'FSA'
+            planYear: oldPlanYear,
+            accountType: 'FSA'
         });
 
         const transitions = [];
@@ -146,7 +167,9 @@ exports.runYearEndTransition = async (req, res, next) => {
 
 exports.getPortalData = async (req, res, next) => {
     try {
-        const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+        const employee = await Employee.findOne({
+            userId: req.userId
+        });
         if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
         const currentYear = new Date().getFullYear();
@@ -155,7 +178,9 @@ exports.getPortalData = async (req, res, next) => {
         const ledgers = await ContributionLedger.find({ employeeId: employee._id })
             .sort({ periodYear: -1, periodMonth: -1 }).limit(20);
 
-        const config = await PlanYearConfiguration.findOne({ tenantId: req.tenantId, planYear: currentYear });
+        const config = await PlanYearConfiguration.findOne({
+            planYear: currentYear
+        });
 
         res.status(200).json({ elections, ledgers, config });
     } catch (error) { next(error); }

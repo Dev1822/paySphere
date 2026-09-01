@@ -9,7 +9,11 @@ const { processMonthlyAccrual } = require('./leaveAccrual.job');
 const logger = require('../utils/logger');
 const { runDatabaseBackupJob } = require('./backup.job');
 const { runDatabaseArchivalJob } = require('./archival.job');
+const { startCacheWarming } = require('./cacheWarming.job');
 const { runForexSyncJob } = require('./forexSync.job');
+const {
+  runCompensationCycleReminderJob,
+} = require('./compensationCycleReminder.job');
 const LOCK_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -310,6 +314,9 @@ async function runDailyGreetingsJob({ now = new Date(), tenantId } = {}) {
 const scheduledTasks = [];
 
 const startCronJobs = () => {
+  // Pre-dawn cache warming
+  scheduledTasks.push(startCacheWarming());
+
   // 09:00 on the 1st of every month.
   scheduledTasks.push(
     cron.schedule('0 9 1 * *', () => {
@@ -329,6 +336,18 @@ const startCronJobs = () => {
     }),
   );
   logger.info('Daily greetings cron job registered.');
+
+  // 00:00 daily
+  scheduledTasks.push(
+    cron.schedule('0 0 * * *', () => {
+      runCompensationCycleReminderJob().catch((error) =>
+        logger.error('Compensation cycle reminder job threw', {
+          error: error.message,
+        }),
+      );
+    }),
+  );
+  logger.info('Compensation cycle reminder job registered.');
 
   // 00:30 on the 1st of every month.
   //
@@ -469,6 +488,32 @@ const startCronJobs = () => {
   logger.info(
     'Payroll approval escalation cron job registered (every 15 min).',
   );
+
+  // 01:30 daily — Detect Milestones (Work Anniversaries) with 7-day lead time.
+  scheduledTasks.push(
+    cron.schedule('30 1 * * *', () => {
+      const { runDetectMilestonesJob } = require('./detectMilestones.job');
+      runDetectMilestonesJob().catch((error) =>
+        logger.error('Detect milestones job threw', { error: error.message }),
+      );
+    }),
+  );
+  logger.info('Daily detect milestones cron job registered.');
+
+  // 02:30 daily — Certification Expiry Notifications.
+  scheduledTasks.push(
+    cron.schedule('30 2 * * *', () => {
+      const {
+        runCertificationExpiryJob,
+      } = require('./certificationExpiry.job');
+      runCertificationExpiryJob().catch((error) =>
+        logger.error('Certification expiry job threw', {
+          error: error.message,
+        }),
+      );
+    }),
+  );
+  logger.info('Daily certification expiry cron job registered.');
 };
 
 function stopCronJobs() {
@@ -597,7 +642,8 @@ module.exports = {
   runDatabaseBackupJob,
   runDatabaseArchivalJob,
   runRetentionLifecycleJob,
-  runForexSyncJob,  runToilExpirationJob,
+  runForexSyncJob,
+  runToilExpirationJob,
   runTreasuryRebalancingJob: runTreasuryRebalancingCron,
   runTaxSyncJob: runTaxSyncCron,
   previousPeriod,

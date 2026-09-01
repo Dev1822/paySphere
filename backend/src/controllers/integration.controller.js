@@ -108,7 +108,7 @@ exports.listProviders = async (req, res, next) => {
  */
 exports.listIntegrations = async (req, res, next) => {
   try {
-    const configs = await IntegrationConfig.find({ tenantId: req.tenantId })
+    const configs = await IntegrationConfig.find({})
       .sort({ createdAt: -1 })
       .lean();
 
@@ -161,13 +161,14 @@ exports.upsertIntegration = async (req, res, next) => {
     if (body.syncSchedule) update.syncSchedule = String(body.syncSchedule);
 
     const config = await IntegrationConfig.findOneAndUpdate(
-      { tenantId: req.tenantId, provider },
+      {
+        provider
+      },
       {
         $set: update,
         $setOnInsert: {
-          tenantId: req.tenantId,
           provider,
-          createdBy: req.userId,
+          createdBy: req.userId
         },
       },
       {
@@ -219,8 +220,7 @@ exports.triggerSync = async (req, res, next) => {
     const provider = String(req.params.provider || '').toLowerCase();
 
     const config = await IntegrationConfig.findOne({
-      tenantId: req.tenantId,
-      provider,
+      provider
     }).lean();
 
     if (!config) {
@@ -276,8 +276,7 @@ exports.deleteIntegration = async (req, res, next) => {
     const provider = String(req.params.provider || '').toLowerCase();
 
     const config = await IntegrationConfig.findOneAndDelete({
-      tenantId: req.tenantId,
-      provider,
+      provider
     });
 
     if (!config) {
@@ -311,7 +310,9 @@ exports.getFieldMapping = async (req, res, next) => {
   try {
     const provider = String(req.params.provider || '').toLowerCase();
     const IntegrationFieldMap = require('../models/integrationFieldMap.model');
-    let map = await IntegrationFieldMap.findOne({ tenantId: req.tenantId, provider }).lean();
+    let map = await IntegrationFieldMap.findOne({
+      provider
+    }).lean();
     if (!map) {
       map = { provider, mapping: { fullName: 'fullName', department: 'department', monthlySalary: 'monthlySalary' } };
     }
@@ -329,7 +330,9 @@ exports.saveFieldMapping = async (req, res, next) => {
 
     const IntegrationFieldMap = require('../models/integrationFieldMap.model');
     const map = await IntegrationFieldMap.findOneAndUpdate(
-      { tenantId: req.tenantId, provider },
+      {
+        provider
+      },
       { $set: { mapping } },
       { new: true, upsert: true }
     );

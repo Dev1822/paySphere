@@ -356,7 +356,9 @@ exports.updateRules = async (req, res, next) => {
     }
 
     const rules = await MigrantRules.findOneAndUpdate(
-      { tenantId: req.tenantId, establishment },
+      {
+        establishment
+      },
       { $set: { ...update, updatedBy: req.userId } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -385,7 +387,7 @@ exports.updateRules = async (req, res, next) => {
  */
 exports.listWorkmen = async (req, res, next) => {
   try {
-    const filter = { tenantId: req.tenantId };
+    const filter = {};
 
     if (typeof req.query.establishment === 'string') {
       filter.establishment = req.query.establishment.trim();
@@ -432,33 +434,38 @@ exports.createWorkman = async (req, res, next) => {
     }
 
     const workman = await MigrantWorkman.create({
-      tenantId: req.tenantId,
       establishment:
         typeof req.body.establishment === 'string'
           ? req.body.establishment.trim()
           : '',
+
       name: String(name).trim(),
       trade: typeof req.body.trade === 'string' ? req.body.trade.trim() : '',
       homeState: String(homeState).trim(),
       hostState: String(hostState).trim(),
+
       contractorId: mongoose.isValidObjectId(req.body.contractorId)
         ? req.body.contractorId
         : undefined,
+
       recruitedOn: recruitedOn ? new Date(recruitedOn) : new Date(),
       homeStateRate: Number(req.body.homeStateRate) || 0,
       hostStateRate: Number(req.body.hostStateRate) || 0,
+
       localComparableRate:
         req.body.localComparableRate === undefined ||
         req.body.localComparableRate === null
           ? null
           : Number(req.body.localComparableRate),
+
       localComparableTrade:
         typeof req.body.localComparableTrade === 'string'
           ? req.body.localComparableTrade.trim()
           : '',
+
       paidDailyRate: Number(req.body.paidDailyRate) || 0,
       daysWorked: Number(req.body.daysWorked) || 0,
-      createdBy: req.userId,
+      createdBy: req.userId
     });
 
     eventBus.emit('AUDIT_LOG', {
@@ -507,14 +514,15 @@ exports.recordComparator = async (req, res, next) => {
     }
 
     const before = await MigrantWorkman.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!before) return res.status(404).json({ message: 'Workman not found' });
 
     const workman = await MigrantWorkman.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       {
         $set: {
           localComparableRate: rate,
@@ -557,8 +565,7 @@ exports.getComparatorSuggestion = async (req, res, next) => {
     }
 
     const workman = await MigrantWorkman.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     }).lean();
 
     if (!workman) return res.status(404).json({ message: 'Workman not found' });
@@ -626,7 +633,9 @@ exports.recordAllowances = async (req, res, next) => {
     }
 
     const workman = await MigrantWorkman.findOneAndUpdate(
-      { _id: req.params.id, tenantId: req.tenantId },
+      {
+        _id: req.params.id
+      },
       { $set: update },
       { new: true },
     );
@@ -673,8 +682,7 @@ exports.accrueReturnJourney = async (req, res, next) => {
     const journeyDays = Number(req.body.returnJourneyDays);
 
     const workman = await MigrantWorkman.findOne({
-      _id: req.params.id,
-      tenantId: req.tenantId,
+      _id: req.params.id
     });
 
     if (!workman) return res.status(404).json({ message: 'Workman not found' });
@@ -727,11 +735,10 @@ exports.accrueReturnJourney = async (req, res, next) => {
 exports.listFacilities = async (req, res, next) => {
   try {
     const facilities = await MigrantFacilityRegister.find({
-      tenantId: req.tenantId,
       establishment:
         typeof req.query.establishment === 'string'
           ? req.query.establishment.trim()
-          : '',
+          : ''
     }).lean();
 
     return res.json({ facilities });
@@ -757,12 +764,12 @@ exports.recordFacility = async (req, res, next) => {
 
     const record = await MigrantFacilityRegister.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         establishment:
           typeof req.body.establishment === 'string'
             ? req.body.establishment.trim()
             : '',
-        facility,
+
+        facility
       },
       {
         $set: {
@@ -800,9 +807,8 @@ exports.previewAssessment = async (req, res, next) => {
 
     return res.json(
       await buildAssessment({
-        tenantId: req.tenantId,
         establishment,
-        query: req.query,
+        query: req.query
       }),
     );
   } catch (error) {
@@ -815,7 +821,7 @@ exports.previewAssessment = async (req, res, next) => {
  */
 exports.listAssessments = async (req, res, next) => {
   try {
-    const assessments = await MigrantAssessment.find({ tenantId: req.tenantId })
+    const assessments = await MigrantAssessment.find({})
       .sort({ periodStart: -1 })
       .limit(50)
       .select('-findings -workmen')
@@ -838,16 +844,14 @@ exports.commitAssessment = async (req, res, next) => {
         : '';
 
     const { period, rules, result } = await buildAssessment({
-      tenantId: req.tenantId,
       establishment,
-      query: req.body,
+      query: req.body
     });
 
     const assessment = await MigrantAssessment.findOneAndUpdate(
       {
-        tenantId: req.tenantId,
         establishment,
-        periodStart: period.periodStart,
+        periodStart: period.periodStart
       },
       {
         $set: {

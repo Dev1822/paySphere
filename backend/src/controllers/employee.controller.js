@@ -13,7 +13,6 @@ const {
   FULLNAME_MAX_LENGTH,
   ROLE_MAX_LENGTH,
 } = require('../utils/validators');
-const { tenantFilter } = require('../utils/tenantScope');
 const PayrollUpdate = require('../models/payroll.model');
 const logger = require('../utils/logger');
 const eventBus = require('../services/event.service');
@@ -22,6 +21,7 @@ const { invalidateStatsCaches } = require('./stats.controller');
 const Settlement = require('../models/settlement.model');
 const { Client } = require('@elastic/elasticsearch');
 const customFieldService = require('../services/customField.service');
+const lifecycleEventService = require('../services/lifecycleEvent.service');
 
 const esClient = new Client({
   node: process.env.ELASTICSEARCH_NODE || 'http://localhost:9200',
@@ -243,6 +243,13 @@ exports.addEmployee = async (req, res, next) => {
 
     await cacheService.invalidateAnalytics(req.userId);
     await invalidateStatsCaches(req.tenantId);
+    await cacheService.invalidateTags([
+      'dept:analytics',
+      'dashboard',
+      'reports',
+      'analytics',
+      'stats:overview',
+    ]);
     res.status(201).json({ message: 'Employee added successfully', employee });
   } catch (error) {
     if (handleDuplicateEmail(error, res)) return;
@@ -275,7 +282,7 @@ exports.getEmployees = async (req, res, next) => {
     const skip = (page - 1) * limit;
 
     const query = req.tenantId
-      ? { tenantId: req.tenantId }
+      ? {}
       : { createdBy: req.userId };
 
     if (!includeDeleted) {
@@ -313,7 +320,7 @@ exports.getEmployees = async (req, res, next) => {
     }
 
     // `?includeDeleted=true` has to opt out of the plugin as well as out of the
-    // `deletedAt: null` clause above (#897). Now that `deleteEmployee` sets
+    // `` clause above (#897). Now that `deleteEmployee` sets
     // `isDeleted`, a query with no `deletedAt` key gets `isDeleted: { $ne:
     // true }` appended by softDelete.plugin.js — so asking for deleted rows
     // would return exactly the rows that are not deleted.
@@ -346,7 +353,6 @@ exports.getRecentEmployees = async (req, res, next) => {
   try {
     const employees = await Employee.find({
       createdBy: req.userId,
-      deletedAt: null,
     })
       .sort({ createdAt: -1 })
       .limit(5);
@@ -361,7 +367,7 @@ exports.getRecentEmployees = async (req, res, next) => {
 exports.getOrgChart = async (req, res, next) => {
   try {
     const query = req.tenantId
-      ? { tenantId: req.tenantId }
+      ? {}
       : { createdBy: req.userId };
     query.deletedAt = null;
     query.isActive = true;
@@ -383,7 +389,9 @@ exports.updateEmployeeManager = async (req, res, next) => {
     const { managerId } = req.body;
 
     const query = req.tenantId
-      ? { _id: id, tenantId: req.tenantId }
+      ? {
+      _id: id
+    }
       : { _id: id, createdBy: req.userId };
 
     const employee = await Employee.findOne(query);
@@ -409,7 +417,9 @@ exports.updateEmployeeManager = async (req, res, next) => {
     }
 
     const managerQuery = req.tenantId
-      ? { _id: managerId, tenantId: req.tenantId }
+      ? {
+      _id: managerId
+    }
       : { _id: managerId, createdBy: req.userId };
 
     let cursor = await Employee.findOne(managerQuery);
@@ -432,7 +442,9 @@ exports.updateEmployeeManager = async (req, res, next) => {
 
       cursor = await Employee.findOne(
         req.tenantId
-          ? { _id: nextId, tenantId: req.tenantId }
+          ? {
+          _id: nextId
+        }
           : { _id: nextId, createdBy: req.userId },
       );
     }
@@ -721,6 +733,13 @@ exports.importEmployees = async (req, res, next) => {
 
           if (importedCount > 0) {
             await invalidateStatsCaches(req.tenantId);
+            await cacheService.invalidateTags([
+              'dept:analytics',
+              'dashboard',
+              'reports',
+              'analytics',
+              'stats:overview',
+            ]);
           }
 
           return res.status(200).json({
@@ -765,7 +784,7 @@ exports.updateEmployee = async (req, res, next) => {
     // `createdBy !== req.userId` here and in `deleteEmployee`,
     // `tenantId.toString() !== req.tenantId` in `toggleActive` — and none of
     // the three was right.
-    const employee = await Employee.findOne(tenantFilter(req, { _id: id }));
+    const employee = await Employee.findOne({ _id: id });
     if (!Number.isInteger(version) || version < 0) {
       return res.status(400).json({
         message: 'A valid employee version is required',
@@ -787,19 +806,7 @@ exports.updateEmployee = async (req, res, next) => {
     //
     // It is not a tenant check and never was — it asks "did *you personally*
     // create this record", which is arguably too strict for a shared HR
-    // workspace where the account that onboards someone is often not the one
-    // who later edits them. But relaxing it widens who may modify employee
-    // records, and that is a change to the permission model rather than a
-    // security fix. It belongs in its own PR with its own argument; #1010
-    // records the reasoning. Scoping the fetch above is the part that closes
-    // the cross-tenant hole, and it composes with this check rather than
-    // replacing it.
-    if (employee.createdBy.toString() !== req.userId) {
-      return res
-        .status(403)
-        .json({ message: 'Not authorized to update this employee' });
-    }
-
+    // Ownership is now verified by the ABAC engine middleware
     // Validate fields if provided
     if (fullName !== undefined && !isNonEmptyString(fullName)) {
       return res
@@ -866,6 +873,8 @@ exports.updateEmployee = async (req, res, next) => {
 
     // Capture old name for payroll propagation check (#253)
     const oldName = employee.fullName;
+    const oldDepartment = employee.department;
+    const oldRole = employee.role;
 
     // Apply updates only for provided fields
     if (fullName !== undefined) employee.fullName = sanitizeText(fullName);
@@ -947,6 +956,30 @@ exports.updateEmployee = async (req, res, next) => {
       }
     }
 
+    if (department !== undefined && employee.department !== oldDepartment) {
+      await lifecycleEventService.recordEvent({
+        employeeId: employee._id,
+        tenantId: employee.tenantId,
+        eventType: 'DEPARTMENT_TRANSFERRED',
+        category: 'Role',
+        recordedBy: req.userId,
+        previousValues: { department: oldDepartment },
+        newValues: { department: employee.department },
+      });
+    }
+
+    if (role !== undefined && employee.role !== oldRole) {
+      await lifecycleEventService.recordEvent({
+        employeeId: employee._id,
+        tenantId: employee.tenantId,
+        eventType: 'ROLE_CHANGED',
+        category: 'Role',
+        recordedBy: req.userId,
+        previousValues: { role: oldRole },
+        newValues: { role: employee.role },
+      });
+    }
+
     eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
       action: 'EMPLOYEE_UPDATE',
@@ -968,6 +1001,13 @@ exports.updateEmployee = async (req, res, next) => {
 
     await cacheService.invalidateAnalytics(req.userId);
     await invalidateStatsCaches(req.tenantId);
+    await cacheService.invalidateTags([
+      'dept:analytics',
+      'dashboard',
+      'reports',
+      'analytics',
+      'stats:overview',
+    ]);
     res
       .status(200)
       .json({ message: 'Employee updated successfully', employee });
@@ -982,7 +1022,7 @@ exports.updateEmployee = async (req, res, next) => {
     if (handleDuplicateEmail(error, res)) return;
     next(error);
   }
-};// TOGGLE EMPLOYEE ACTIVE STATUS
+}; // TOGGLE EMPLOYEE ACTIVE STATUS
 exports.toggleEmployeeStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -1002,7 +1042,7 @@ exports.toggleEmployeeStatus = async (req, res, next) => {
     //
     // The comparison fails closed here purely by luck. The same mistake
     // written as `if (a.toString() === b) { allow }` fails open.
-    const employee = await Employee.findOne(tenantFilter(req, { _id: id }));
+    const employee = await Employee.findOne({ _id: id });
 
     if (!employee || employee.deletedAt) {
       return res.status(404).json({ message: 'Employee not found' });
@@ -1015,6 +1055,13 @@ exports.toggleEmployeeStatus = async (req, res, next) => {
     // changes the analytics aggregates and must clear the cache (#415).
     await cacheService.invalidateAnalytics(req.userId);
     await invalidateStatsCaches(req.tenantId);
+    await cacheService.invalidateTags([
+      'dept:analytics',
+      'dashboard',
+      'reports',
+      'analytics',
+      'stats:overview',
+    ]);
 
     // This was the only employee mutation with no audit event, unlike its
     // create/update/delete siblings.
@@ -1053,7 +1100,7 @@ exports.deleteEmployee = async (req, res, next) => {
     // Scoped (#1010). The `createdBy` check below is kept for the reason given
     // in `updateEmployee`: relaxing it is a permission-model decision, not a
     // security fix, and the two should not travel together.
-    const employee = await Employee.findOne(tenantFilter(req, { _id: id }));
+    const employee = await Employee.findOne({ _id: id });
 
     if (!employee || employee.deletedAt) {
       return res.status(404).json({
@@ -1061,13 +1108,7 @@ exports.deleteEmployee = async (req, res, next) => {
       });
     }
 
-    // Check ownership
-    if (employee.createdBy.toString() !== req.userId) {
-      return res.status(403).json({
-        message: 'Not authorized to delete this employee',
-      });
-    }
-
+    // Ownership is now verified by the ABAC engine middleware
     // Check if employee has historical "paid" payroll records (#345)
     const hasPaidPayroll = await PayrollUpdate.exists({
       employeeId: id,
@@ -1130,14 +1171,12 @@ exports.deleteEmployee = async (req, res, next) => {
     //   - The plugin's whole purpose — hiding deleted rows from any query that
     //     has not opted in — never took effect for employees. Nothing leaked
     //     from the directory only because `getEmployees` happens to filter on
-    //     `deletedAt: null` by hand.
+    //     `` by hand.
     //
     // Set together, so the two markers cannot disagree again. `restoreEmployee`
     // clears both.
-    employee.isDeleted = true;
-    employee.deletedAt = new Date();
-    employee.isActive = false;
-    await employee.save();
+    employee.isActive = false; // Still need to deactivate
+    await employee.softDelete();
 
     eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
@@ -1160,6 +1199,13 @@ exports.deleteEmployee = async (req, res, next) => {
 
     await cacheService.invalidateAnalytics(req.userId);
     await invalidateStatsCaches(req.tenantId);
+    await cacheService.invalidateTags([
+      'dept:analytics',
+      'dashboard',
+      'reports',
+      'analytics',
+      'stats:overview',
+    ]);
 
     res.status(200).json({
       message: 'Employee deleted successfully',
@@ -1221,10 +1267,8 @@ exports.restoreEmployee = async (req, res, next) => {
     // `deletedAt` alone would leave `isDeleted: true` on a record the UI now
     // shows as live — and every plugin hook would go on hiding it, so the
     // employee would vanish from the directory with nothing to explain why.
-    employee.isDeleted = false;
-    employee.deletedAt = null;
     employee.isActive = true;
-    await employee.save();
+    await employee.restore();
 
     eventBus.emit('AUDIT_LOG', {
       userId: req.userId,
@@ -1243,6 +1287,13 @@ exports.restoreEmployee = async (req, res, next) => {
 
     await cacheService.invalidateAnalytics(req.userId);
     await invalidateStatsCaches(req.tenantId);
+    await cacheService.invalidateTags([
+      'dept:analytics',
+      'dashboard',
+      'reports',
+      'analytics',
+      'stats:overview',
+    ]);
 
     res.status(200).json({
       message: 'Employee restored successfully',
@@ -1257,7 +1308,6 @@ exports.exportEmployeesCSV = async (req, res, next) => {
   try {
     const query = {
       createdBy: req.userId,
-      deletedAt: null,
     };
 
     const employees = await Employee.find(query).sort({ createdAt: -1 });

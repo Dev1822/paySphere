@@ -22,10 +22,13 @@
 
 const jwt = require('jsonwebtoken');
 
+const asyncContext = require('../utils/asyncContext');
 const User = require('../models/user.model');
+const { validateApiKey } = require('../services/apiKey.service');
 const { resolveAccountType } = require('../config/accountTypes');
 const { ensureTenantForUser } = require('../services/tenant.service');
 const { isUsableTenantId } = require('../utils/tenantScope');
+const redisClient = require('../config/redis');
 
 /**
  * The claims carried by an access token.
@@ -120,7 +123,11 @@ async function resolveTenantId(user, decoded) {
 
   if (isUsableTenantId(decoded.tenantId)) return decoded.tenantId;
 
-  return (await ensureTenantForUser(user)) || null;
+  const tenantId = await ensureTenantForUser(user);
+  if (tenantId) return tenantId;
+
+  const { MissingTenantError } = require('../utils/tenantScope');
+  throw new MissingTenantError('Request is not scoped to a company');
 }
 
 /**
@@ -140,8 +147,44 @@ const auth = async (req, res, next) => {
       return;
     }
 
+    // Check if it's an API Key
+    if (token.startsWith('ps_')) {
+      const apiKeyDoc = await validateApiKey(token);
+      if (!apiKeyDoc) {
+        res.status(401).json({ message: 'Invalid or revoked API key' });
+        return;
+      }
+
+      req.tenantId = apiKeyDoc.tenantId.toString();
+      req.isApiKey = true;
+      req.apiKeyScopes = apiKeyDoc.scopes;
+
+      // Setting a dummy user to satisfy downstream middlewares that expect req.user
+      req.user = {
+        _id: apiKeyDoc.createdBy,
+        tenantId: req.tenantId,
+        role: 'api_client',
+        accountType: 'api',
+      };
+      req.userId = apiKeyDoc.createdBy.toString();
+
+      asyncContext.run({ tenantId: req.tenantId, bypass: false }, () => {
+        next();
+      });
+      return;
+    }
+
     /** @type {DecodedAccessToken} */
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Check if token is blacklisted in Redis (Token Replay Prevention #2088)
+    if (redisClient && redisClient.status === "ready") {
+      const isBlacklisted = await redisClient.get(`blacklist:${token}`);
+      if (isBlacklisted) {
+        res.status(401).json({ message: 'Token has been revoked' });
+        return;
+      }
+    }
 
     /** @type {AuthenticatedUser|null} */
     const user = await User.findById(decoded.id).select(AUTH_USER_PROJECTION);
@@ -177,8 +220,14 @@ const auth = async (req, res, next) => {
       req.impersonatorEmail = decoded.impersonatorEmail;
     }
 
-    next();
-  } catch {
+    asyncContext.run({ tenantId: req.tenantId, bypass: false }, () => {
+      next();
+    });
+  } catch (error) {
+    if (error.name === 'MissingTenantError') {
+      res.status(403).json({ message: error.message });
+      return;
+    }
     // Deliberately opaque. Distinguishing "expired" from "malformed" from "bad
     // signature" in the response body tells an attacker which half of a forged
     // token to keep working on.

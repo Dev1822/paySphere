@@ -19,8 +19,12 @@ exports.assignCard = async (req, res, next) => {
         const { employeeId, cardLastFour, cardIssuer, creditLimit, monthlyLimit, receiptGracePeriodDays } = req.body;
 
         const card = await CorporateCard.create({
-            tenantId: req.tenantId, employeeId, cardLastFour, cardIssuer,
-            creditLimit, monthlyLimit, receiptGracePeriodDays
+            employeeId,
+            cardLastFour,
+            cardIssuer,
+            creditLimit,
+            monthlyLimit,
+            receiptGracePeriodDays
         });
 
         res.status(201).json({ message: 'Corporate card assigned', card });
@@ -34,7 +38,6 @@ exports.importTransactions = async (req, res, next) => {
 
         for (const tx of transactions) {
             const card = await CorporateCard.findOne({
-                tenantId: req.tenantId,
                 cardLastFour: tx.cardLastFour,
                 status: 'Active'
             });
@@ -48,7 +51,6 @@ exports.importTransactions = async (req, res, next) => {
             const flags = evaluatePolicyViolations(tx, blockedMCCs, maxLimit);
 
             const newTx = await CardTransaction.create({
-                tenantId: req.tenantId,
                 cardId: card._id,
                 employeeId: card.employeeId,
                 externalTransactionId: tx.externalId,
@@ -71,7 +73,9 @@ exports.uploadReceipt = async (req, res, next) => {
     try {
         const { transactionId, receiptUrl, notes, isPersonalSpend } = req.body;
 
-        const tx = await CardTransaction.findOne({ _id: transactionId, tenantId: req.tenantId });
+        const tx = await CardTransaction.findOne({
+            _id: transactionId
+        });
         if (!tx) return res.status(404).json({ message: 'Transaction not found' });
 
         tx.receiptUrl = receiptUrl;
@@ -100,7 +104,6 @@ exports.runReconciliationBatch = async (req, res, next) => {
 
         // Fetch all pending or rejected transactions in the period
         const transactions = await CardTransaction.find({
-            tenantId: req.tenantId,
             transactionDate: { $gte: start, $lte: end },
             status: { $in: ['Pending Receipt', 'Rejected', 'Clawback Initiated'] }
         }).session(session);
@@ -120,8 +123,10 @@ exports.runReconciliationBatch = async (req, res, next) => {
         }
 
         const batch = await ReconciliationBatch.create([{
-            tenantId: req.tenantId, periodStart: start, periodEnd: end,
-            totalClawbackAmount: totalClawback, transactionCount: clawbackItems.length,
+            periodStart: start,
+            periodEnd: end,
+            totalClawbackAmount: totalClawback,
+            transactionCount: clawbackItems.length,
             status: 'Draft'
         }], { session });
 
@@ -172,10 +177,14 @@ exports.injectClawbacksToPayroll = async (req, res, next) => {
 
 exports.getMyTransactions = async (req, res, next) => {
     try {
-        const employee = await Employee.findOne({ userId: req.userId, tenantId: req.tenantId });
+        const employee = await Employee.findOne({
+            userId: req.userId
+        });
         if (!employee) return res.status(404).json({ message: 'Employee profile not found' });
 
-        const transactions = await CardTransaction.find({ employeeId: employee._id, tenantId: req.tenantId })
+        const transactions = await CardTransaction.find({
+            employeeId: employee._id
+        })
             .sort({ transactionDate: -1 }).limit(100);
 
         res.status(200).json({ transactions });

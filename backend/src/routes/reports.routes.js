@@ -18,25 +18,57 @@ const router = express.Router();
 const analyticsCache = cacheMiddleware({
   ttl: 900,
   prefix: 'reports:analytics',
-  getTags: (req) => [`reports:${req.userId}`, `analytics:${req.userId}`],
+  tags: ['reports', 'analytics', 'dept:analytics'],
 });
 
 const turnoverCache = cacheMiddleware({
   ttl: 900,
   prefix: 'reports:turnover',
-  getTags: (req) => [`reports:${req.userId}`],
+  tags: ['reports'],
 });
 
 // Preserved original READ_REPORT permission — do NOT change to READ_PAYROLL
-router.get('/analytics', auth, requirePermission('READ_REPORT'), analyticsCache, getAnalytics);
-router.get('/turnover', auth, requirePermission('READ_REPORT'), turnoverCache, getTurnoverMetrics);
+router.get(
+  '/analytics',
+  auth,
+  requirePermission('READ_REPORT'),
+  analyticsCache,
+  getAnalytics,
+);
+router.get(
+  '/turnover',
+  auth,
+  requirePermission('READ_REPORT'),
+  turnoverCache,
+  getTurnoverMetrics,
+);
 
 // Custom reports are POST with dynamic bodies — not suitable for GET middleware caching
-router.post('/custom', auth, requirePermission('READ_REPORT'), generateCustomReport);
+router.post(
+  '/custom',
+  auth,
+  requirePermission('READ_REPORT'),
+  generateCustomReport,
+);
 
 // Binary downloads stream buffers directly — never cache via middleware
-router.get('/download-pdf', auth, requirePermission('READ_REPORT'), downloadPDFReport);
-router.get('/export-xlsx', auth, requirePermission('READ_REPORT'), exportExcelReport);
-router.get('/download-zip', auth, requirePermission('READ_REPORT'), downloadPayslipsZip);
+router.get(
+  '/download-pdf',
+  auth,
+  requirePermission('READ_REPORT'),
+  downloadPDFReport,
+);
+router.get(
+  '/export-xlsx',
+  auth,
+  requirePermission('READ_REPORT'),
+  exportExcelReport,
+);
+router.get(
+  '/download-zip',
+  auth,
+  requirePermission('READ_REPORT'),
+  downloadPayslipsZip,
+);
 
 module.exports = router;

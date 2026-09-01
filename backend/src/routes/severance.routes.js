@@ -1,28 +1,19 @@
 /**
- * Severance Routes - Issue #1597
- * Mounted at /api/severance
+ * @fileoverview Statutory Retrenchment & Severance API Routes
+ * Issue: #2064
  */
-'use strict';
 
-const { Router } = require('express');
-const auth = require('../middlewares/auth.middleware');
-const { requirePermission } = require('../middlewares/rbac.middleware');
-const { writeRateLimiter } = require('../middlewares/rateLimiter.middleware');
-const { PERMISSIONS } = require('../config/permissions');
+const express = require('express');
+const router = express.Router();
 const {
-  calculatePreview,
-  createSeverancePackage,
-  getSeverancePackages,
-  approveSeverancePackage,
-  disburseSeverancePackage,
+  calculateRetrenchment,
+  submitClosureBatch,
+  getSeveranceSummary,
 } = require('../controllers/severance.controller');
+const { protect } = require('../middlewares/auth.middleware');
 
-const router = Router();
-
-router.post('/preview', auth, requirePermission(PERMISSIONS.READ_PAYROLL), calculatePreview);
-router.post('/packages', auth, requirePermission(PERMISSIONS.WRITE_PAYROLL), writeRateLimiter, createSeverancePackage);
-router.get('/packages', auth, requirePermission(PERMISSIONS.READ_PAYROLL), getSeverancePackages);
-router.put('/packages/:id/approve', auth, requirePermission(PERMISSIONS.WRITE_PAYROLL), writeRateLimiter, approveSeverancePackage);
-router.post('/packages/:id/disburse', auth, requirePermission(PERMISSIONS.WRITE_PAYROLL), writeRateLimiter, disburseSeverancePackage);
+router.post('/calculate-retrenchment', protect, calculateRetrenchment);
+router.post('/submit-closure-batch', protect, submitClosureBatch);
+router.get('/summary/:employeeId', protect, getSeveranceSummary);
 
 module.exports = router;

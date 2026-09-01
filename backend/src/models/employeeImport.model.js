@@ -27,7 +27,14 @@ const employeeImportSchema = new mongoose.Schema(
     importedEmployeeIds: { type: [mongoose.Schema.Types.ObjectId], default: [] },
     // Temporarily stores valid rows between preview and commit.
     validatedRows: { type: [mongoose.Schema.Types.Mixed], default: [] },
-  },
+    // Track processed vs pending batches for resumability
+    processedBatches: { type: [Number], default: [] },
+    lastProcessedBatch: { type: Number, default: -1 },
+    duplicateRows: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    duplicateCount: { type: Number, default: 0 },
+    successfulRows: { type: Number, default: 0 },
+    batchSize: { type: Number, default: 100 },
+    jobQueueId: { type: String, default: null },  },
   { timestamps: true }
 );
 

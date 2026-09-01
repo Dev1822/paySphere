@@ -1,3 +1,8 @@
+/**
+ * @fileoverview Database Archival and Purge Job
+ * @description Monthly cron job to compress and archive payroll/audit/attendance records older than 7 years to AWS S3 Glacier.
+ * Issue: #1846
+ */
 const fs = require('fs');
 const path = require('path');
 const archiver = require('archiver');
